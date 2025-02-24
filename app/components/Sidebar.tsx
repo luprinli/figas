@@ -33,11 +33,6 @@ const NAV_ITEMS = [
     href: "/signup",
   },
   {
-    id: 4,
-    label: "Logout",
-    href: "/logout",
-  },
-  {
     id: 5,
     label: "Docs: Remix on Netlify",
     href: "https://docs.netlify.com/frameworks/remix/",
