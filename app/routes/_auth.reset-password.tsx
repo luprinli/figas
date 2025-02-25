@@ -27,7 +27,7 @@ export default function ResetPassword() {
           type="email"
           placeholder="Email address"
         />
-        <Button type="submit" size="large" className="w-full">
+        <Button type="submit" className="w-full">
           Reset Password
         </Button>
       </Form>

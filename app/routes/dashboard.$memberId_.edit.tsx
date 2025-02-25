@@ -8,6 +8,7 @@ import { Form, Link, useLoaderData, useNavigation } from "@remix-run/react";
 import invariant from "tiny-invariant";
 
 import Button from "~/components/Button";
+import { GlobalErrorBoundary } from "~/components/GlobalErrorBoundary";
 import TextField from "~/components/TextField";
 import { getSupabaseClient } from "~/utils/getSupabaseClient";
 
@@ -123,4 +124,8 @@ export default function EditMember() {
       </div>
     </>
   );
+}
+
+export function ErrorBoundary() {
+  return <GlobalErrorBoundary />;
 }

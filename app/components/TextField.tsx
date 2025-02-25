@@ -10,11 +10,10 @@ interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   placeholder?: string;
   className?: string;
   required?: boolean;
-  error?: string | null | undefined;
 }
 
 const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
-  (
+  function TextField(
     {
       id,
       name,
@@ -23,11 +22,10 @@ const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
       placeholder,
       className,
       label,
-      error,
       ...rest
     },
     ref
-  ) => {
+  ) {
     return (
       <div>
         {label && (
@@ -55,21 +53,13 @@ const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
           required={required}
           placeholder={placeholder}
           className={[
-            "block w-full rounded-md border p-3 text-sm text-slate-700 transition placeholder:font-light",
-            error
-              ? "border-rose-300 focus:border-rose-300 focus:ring-2 focus:ring-rose-100 focus:outline-none"
-              : "border-slate-200 focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100 focus:outline-none",
+            "block w-full rounded-md border p-3 text-sm text-slate-700 transition placeholder:font-light border-slate-200 focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100 focus:outline-none",
             className,
           ]
             .filter(Boolean)
             .join(" ")}
           {...rest}
         />
-        {error ? (
-          <span className="text-xs text-rose-700" id={id}>
-            {error}
-          </span>
-        ) : null}
       </div>
     );
   }

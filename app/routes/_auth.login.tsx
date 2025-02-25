@@ -118,15 +118,10 @@ export default function LogIn() {
           <Link
             to="/reset-password"
             className="block text-sm tracking-wide underline text-cyan-600"
-            >
+          >
             Forgot password?
           </Link>
-          <Button
-            type="submit"
-            size="large"
-            className="w-full"
-            loading={isSubmitting}
-          >
+          <Button type="submit" className="w-full" loading={isSubmitting}>
             Login
           </Button>
           <p className="text-sm text-center">
