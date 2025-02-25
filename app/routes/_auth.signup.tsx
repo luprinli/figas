@@ -58,12 +58,7 @@ export default function SignUp() {
             type="password"
             placeholder="password"
           />
-          <Button
-            type="submit"
-            size="large"
-            className="w-full"
-            loading={isSubmitting}
-          >
+          <Button type="submit" className="w-full" loading={isSubmitting}>
             Login
           </Button>
         </fieldset>

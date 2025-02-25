@@ -2,6 +2,7 @@ import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { Link, useLoaderData } from "@remix-run/react";
 import invariant from "tiny-invariant";
 
+import { GlobalErrorBoundary } from "~/components/GlobalErrorBoundary";
 import { formatDate } from "~/utils/formatDate";
 import { getInitials } from "~/utils/getInitials";
 import { getSupabaseClient } from "~/utils/getSupabaseClient";
@@ -50,7 +51,7 @@ export default function Member() {
             <img
               className="object-cover w-20 h-20 rounded-full ring-2 ring-cyan-300 lg:w-28 lg:h-28"
               src={member.avatar_url}
-              alt={`${member.name} photo`}
+              alt={`${member.name} avatar`}
             />
           ) : (
             <div className="flex items-center justify-center w-20 h-20 text-xl font-medium tracking-wide text-white rounded-full bg-cyan-500 ring-2 ring-cyan-300 lg:w-28 lg:h-28 lg:text-2xl">
@@ -79,4 +80,8 @@ export default function Member() {
       </div>
     </>
   );
+}
+
+export function ErrorBoundary() {
+  return <GlobalErrorBoundary />;
 }

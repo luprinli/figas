@@ -1,7 +1,8 @@
-import type { MetaFunction } from "@remix-run/node";
-import { Form, Link, useLoaderData } from "@remix-run/react";
+import type { ActionFunctionArgs, MetaFunction } from "@remix-run/node";
+import { Link, useFetcher, useLoaderData } from "@remix-run/react";
 
 import Button from "~/components/Button";
+import { GlobalErrorBoundary } from "~/components/GlobalErrorBoundary";
 import DeleteIcon from "~/components/icons/Delete";
 import EditIcon from "~/components/icons/Edit";
 import ViewIcon from "~/components/icons/View";
@@ -26,6 +27,20 @@ export const meta: MetaFunction = () => {
   ];
 };
 
+export async function action({ request }: ActionFunctionArgs) {
+  const formData = await request.formData();
+  const memberId = formData.get("memberId");
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from("members").delete().eq("id", memberId);
+
+  if (error) {
+    throw new Response(error.message, { status: 500 });
+  }
+
+  return Response.json({ message: "Member deleted successfully" });
+}
+
 export async function loader() {
   const supabase = getSupabaseClient();
   const { data: members, error } = await supabase
@@ -42,6 +57,7 @@ export async function loader() {
 
 export default function MemberList() {
   const { members } = useLoaderData<{ members: Member[] }>();
+  const deleteMemberFetcher = useFetcher();
 
   return (
     <>
@@ -80,7 +96,7 @@ export default function MemberList() {
                         <img
                           className="object-cover w-12 h-12 rounded-full"
                           src={member.avatar_url}
-                          alt={`${member.name} photo`}
+                          alt={`${member.name} avatar`}
                         />
                       ) : (
                         <div className="flex items-center justify-center w-12 h-12 font-medium tracking-wide text-white rounded-full bg-cyan-500">
@@ -113,10 +129,15 @@ export default function MemberList() {
                       >
                         <EditIcon />
                       </Link>
-                      <Form
-                        action={`/dashboard/${member.id}/delete`}
+                      <deleteMemberFetcher.Form
                         method="POST"
+                        action="/dashboard?index"
                       >
+                        <input
+                          type="hidden"
+                          name="memberId"
+                          value={member.id}
+                        />
                         <button
                           type="submit"
                           className="flex items-center justify-center w-8 h-8 transition rounded-md cursor-pointer text-slate-300 hover:text-cyan-600 hover:bg-cyan-50"
@@ -124,7 +145,7 @@ export default function MemberList() {
                         >
                           <DeleteIcon />
                         </button>
-                      </Form>
+                      </deleteMemberFetcher.Form>
                     </div>
                   </td>
                 </tr>
@@ -135,4 +156,8 @@ export default function MemberList() {
       </div>
     </>
   );
+}
+
+export function ErrorBoundary() {
+  return <GlobalErrorBoundary />;
 }
