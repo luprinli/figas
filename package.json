@@ -14,7 +14,7 @@
     "@netlify/remix-adapter": "^2.6.0",
     "@remix-run/node": "^2.15.3",
     "@remix-run/react": "^2.15.3",
-    "@remix-run/serve": "^2.15.3",
+    "@remix-run/serve": "^2.16.4",
     "@supabase/supabase-js": "^2.48.1",
     "isbot": "^4.1.0",
     "react": "^18.2.0",
