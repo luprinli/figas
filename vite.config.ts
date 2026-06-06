@@ -57,13 +57,15 @@ export default defineConfig({
     global: "globalThis",
   },
   ssr: {
-    // Prisma Client v7 runtime uses CJS (module.exports) and node:* built-in imports.
-    // These must NOT be externalized — Vite needs to bundle them for SSR so it can
-    // properly resolve the node:* built-in modules and provide CJS compatibility.
     noExternal: [
       /@prisma\/client/,
       /@prisma\/adapter-pg/,
       /@prisma\/driver-adapter-utils/,
     ],
+  },
+  resolve: {
+    alias: {
+      "~": path.resolve(__dirname, "app"),
+    },
   },
 });
