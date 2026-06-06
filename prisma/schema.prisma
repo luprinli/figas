@@ -1,0 +1,1805 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum BookingSource {
+  customer_direct
+  agent
+  online
+  phone
+  email
+  walk_in
+  corporate
+  other
+
+  @@map("booking_source")
+}
+
+enum PaymentTerms {
+  due_on_receipt
+  net_7
+  net_15
+  net_30
+  pay_on_departure
+  pay_on_arrival
+
+  @@map("payment_terms")
+}
+
+enum ScheduleStatus {
+  building
+  draft
+  approved
+  published
+  cancelled
+  pilot_assigned
+  loadsheet_generated
+  in_progress
+  completed
+
+  @@map("schedule_status")
+}
+
+enum FlightLegStatus {
+  scheduled
+  active
+  completed
+  cancelled
+
+  @@map("flight_leg_status")
+}
+
+enum PilotAssignmentRole {
+  captain
+  first_officer
+  relief
+
+  @@map("pilot_assignment_role")
+}
+
+enum PilotAssignmentStatus {
+  assigned
+  confirmed
+  declined
+  checked_in
+  completed
+  cancelled
+
+  @@map("pilot_assignment_status")
+}
+
+enum NoFlyRuleType {
+  recurring
+  one_off
+
+  @@map("no_fly_rule_type")
+}
+
+enum InvoiceStatus {
+  draft
+  issued
+  paid
+  overdue
+  cancelled
+  written_off
+
+  @@map("invoice_status")
+}
+
+enum InvoiceItemType {
+  fare
+  passenger_fee
+  freight
+  fuel_surcharge
+  cargo
+  baggage
+  cancellation_fee
+  adjustment
+  other
+
+  @@map("invoice_item_type")
+}
+
+enum AccountType {
+  asset
+  liability
+  equity
+  revenue
+  expense
+
+  @@map("account_type")
+}
+
+enum JournalEntryType {
+  payment
+  refund
+  invoice_issued
+  invoice_payment
+  reconciliation
+  fee
+  adjustment
+
+  @@map("journal_entry_type")
+}
+
+enum PaymentReminderType {
+  payment_due
+  overdue_1d
+  overdue_7d
+  overdue_30d
+
+  @@map("payment_reminder_type")
+}
+
+enum ReminderStatus {
+  pending
+  sent
+  failed
+  cancelled
+
+  @@map("reminder_status")
+}
+
+enum StripePaymentStatus {
+  pending
+  requires_payment_method
+  requires_confirmation
+  requires_action
+  processing
+  succeeded
+  failed
+  refunded
+  partially_refunded
+
+  @@map("stripe_payment_status")
+}
+
+enum ReconciliationStatus {
+  unmatched
+  matched
+  disputed
+
+  @@map("reconciliation_status")
+}
+
+enum ExportType {
+  csv
+  xml
+  xero
+  quickbooks
+  sage
+  other
+
+  @@map("export_type")
+}
+
+enum ExportFormat {
+  csv
+  xml
+  json
+
+  @@map("export_format")
+}
+
+enum ExportStatus {
+  completed
+  failed
+  partial
+
+  @@map("export_status")
+}
+
+// ============================================================================
+// CORE TABLES (Migration 001)
+// ============================================================================
+
+/// Migration tracking table
+model migrations {
+  id         Int       @id @default(autoincrement())
+  filename   String    @unique @db.VarChar(255)
+  applied_at DateTime  @default(now()) @db.Timestamptz()
+
+  @@map("_migrations")
+}
+
+/// User accounts
+model users {
+  id                      Int       @id @default(autoincrement())
+  name                    String    @db.VarChar(255)
+  email                   String    @unique @db.VarChar(255)
+  password                String    @db.VarChar(255)
+  role                    String    @default("passenger") @db.VarChar(50)
+  is_active               Boolean   @default(true)
+  phone                   String?   @db.VarChar(50)
+  city                    String?   @db.VarChar(255)
+  date_of_birth           DateTime? @db.Date
+  residency               String?   @db.VarChar(50)
+  id_document_type        String?   @db.VarChar(50)
+  id_document_number      String?   @db.VarChar(100)
+  nationality             String?   @db.VarChar(100)
+  emergency_contact_name  String?   @db.VarChar(255)
+  emergency_contact_phone String?   @db.VarChar(50)
+  clothed_body_weight_kg  Decimal?  @db.Decimal(5, 1)
+  residency_status        String?   @db.VarChar(50)
+  created_at              DateTime  @default(now()) @db.Timestamptz()
+  updated_at              DateTime  @default(now()) @db.Timestamptz()
+
+  bookings                        bookings[]                        @relation("booking_user")
+  bookings_created_by             bookings[]                        @relation("booking_created_by")
+  bookings_cancelled_by           bookings[]                        @relation("booking_cancelled_by")
+  booking_passengers              booking_passengers[]
+  notifications                   notifications[]
+  pilots                          pilots[]
+  user_roles                      user_roles[]
+  user_roles_assigned             user_roles[]                      @relation("user_role_assigned_by")
+  audit_log_entries               audit_log[]                       @relation("audit_actor")
+  audit_log_assigned              audit_log[]                       @relation("audit_assigned_by")
+  schedules_created               schedules[]                       @relation("schedule_created_by")
+  schedules_updated               schedules[]                       @relation("schedule_updated_by")
+  schedules_approved              schedules[]                       @relation("schedule_approved_by")
+  schedules_published             schedules[]                       @relation("schedule_published_by")
+  schedules_cancelled             schedules[]                       @relation("schedule_cancelled_by")
+  invoices_created                invoices[]                        @relation("invoice_created_by")
+  accounting_journal_entries  accounting_journal_entries[]      @relation("journal_created_by")
+  accounting_journal_approved     accounting_journal_entries[]      @relation("journal_approved_by")
+  export_logs                     export_log[]
+  bank_transactions_matched       bank_transactions[]               @relation("bank_matched_by")
+  no_fly_rules                    no_fly_rules[]
+  pilot_assignments_assigned_by   pilot_assignments[]               @relation("pilot_assignment_assigned_by")
+  aircraft_assignments_assigned_by aircraft_assignments[]            @relation("aircraft_assignment_assigned_by")
+  loadsheets_finalized             loadsheets[]                      @relation("loadsheet_finalized_by")
+  loadsheet_audit_entries          loadsheet_audit_log[]              @relation("loadsheet_audit_actor")
+  published_schedules              published_schedules[]              @relation("published_by_user")
+  booking_leg_passengers_checked  booking_leg_passengers[]          @relation("blp_checked_in_by")
+  payments_reconciled             payments[]
+  password_reset_tokens           password_reset_tokens[]
+  email_verification_tokens       email_verification_tokens[]
+  time_templates                  time_templates[]
+
+  @@index([role])
+  @@index([is_active])
+  @@map("users")
+}
+
+/// Airports / airstrips
+model aerodromes {
+  id                       Int       @id @default(autoincrement())
+  code                     String    @unique @db.VarChar(10)
+  name                     String    @db.VarChar(255)
+  city                     String?   @db.VarChar(255)
+  manufacturer             String?   @db.VarChar(100)
+  model                    String?   @db.VarChar(100)
+  runway_length            Decimal?  @db.Decimal(6, 1)
+  runway_type              String?   @db.VarChar(50)
+  latitude                 Decimal?  @db.Decimal(9, 6)
+  longitude                Decimal?  @db.Decimal(9, 6)
+  timezone                 String    @default("Atlantic/Stanley") @db.VarChar(50)
+  is_active                Boolean   @default(true)
+  mtow_limit_kg            Decimal?  @db.Decimal(10, 2)
+  mlw_limit_kg             Decimal?  @db.Decimal(10, 2)
+  fuel_available           Boolean   @default(false)
+  operating_hours          String?   @db.VarChar(50)
+  pilot_briefing_required  Boolean   @default(false)
+  created_at               DateTime  @default(now()) @db.Timestamptz()
+  updated_at               DateTime  @default(now()) @db.Timestamptz()
+
+  flights_origin              flights[]           @relation("flight_origin")
+  flights_destination         flights[]           @relation("flight_destination")
+  fare_routes_origin          fare_routes[]       @relation("fare_route_origin")
+  fare_routes_destination     fare_routes[]       @relation("fare_route_destination")
+  aerodrome_distances_origin  aerodrome_distances[] @relation("distance_origin")
+  aerodrome_distances_dest    aerodrome_distances[] @relation("distance_destination")
+  aerodrome_headings_origin   aerodrome_headings[]  @relation("heading_origin")
+  aerodrome_headings_dest     aerodrome_headings[]  @relation("heading_destination")
+  booking_legs_origin         booking_legs[]      @relation("bl_origin")
+  booking_legs_destination    booking_legs[]      @relation("bl_destination")
+
+  @@index([code])
+  @@map("aerodromes")
+}
+
+/// Aircraft fleet
+model aircraft {
+  id                    Int       @id @default(autoincrement())
+  registration          String    @unique @db.VarChar(20)
+  type                  String    @db.VarChar(100)
+  manufacturer          String?   @db.VarChar(100)
+  model                 String?   @db.VarChar(100)
+  year                  Int?
+  seat_count            Int
+  empty_weight_kg       Decimal   @default(0) @db.Decimal(7, 1)
+  max_takeoff_weight_kg Decimal?  @db.Decimal(7, 1)
+  max_payload_kg        Decimal?  @db.Decimal(7, 1)
+  fuel_capacity_kg      Decimal?  @db.Decimal(7, 1)
+  max_freight_weight    Decimal   @default(0) @db.Decimal(10, 2)
+  is_active             Boolean   @default(true)
+
+  // ── Weight & Balance arm positions (metres from datum) ─────────────────────
+  empty_arm_m           Decimal?  @db.Decimal(5, 2)  /// Arm for empty weight CG
+  crew_arm_m            Decimal?  @db.Decimal(5, 2)  /// Arm for crew (pilot) CG
+  passenger_arm_m       Decimal?  @db.Decimal(5, 2)  /// Arm for passenger CG
+  baggage_arm_m         Decimal?  @db.Decimal(5, 2)  /// Arm for baggage CG
+  freight_arm_m         Decimal?  @db.Decimal(5, 2)  /// Arm for freight CG
+  fuel_arm_m            Decimal?  @db.Decimal(5, 2)  /// Arm for fuel CG
+
+  created_at            DateTime  @default(now()) @db.Timestamptz()
+  updated_at            DateTime  @default(now()) @db.Timestamptz()
+
+  flights               flights[]
+  airframe_hours        airframe_hours[]
+  aircraft_assignments  aircraft_assignments[]
+  loadsheets            loadsheets[]
+
+  @@index([registration])
+  @@map("aircraft")
+}
+
+/// Organizations (corporate / group bookings)
+model organizations {
+  id                       Int       @id @default(autoincrement())
+  name                     String    @db.VarChar(255)
+  code                     String?   @unique @db.VarChar(50)
+  contact_email            String?   @db.VarChar(255)
+  contact_phone            String?   @db.VarChar(50)
+  billing_address          String?   @db.Text
+  credit_limit_gbp         Decimal?  @db.Decimal(10, 2)
+  is_active                Boolean   @default(true)
+  payment_terms            String?   @default("net_30") @db.VarChar(30)
+  default_payment_method_id String?  @db.Uuid
+  tax_id                   String?   @db.VarChar(50)
+  invoice_email            String?   @db.VarChar(255)
+  credit_remaining_gbp     Decimal   @default(0) @db.Decimal(10, 2)
+  created_at               DateTime  @default(now()) @db.Timestamptz()
+  updated_at               DateTime  @default(now()) @db.Timestamptz()
+
+  bookings  bookings[]
+  invoices  invoices[]
+
+  @@index([code])
+  @@map("organizations")
+}
+
+/// Pilot records
+model pilots {
+  id              Int       @id @default(autoincrement())
+  user_id         Int?
+  name            String?   @db.VarChar(255)
+  email           String?   @db.VarChar(255)
+  license_number  String?   @db.VarChar(100)
+  license_type    String?   @db.VarChar(50)
+  medical_expiry  DateTime? @db.Date
+  rating          String?   @db.VarChar(100)
+  is_active       Boolean   @default(true)
+  created_at      DateTime  @default(now()) @db.Timestamptz()
+  updated_at      DateTime  @default(now()) @db.Timestamptz()
+
+  user                users?              @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  flights             flights[]
+  flight_manifests    flight_manifests[]
+  pilot_assignments   pilot_assignments[]
+  loadsheets          loadsheets[]
+
+  @@index([user_id])
+  @@map("pilots")
+}
+
+/// Fare pricing between aerodromes
+model fare_routes {
+  id               Int       @id @default(autoincrement())
+  origin_code      String    @db.VarChar(10)
+  destination_code String    @db.VarChar(10)
+  base_fare        Decimal   @db.Decimal(10, 2)
+  base_fare_gbp    Decimal?  @db.Decimal(10, 2)
+  currency         String    @default("GBP") @db.VarChar(10)
+  is_active        Boolean   @default(true)
+  created_at       DateTime  @default(now()) @db.Timestamptz()
+  updated_at       DateTime  @default(now()) @db.Timestamptz()
+
+  origin      aerodromes @relation("fare_route_origin", fields: [origin_code], references: [code])
+  destination aerodromes @relation("fare_route_destination", fields: [destination_code], references: [code])
+
+  @@index([is_active])
+  @@map("fare_routes")
+}
+
+/// Scheduled flights
+model flights {
+  id                          Int       @id @default(autoincrement())
+  flight_number               String    @unique @db.VarChar(20)
+  origin_code                 String?   @db.VarChar(10)
+  destination_code            String?   @db.VarChar(10)
+  origin_aerodrome_id         Int?
+  destination_aerodrome_id    Int?
+  aircraft_id                 Int?
+  pilot_id                    Int?
+  departure_time              DateTime  @db.Timestamptz()
+  arrival_time                DateTime  @db.Timestamptz()
+  status                      String    @default("scheduled") @db.VarChar(50)
+  available_seats             Int?
+  base_fare                   Decimal?  @db.Decimal(10, 2)
+  intermediate_stops          Json?     @db.JsonB
+  total_passenger_weight_kg   Decimal?  @db.Decimal(8, 1)
+  total_baggage_weight_kg     Decimal?  @db.Decimal(8, 1)
+  total_freight_weight_kg     Decimal?  @db.Decimal(8, 1)
+  total_fuel_weight_kg        Decimal?  @db.Decimal(8, 1)
+  fuel_weight                 Decimal?  @default(0) @db.Decimal(10, 2)
+  freight_weight              Decimal?  @default(0) @db.Decimal(10, 2)
+  passenger_weight            Decimal?  @default(0) @db.Decimal(10, 2)
+  crew_weight                 Decimal?  @default(0) @db.Decimal(10, 2)
+  baggage_weight              Decimal?  @default(0) @db.Decimal(10, 2)
+  pilot_approved_at           DateTime? @db.Timestamptz()
+  schedule_id                 Int?
+  fuel_required_l             Decimal?  @default(0) @db.Decimal(10, 2)
+  fuel_on_board_l             Decimal?  @default(0) @db.Decimal(10, 2)
+  pax_weight_kg               Decimal?  @default(0) @db.Decimal(10, 2)
+  cargo_weight_kg             Decimal?  @default(0) @db.Decimal(10, 2)
+  zero_fuel_weight_kg         Decimal?  @default(0) @db.Decimal(10, 2)
+  sort_order                  Int?      @default(0)
+  created_by                  Int?
+  created_at                  DateTime  @default(now()) @db.Timestamptz()
+  updated_at                  DateTime  @default(now()) @db.Timestamptz()
+
+  origin_aerodrome      aerodromes?       @relation("flight_origin", fields: [origin_aerodrome_id], references: [id])
+  destination_aerodrome aerodromes?       @relation("flight_destination", fields: [destination_aerodrome_id], references: [id])
+  aircraft              aircraft?         @relation(fields: [aircraft_id], references: [id])
+  pilot                 pilots?           @relation(fields: [pilot_id], references: [id])
+  schedule              schedules?        @relation(fields: [schedule_id], references: [id])
+  booking_legs          booking_legs[]
+  checkin_reminders     checkin_reminders[]
+  flight_manifests      flight_manifests[]
+  notifications         notifications[]
+  seat_assignments      seat_assignments[]
+  flight_legs           flight_legs[]
+  pilot_assignments     pilot_assignments[]
+  aircraft_assignments  aircraft_assignments[]
+  loadsheets            loadsheets[]
+  published_flights     published_schedule_flights[]
+
+  @@index([flight_number])
+  @@index([status])
+  @@index([origin_code])
+  @@index([destination_code])
+  @@index([schedule_id])
+  @@map("flights")
+}
+
+/// Booking records
+model bookings {
+  id                      Int       @id @default(autoincrement())
+  booking_reference       String    @unique @db.VarChar(20)
+  user_id                 Int
+  status                  String    @default("pending") @db.VarChar(50)
+  organization_id         Int?
+  is_organization_billing Boolean   @default(false)
+  total_amount            Decimal   @default(0) @db.Decimal(10, 2)
+  total_amount_gbp        Decimal?  @db.Decimal(10, 2)
+  payment_status          String    @default("pending") @db.VarChar(50)
+  payment_method          String?   @db.VarChar(50)
+  payment_date            DateTime? @db.Timestamptz()
+  payment_due_date        DateTime? @db.Date
+  payment_terms           String?   @db.VarChar(30)
+  stripe_session_id       String?   @db.VarChar(255)
+  invoice_id              String?   @db.Uuid
+  notes                   String?   @db.Text
+  booking_source          String    @default("customer_direct") @db.VarChar(50)
+  created_by              Int?
+  cancelled_at            DateTime? @db.Timestamptz()
+  cancelled_by            Int?
+  cancellation_reason     String?   @db.Text
+  created_at              DateTime  @default(now()) @db.Timestamptz()
+  updated_at              DateTime  @default(now()) @db.Timestamptz()
+
+  user              users?          @relation("booking_user", fields: [user_id], references: [id])
+  organization      organizations?  @relation(fields: [organization_id], references: [id])
+  created_by_user   users?          @relation("booking_created_by", fields: [created_by], references: [id])
+  cancelled_by_user users?          @relation("booking_cancelled_by", fields: [cancelled_by], references: [id])
+  invoice           invoices?       @relation("booking_invoice_ref", fields: [invoice_id], references: [id], onDelete: SetNull)
+
+  booking_legs              booking_legs[]
+  booking_passengers        booking_passengers[]
+  checkin_reminders         checkin_reminders[]
+  notifications             notifications[]
+  payments                  payments[]
+  payment_reminders         payment_reminders[]
+  accounting_journal_entries  accounting_journal_entries[]
+  invoices_by_booking       invoices[]                    @relation("invoice_booking")
+
+  @@index([booking_reference])
+  @@index([status])
+  @@index([user_id])
+  @@index([booking_source])
+  @@index([created_by])
+  @@index([payment_due_date])
+  @@index([stripe_session_id])
+  @@map("bookings")
+}
+
+/// Individual legs of a booking
+model booking_legs {
+  id                  Int       @id @default(autoincrement())
+  booking_id          Int
+  flight_id           Int?
+  origin_code         String    @db.VarChar(10)
+  destination_code    String    @db.VarChar(10)
+  leg_date            DateTime  @db.Date
+  departure_date      DateTime? @db.Date
+  preferred_time      DateTime? @db.Time
+  preferred_time_start DateTime? @db.Time
+  preferred_time_end  DateTime? @db.Time
+  leg_sequence        Int       @default(0)
+  status              String    @default("pending") @db.VarChar(50)
+  freight_description String?   @db.Text
+  freight_weight      Decimal?  @default(0) @db.Decimal(10, 2)
+  freight_weight_kg   Decimal?  @db.Decimal(8, 1)
+  created_at          DateTime  @default(now()) @db.Timestamptz()
+  updated_at          DateTime  @default(now()) @db.Timestamptz()
+
+  booking       bookings    @relation(fields: [booking_id], references: [id], onDelete: Cascade)
+  flight        flights?    @relation(fields: [flight_id], references: [id])
+  origin        aerodromes  @relation("bl_origin", fields: [origin_code], references: [code])
+  destination   aerodromes  @relation("bl_destination", fields: [destination_code], references: [code])
+
+  booking_leg_passengers booking_leg_passengers[]
+  loadsheet_passengers   loadsheet_passengers[]
+
+  @@index([booking_id])
+  @@index([flight_id])
+  @@map("booking_legs")
+}
+
+/// Passengers on a booking (renamed from passengers in migration 016)
+model booking_passengers {
+  id                      Int       @id @default(autoincrement())
+  booking_id              Int
+  user_id                 Int?
+  first_name              String    @db.VarChar(100)
+  last_name               String    @db.VarChar(100)
+  email                   String?   @db.VarChar(255)
+  phone                   String?   @db.VarChar(50)
+  date_of_birth           DateTime? @db.Date
+  nationality             String?   @db.VarChar(100)
+  id_document_type        String?   @db.VarChar(50)
+  id_document_number      String?   @db.VarChar(100)
+  clothed_body_weight_kg  Decimal   @default(70) @db.Decimal(5, 1)
+  residency_status        String?   @db.VarChar(50)
+  salutation              String?   @db.VarChar(20)
+  special_requirements    String?   @db.Text
+  gender                  String?   @db.VarChar(50)
+  passport_number         String?   @db.VarChar(100)
+  discount_type           String?   @default("none") @db.VarChar(20)
+  discount_percent        Decimal?  @default(0) @db.Decimal(5,1)
+  created_at              DateTime  @default(now()) @db.Timestamptz()
+  updated_at              DateTime  @default(now()) @db.Timestamptz()
+
+  booking bookings @relation(fields: [booking_id], references: [id], onDelete: Cascade)
+  user    users?   @relation(fields: [user_id], references: [id])
+
+  booking_leg_passengers booking_leg_passengers[]
+  seat_assignments       seat_assignments[]
+  checkin_reminders      checkin_reminders[]
+  loadsheet_passengers   loadsheet_passengers[]
+
+  @@index([booking_id])
+  @@index([user_id])
+  @@map("booking_passengers")
+}
+
+/// Seat assignments per flight
+model seat_assignments {
+  id            Int       @id @default(autoincrement())
+  flight_id     Int
+  passenger_id  Int
+  seat_number   String    @db.VarChar(10)
+  assigned_by   String    @default("system") @db.VarChar(50)
+  assigned_at   DateTime  @default(now()) @db.Timestamptz()
+  row_number    Int?
+  column_letter String?   @db.VarChar(5)
+  is_available  Boolean   @default(true)
+  created_at    DateTime  @default(now()) @db.Timestamptz()
+  updated_at    DateTime  @default(now()) @db.Timestamptz()
+
+  flight    flights            @relation(fields: [flight_id], references: [id], onDelete: Cascade)
+  passenger booking_passengers @relation(fields: [passenger_id], references: [id])
+
+  @@index([flight_id])
+  @@index([passenger_id])
+  @@map("seat_assignments")
+}
+
+/// Check-in reminder tracking
+model checkin_reminders {
+  id            Int       @id @default(autoincrement())
+  flight_id     Int?
+  booking_id    Int
+  passenger_id  Int?
+  scheduled_at  DateTime  @db.Timestamptz()
+  sent_at       DateTime? @db.Timestamptz()
+  status        String    @default("pending") @db.VarChar(50)
+  reminder_type String?   @db.VarChar(50)
+  scheduled_for DateTime? @db.Timestamptz()
+  sent_via      String?   @db.VarChar(50)
+  created_at    DateTime  @default(now()) @db.Timestamptz()
+  updated_at    DateTime  @default(now()) @db.Timestamptz()
+
+  flight  flights?  @relation(fields: [flight_id], references: [id], onDelete: Cascade)
+  booking bookings  @relation(fields: [booking_id], references: [id], onDelete: Cascade)
+  passenger booking_passengers? @relation(fields: [passenger_id], references: [id])
+
+  @@index([flight_id])
+  @@map("checkin_reminders")
+}
+
+/// Notification log
+model notifications {
+  id                Int       @id @default(autoincrement())
+  booking_id        Int?
+  flight_id         Int?
+  user_id           Int?
+  type              String    @db.VarChar(100)
+  notification_type String?   @db.VarChar(100)
+  recipient_email   String?   @db.VarChar(255)
+  recipient_phone   String?   @db.VarChar(50)
+  recipient_type    String?   @db.VarChar(50)
+  subject           String?   @db.VarChar(255)
+  message           String?   @db.Text
+  status            String    @default("pending") @db.VarChar(50)
+  sent_at           DateTime? @db.Timestamptz()
+  created_at        DateTime  @default(now()) @db.Timestamptz()
+  updated_at        DateTime  @default(now()) @db.Timestamptz()
+
+  booking bookings? @relation(fields: [booking_id], references: [id])
+  flight  flights?  @relation(fields: [flight_id], references: [id])
+  user    users?    @relation(fields: [user_id], references: [id])
+
+  @@index([booking_id])
+  @@index([flight_id])
+  @@index([status])
+  @@map("notifications")
+}
+
+/// Flight manifest records
+model flight_manifests {
+  id                              Int       @id @default(autoincrement())
+  flight_id                       Int
+  total_passengers                Int       @default(0)
+  total_passenger_weight_kg       Decimal   @default(0) @db.Decimal(8, 1)
+  total_baggage_weight_kg         Decimal   @default(0) @db.Decimal(8, 1)
+  total_freight_weight_kg         Decimal   @default(0) @db.Decimal(8, 1)
+  total_fuel_weight_kg            Decimal   @default(0) @db.Decimal(8, 1)
+  total_weight_kg                 Decimal   @default(0) @db.Decimal(8, 1)
+  total_weight                    Decimal   @default(0) @db.Decimal(10, 2)
+  total_freight_weight            Decimal   @default(0) @db.Decimal(10, 2)
+  total_baggage_weight            Decimal   @default(0) @db.Decimal(10, 2)
+  total_fuel_weight               Decimal   @default(0) @db.Decimal(10, 2)
+  aircraft_max_takeoff_weight_kg  Decimal?  @db.Decimal(7, 1)
+  weight_balance_percentage       Decimal?  @db.Decimal(5, 1)
+  pilot_signoff                   Boolean   @default(false)
+  pilot_id                        Int?
+  signed_off_at                   DateTime? @db.Timestamptz()
+  notes                           String?   @db.Text
+  created_at                      DateTime  @default(now()) @db.Timestamptz()
+  updated_at                      DateTime  @default(now()) @db.Timestamptz()
+
+  flight flights @relation(fields: [flight_id], references: [id], onDelete: Cascade)
+  pilot  pilots? @relation(fields: [pilot_id], references: [id])
+
+  @@index([flight_id])
+  @@index([pilot_id])
+  @@map("flight_manifests")
+}
+
+/// Key-value settings store
+model system_settings {
+  id          Int       @id @default(autoincrement())
+  key         String    @unique @db.VarChar(255)
+  value       String?   @db.Text
+  description String?   @db.VarChar(255)
+  created_at  DateTime  @default(now()) @db.Timestamptz()
+  updated_at  DateTime  @default(now()) @db.Timestamptz()
+
+  @@index([key])
+  @@map("system_settings")
+}
+
+/// Payment records
+model payments {
+  id                    Int       @id @default(autoincrement())
+  booking_id            Int
+  amount                Decimal   @db.Decimal(10, 2)
+  amount_gbp            Decimal?  @db.Decimal(10, 2)
+  method                String?   @db.VarChar(50)
+  payment_method        String?   @db.VarChar(50)
+  payment_method_id     String?   @db.Uuid
+  currency              String    @default("GBP") @db.VarChar(3)
+  fee_gbp               Decimal   @default(0) @db.Decimal(10, 2)
+  net_amount_gbp        Decimal   @default(0) @db.Decimal(10, 2)
+  status                String    @default("pending") @db.VarChar(50)
+  transaction_id        String?   @db.VarChar(255)
+  transaction_reference String?   @db.VarChar(255)
+  paid_at               DateTime? @db.Timestamptz()
+  notes                 String?   @db.Text
+  reconciled_at         DateTime? @db.Timestamptz()
+  reconciled_by         Int?
+  created_at            DateTime  @default(now()) @db.Timestamptz()
+  updated_at            DateTime  @default(now()) @db.Timestamptz()
+
+  booking         bookings                @relation(fields: [booking_id], references: [id], onDelete: Cascade)
+  reconciled_user users?                  @relation(fields: [reconciled_by], references: [id])
+  payment_method_ref payment_methods?     @relation(fields: [payment_method_id], references: [id])
+
+  stripe_payments             stripe_payments[]
+  bank_transactions           bank_transactions[]
+  accounting_journal_entries  accounting_journal_entries[]
+  payment_allocations         payment_allocations[]
+
+  @@index([booking_id])
+  @@index([status])
+  @@index([payment_method_id])
+  @@index([reconciled_at])
+  @@map("payments")
+}
+
+// ============================================================================
+// REFERENCE TABLES (Migration 003)
+// ============================================================================
+
+/// Fuel calculation rules based on flight time and sectors
+model fuel_rules {
+  id                  Int       @id @default(autoincrement())
+  flight_time_minutes Int
+  sectors             Int
+  required_fuel_kg    Decimal   @db.Decimal(10, 2)
+  minimum_fuel_kg     Decimal   @db.Decimal(10, 2)
+  fuel_state          String    @db.VarChar(20)
+  created_at          DateTime  @default(now()) @db.Timestamptz()
+  updated_at          DateTime  @default(now()) @db.Timestamptz()
+
+  @@unique([flight_time_minutes, sectors])
+  @@index([flight_time_minutes, sectors])
+  @@map("fuel_rules")
+}
+
+/// Distance matrix between aerodromes (nautical miles)
+model aerodrome_distances {
+  id               Int       @id @default(autoincrement())
+  origin_code      String    @db.VarChar(10)
+  destination_code String    @db.VarChar(10)
+  distance_nm      Decimal   @db.Decimal(10, 2)
+  created_at       DateTime  @default(now()) @db.Timestamptz()
+  updated_at       DateTime  @default(now()) @db.Timestamptz()
+
+  origin      aerodromes @relation("distance_origin", fields: [origin_code], references: [code])
+  destination aerodromes @relation("distance_destination", fields: [destination_code], references: [code])
+
+  @@unique([origin_code, destination_code])
+  @@index([origin_code])
+  @@index([destination_code])
+  @@map("aerodrome_distances")
+}
+
+/// Heading matrix between aerodromes (degrees)
+model aerodrome_headings {
+  id                Int       @id @default(autoincrement())
+  origin_code       String    @db.VarChar(10)
+  destination_code  String    @db.VarChar(10)
+  heading_degrees   Decimal   @db.Decimal(6, 2)
+  created_at        DateTime  @default(now()) @db.Timestamptz()
+  updated_at        DateTime  @default(now()) @db.Timestamptz()
+
+  origin      aerodromes @relation("heading_origin", fields: [origin_code], references: [code])
+  destination aerodromes @relation("heading_destination", fields: [destination_code], references: [code])
+
+  @@unique([origin_code, destination_code])
+  @@index([origin_code])
+  @@index([destination_code])
+  @@map("aerodrome_headings")
+}
+
+/// Airframe maintenance tracking per aircraft
+model airframe_hours {
+  id                    Int       @id @default(autoincrement())
+  aircraft_id           Int
+  last_reading_date     DateTime  @db.Date
+  total_hours           String    @db.VarChar(20)
+  next_check_date       DateTime  @db.Date
+  next_check_type       Int
+  days_remaining        Int
+  next_check_due_hours  String    @db.VarChar(20)
+  hours_until_next_check String   @db.VarChar(20)
+  next_500_hour_check   String    @db.VarChar(20)
+  hours_until_500_check String    @db.VarChar(20)
+  next_1000_hour_check  String    @db.VarChar(20)
+  hours_until_1000_check String   @db.VarChar(20)
+  status                String    @db.VarChar(50)
+  created_at            DateTime  @default(now()) @db.Timestamptz()
+  updated_at            DateTime  @default(now()) @db.Timestamptz()
+
+  aircraft aircraft @relation(fields: [aircraft_id], references: [id])
+
+  @@index([aircraft_id])
+  @@index([status])
+  @@map("airframe_hours")
+}
+
+// ============================================================================
+// PAYMENT / ACCOUNTING TABLES (Migrations 006-013)
+// ============================================================================
+
+/// Payment methods reference table (UUID PK)
+model payment_methods {
+  id              String    @id @default(uuid()) @db.Uuid
+  code            String    @unique @db.VarChar(50)
+  name            String    @db.VarChar(100)
+  description     String?   @db.Text
+  is_active       Boolean   @default(true)
+  requires_online Boolean   @default(false)
+  requires_invoice Boolean  @default(false)
+  sort_order      Int       @default(0)
+  created_at      DateTime  @default(now()) @db.Timestamptz()
+  updated_at      DateTime  @default(now()) @db.Timestamptz()
+
+  payments payments[]
+
+  @@map("payment_methods")
+}
+
+/// Invoices table (UUID PK)
+model invoices {
+  id              String        @id @default(uuid()) @db.Uuid
+  invoice_number  String        @unique @db.VarChar(20)
+  booking_id      Int?
+  organization_id Int?
+  user_id         Int?
+  status          InvoiceStatus @default(draft)
+  issue_date      DateTime      @db.Date
+  due_date        DateTime      @db.Date
+  paid_at         DateTime?     @db.Timestamptz()
+  subtotal_gbp    Decimal       @default(0) @db.Decimal(10, 2)
+  tax_rate        Decimal       @default(0) @db.Decimal(5, 2)
+  tax_amount_gbp  Decimal       @default(0) @db.Decimal(10, 2)
+  total_gbp       Decimal       @default(0) @db.Decimal(10, 2)
+  amount_paid_gbp Decimal       @default(0) @db.Decimal(10, 2)
+  // amount_due_gbp is a GENERATED column (total_gbp - amount_paid_gbp) — ignored by Prisma
+  currency        String        @default("GBP") @db.VarChar(3)
+  notes           String?       @db.Text
+  created_by      Int
+  created_at      DateTime      @default(now()) @db.Timestamptz()
+  updated_at      DateTime      @default(now()) @db.Timestamptz()
+
+  booking                bookings?          @relation("invoice_booking", fields: [booking_id], references: [id], onDelete: SetNull)
+  bookings_invoice_ref   bookings[]         @relation("booking_invoice_ref")
+  organization    organizations?     @relation(fields: [organization_id], references: [id], onDelete: SetNull)
+  created_by_user users              @relation("invoice_created_by", fields: [created_by], references: [id])
+
+  invoice_items               invoice_items[]
+  payment_reminders           payment_reminders[]
+  accounting_journal_entries  accounting_journal_entries[]
+  invoice_line_items          invoice_line_items[]
+
+  @@index([booking_id])
+  @@index([organization_id])
+  @@index([status])
+  @@index([due_date])
+  @@map("invoices")
+}
+
+/// Invoice items (UUID PK)
+model invoice_items {
+  id              String          @id @default(uuid()) @db.Uuid
+  invoice_id      String          @db.Uuid
+  description     String          @db.Text
+  quantity        Int             @default(1)
+  unit_price_gbp  Decimal         @db.Decimal(10, 2)
+  // line_total_gbp is a GENERATED column (quantity * unit_price_gbp) — ignored by Prisma
+  type            InvoiceItemType
+  reference_type  String?         @db.VarChar(30)
+  reference_id    String?         @db.Uuid
+  sort_order      Int             @default(0)
+  created_at      DateTime        @default(now()) @db.Timestamptz()
+
+  invoice invoices @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+
+  @@index([invoice_id])
+  @@map("invoice_items")
+}
+
+/// Chart of accounts (UUID PK)
+model chart_of_accounts {
+  id           String      @id @default(uuid()) @db.Uuid
+  account_code String      @unique @db.VarChar(10)
+  account_name String      @db.VarChar(100)
+  account_type AccountType
+  is_active    Boolean     @default(true)
+  description  String?     @db.Text
+  created_at   DateTime    @default(now()) @db.Timestamptz()
+
+  journal_lines accounting_journal_lines[]
+
+  @@map("chart_of_accounts")
+}
+
+/// Double-entry accounting journal entries (UUID PK)
+model accounting_journal_entries {
+  id            String            @id @default(uuid()) @db.Uuid
+  entry_number  String            @unique @db.VarChar(30)
+  entry_type    JournalEntryType
+  description   String            @db.Text
+  booking_id    Int?
+  invoice_id    String?           @db.Uuid
+  payment_id    Int?
+  entry_date    DateTime          @db.Date
+  posting_date  DateTime?         @db.Date
+  created_by    Int
+  approved_by   Int?
+  created_at    DateTime          @default(now()) @db.Timestamptz()
+  updated_at    DateTime          @default(now()) @db.Timestamptz()
+
+  booking   bookings?  @relation(fields: [booking_id], references: [id], onDelete: SetNull)
+  invoice   invoices?  @relation(fields: [invoice_id], references: [id], onDelete: SetNull)
+  payment   payments?  @relation(fields: [payment_id], references: [id], onDelete: SetNull)
+  created   users      @relation("journal_created_by", fields: [created_by], references: [id])
+  approved  users?     @relation("journal_approved_by", fields: [approved_by], references: [id])
+
+  journal_lines accounting_journal_lines[]
+
+  @@index([entry_date])
+  @@index([booking_id])
+  @@index([invoice_id])
+  @@index([entry_type])
+  @@map("accounting_journal_entries")
+}
+
+/// Double-entry accounting journal lines (UUID PK)
+model accounting_journal_lines {
+  id               String   @id @default(uuid()) @db.Uuid
+  entry_id         String   @db.Uuid
+  account_id       String   @db.Uuid
+  debit_amount_gbp Decimal  @default(0) @db.Decimal(10, 2)
+  credit_amount_gbp Decimal @default(0) @db.Decimal(10, 2)
+  description      String?  @db.Text
+  created_at       DateTime @default(now()) @db.Timestamptz()
+
+  entry   accounting_journal_entries @relation(fields: [entry_id], references: [id], onDelete: Cascade)
+  account chart_of_accounts          @relation(fields: [account_id], references: [id])
+
+  @@index([entry_id])
+  @@index([account_id])
+  @@map("accounting_journal_lines")
+}
+
+/// Payment reminders (UUID PK)
+model payment_reminders {
+  id            String              @id @default(uuid()) @db.Uuid
+  booking_id    Int?
+  invoice_id    String?             @db.Uuid
+  reminder_type PaymentReminderType
+  scheduled_at  DateTime            @db.Timestamptz()
+  sent_at       DateTime?           @db.Timestamptz()
+  sent_to       String?             @db.VarChar(255)
+  status        ReminderStatus      @default(pending)
+  error_message String?             @db.Text
+  created_at    DateTime            @default(now()) @db.Timestamptz()
+
+  booking bookings? @relation(fields: [booking_id], references: [id], onDelete: Cascade)
+  invoice invoices? @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([scheduled_at])
+  @@index([booking_id])
+  @@index([invoice_id])
+  @@map("payment_reminders")
+}
+
+/// Stripe payments tracking (UUID PK)
+model stripe_payments {
+  id                       String              @id @default(uuid()) @db.Uuid
+  payment_id               Int
+  stripe_session_id        String              @unique @db.VarChar(255)
+  stripe_payment_intent_id String?             @db.VarChar(255)
+  stripe_customer_id       String?             @db.VarChar(255)
+  amount_gbp               Decimal             @db.Decimal(10, 2)
+  currency                 String              @default("GBP") @db.VarChar(3)
+  status                   StripePaymentStatus @default(pending)
+  payment_method_details   Json?               @db.JsonB
+  receipt_url              String?             @db.Text
+  refund_amount_gbp        Decimal             @default(0) @db.Decimal(10, 2)
+  refunded_at              DateTime?           @db.Timestamptz()
+  error_message            String?             @db.Text
+  idempotency_key          String?             @db.VarChar(255)
+  created_at               DateTime            @default(now()) @db.Timestamptz()
+  updated_at               DateTime            @default(now()) @db.Timestamptz()
+
+  payment payments @relation(fields: [payment_id], references: [id], onDelete: Cascade)
+
+  @@index([stripe_session_id])
+  @@index([stripe_payment_intent_id])
+  @@index([payment_id])
+  @@index([idempotency_key])
+  @@map("stripe_payments")
+}
+
+/// Bank transactions for reconciliation (UUID PK)
+model bank_transactions {
+  id                    String              @id @default(uuid()) @db.Uuid
+  external_id           String?             @db.VarChar(255)
+  transaction_date      DateTime            @db.Date
+  description           String              @db.Text
+  amount_gbp            Decimal             @db.Decimal(10, 2)
+  balance_gbp           Decimal?            @db.Decimal(10, 2)
+  reference             String?             @db.VarChar(255)
+  payment_id            Int?
+  reconciliation_status ReconciliationStatus @default(unmatched)
+  matched_at            DateTime?           @db.Timestamptz()
+  matched_by            Int?
+  import_batch_id       String?             @db.VarChar(50)
+  raw_data              Json?               @db.JsonB
+  notes                 String?             @db.Text
+  created_at            DateTime            @default(now()) @db.Timestamptz()
+  updated_at            DateTime            @default(now()) @db.Timestamptz()
+
+  payment     payments? @relation(fields: [payment_id], references: [id], onDelete: SetNull)
+  matched_user users?   @relation("bank_matched_by", fields: [matched_by], references: [id])
+
+  @@index([transaction_date])
+  @@index([reconciliation_status])
+  @@index([payment_id])
+  @@index([import_batch_id])
+  @@index([external_id])
+  @@map("bank_transactions")
+}
+
+/// Export log for accounting exports (UUID PK)
+model export_log {
+  id               String       @id @default(uuid()) @db.Uuid
+  export_type      ExportType
+  export_format    ExportFormat
+  date_from        DateTime     @db.Date
+  date_to          DateTime     @db.Date
+  record_count     Int          @default(0)
+  total_amount_gbp Decimal      @default(0) @db.Decimal(10, 2)
+  status           ExportStatus @default(completed)
+  file_path        String?      @db.Text
+  error_message    String?      @db.Text
+  exported_by      Int
+  created_at       DateTime     @default(now()) @db.Timestamptz()
+
+  exported_user users @relation(fields: [exported_by], references: [id])
+
+  @@index([export_type])
+  @@index([date_from, date_to])
+  @@index([exported_by])
+  @@map("export_log")
+}
+
+// ============================================================================
+// SCHEDULING TABLES (Migration 014)
+// ============================================================================
+
+/// Daily flight schedules
+model schedules {
+  id                 Int            @id @default(autoincrement())
+  schedule_date      DateTime       @unique @db.Date
+  status             ScheduleStatus @default(draft)
+  created_by         Int
+  updated_by         Int?
+  approved_by        Int?
+  approved_at        DateTime?      @db.Timestamptz()
+  published_by       Int?
+  published_at       DateTime?      @db.Timestamptz()
+  notes              String?        @db.Text
+  cancelled_by       Int?
+  cancelled_at       DateTime?      @db.Timestamptz()
+  cancellation_reason String?       @db.Text
+  created_at         DateTime?      @default(now()) @db.Timestamptz()
+  updated_at         DateTime?      @default(now()) @db.Timestamptz()
+
+  created_user   users? @relation("schedule_created_by", fields: [created_by], references: [id])
+  updated_user   users? @relation("schedule_updated_by", fields: [updated_by], references: [id])
+  approved_user  users? @relation("schedule_approved_by", fields: [approved_by], references: [id])
+  published_user users? @relation("schedule_published_by", fields: [published_by], references: [id])
+  cancelled_user users? @relation("schedule_cancelled_by", fields: [cancelled_by], references: [id])
+
+  flights                 flights[]
+  flight_legs             flight_legs[]
+  pilot_assignments       pilot_assignments[]
+  aircraft_assignments    aircraft_assignments[]
+  loadsheets              loadsheets[]
+  published_schedules     published_schedules[]
+  weight_balance_snapshots weight_balance_snapshots[]
+
+  @@index([schedule_date])
+  @@index([status])
+  @@map("schedules")
+}
+
+/// Individual legs of a multi-stop flight
+model flight_legs {
+  id               Int              @id @default(autoincrement())
+  flight_id        Int
+  leg_number       Int
+  origin_code      String           @db.VarChar(10)
+  destination_code String           @db.VarChar(10)
+  distance_nm      Decimal?         @db.Decimal(10, 2)
+  heading          Decimal?         @db.Decimal(10, 2)
+  etd              DateTime?        @db.Timestamptz()
+  eta              DateTime?        @db.Timestamptz()
+  atd              DateTime?        @db.Timestamptz()
+  ata              DateTime?        @db.Timestamptz()
+  pax_on           Int?             @default(0)
+  pax_off          Int?             @default(0)
+  bags_on          Int?             @default(0)
+  bags_off         Int?             @default(0)
+  fuel_uplift_kg   Decimal?         @default(0) @db.Decimal(10, 2)
+  fuel_on_board_kg Decimal?         @default(0) @db.Decimal(10, 2)
+  tow_kg           Decimal?         @default(0) @db.Decimal(10, 2)
+  lw_kg            Decimal?         @default(0) @db.Decimal(10, 2)
+  status           FlightLegStatus  @default(scheduled)
+  schedule_id      Int?
+  created_at       DateTime?        @default(now()) @db.Timestamptz()
+  updated_at       DateTime?        @default(now()) @db.Timestamptz()
+
+  flight    flights    @relation(fields: [flight_id], references: [id], onDelete: Cascade)
+  schedule  schedules? @relation(fields: [schedule_id], references: [id], onDelete: SetNull)
+
+  weight_balance_snapshots weight_balance_snapshots[]
+  booking_leg_passengers   booking_leg_passengers[]
+  loadsheet_sectors        loadsheet_sectors[]
+
+  @@unique([flight_id, leg_number])
+  @@index([flight_id])
+  @@map("flight_legs")
+}
+
+/// Pilot-to-flight assignments
+model pilot_assignments {
+  id             Int                    @id @default(autoincrement())
+  flight_id      Int
+  pilot_id       Int
+  role           PilotAssignmentRole
+  status         PilotAssignmentStatus @default(assigned)
+  schedule_id    Int?
+  confirmed_at   DateTime?             @db.Timestamptz()
+  declined_at    DateTime?             @db.Timestamptz()
+  declined_reason String?              @db.Text
+  notes          String?               @db.Text
+  assigned_by    Int?
+  created_at     DateTime?             @default(now()) @db.Timestamptz()
+  updated_at     DateTime?             @default(now()) @db.Timestamptz()
+
+  flight       flights @relation(fields: [flight_id], references: [id], onDelete: Cascade)
+  pilot        pilots  @relation(fields: [pilot_id], references: [id])
+  schedule     schedules? @relation(fields: [schedule_id], references: [id], onDelete: Cascade)
+  assigned_user users? @relation("pilot_assignment_assigned_by", fields: [assigned_by], references: [id])
+
+  @@unique([flight_id, pilot_id])
+  @@index([flight_id])
+  @@index([pilot_id])
+  @@index([schedule_id])
+  @@map("pilot_assignments")
+}
+
+/// Aircraft-to-flight assignments
+model aircraft_assignments {
+  id             Int       @id @default(autoincrement())
+  flight_id      Int
+  aircraft_id    Int
+  schedule_id    Int?
+  status         String    @default("assigned") @db.VarChar(50)
+  confirmed_at   DateTime? @db.Timestamptz()
+  notes          String?   @db.Text
+  assigned_by    Int?
+  created_at     DateTime? @default(now()) @db.Timestamptz()
+  updated_at     DateTime? @default(now()) @db.Timestamptz()
+
+  flight       flights    @relation(fields: [flight_id], references: [id], onDelete: Cascade)
+  aircraft     aircraft   @relation(fields: [aircraft_id], references: [id])
+  schedule     schedules? @relation(fields: [schedule_id], references: [id], onDelete: Cascade)
+  assigned_user users?    @relation("aircraft_assignment_assigned_by", fields: [assigned_by], references: [id])
+
+  @@unique([flight_id, aircraft_id])
+  @@index([flight_id])
+  @@index([aircraft_id])
+  @@index([schedule_id])
+  @@map("aircraft_assignments")
+}
+
+/// Passenger-to-booking-leg assignments (junction table)
+model booking_leg_passengers {
+  id                  Int       @id @default(autoincrement())
+  booking_leg_id      Int
+  booking_passenger_id Int
+  flight_leg_id       Int?      @map("flight_leg_id")
+  clothed_weight_kg   Decimal?  @db.Decimal(5, 1)
+  baggage_weight_kg   Decimal?  @db.Decimal(5, 1)
+  baggage_description String?   @db.Text
+  freight_description String?   @db.Text
+  freight_weight_kg   Decimal?  @db.Decimal(8, 1)
+  seat_number         String?   @db.VarChar(10)
+  checked_in          Boolean   @default(false)
+  checked_in_at       DateTime? @db.Timestamptz()
+  checked_in_by       Int?
+  boarded             Boolean   @default(false)
+  boarded_at          DateTime? @db.Timestamptz()
+  line_fare_amount    Decimal?  @db.Decimal(8,2)
+  discount_applied    Boolean   @default(false)
+  created_at          DateTime  @default(now()) @db.Timestamptz()
+  updated_at          DateTime  @default(now()) @db.Timestamptz()
+
+  booking_leg       booking_legs       @relation(fields: [booking_leg_id], references: [id], onDelete: Cascade)
+  booking_passenger booking_passengers @relation(fields: [booking_passenger_id], references: [id], onDelete: Cascade)
+  flight_leg        flight_legs?       @relation(fields: [flight_leg_id], references: [id], onDelete: SetNull, map: "fk_booking_leg_passengers_flight_leg")
+  checked_in_user   users?             @relation("blp_checked_in_by", fields: [checked_in_by], references: [id])
+  payment_allocations payment_allocations[]
+  invoice_line_items  invoice_line_items[]
+
+  @@unique([booking_leg_id, booking_passenger_id])
+  @@unique([booking_leg_id, flight_leg_id])
+  @@index([booking_leg_id])
+  @@index([booking_passenger_id])
+  @@index([flight_leg_id])
+  @@index([checked_in])
+  @@map("booking_leg_passengers")
+}
+
+// ============================================================================
+// NO-FLY RULES (Migrations 017-018)
+// ============================================================================
+
+/// Rules that designate days on which flight bookings cannot be made
+model no_fly_rules {
+  id              Int           @id @default(autoincrement())
+  label           String        @db.VarChar(255)
+  description     String?       @db.Text
+  rule_type       NoFlyRuleType
+  is_active       Boolean       @default(true)
+  day_of_week     Int[]         @default([])
+  season_start    DateTime?     @db.Date
+  season_end      DateTime?     @db.Date
+  specific_date   DateTime?     @db.Date
+  priority        Int           @default(0)
+  override_reason String?       @db.Text
+  created_by      Int
+  created_at      DateTime      @default(now()) @db.Timestamptz()
+  updated_at      DateTime      @default(now()) @db.Timestamptz()
+
+  created_user users @relation(fields: [created_by], references: [id])
+
+  @@index([is_active])
+  @@index([specific_date])
+  @@index([day_of_week])
+  @@map("no_fly_rules")
+}
+
+// ============================================================================
+// WEIGHT & BALANCE (Migration 019)
+// ============================================================================
+
+/// Weight and balance snapshots per flight leg
+model weight_balance_snapshots {
+  id                        Int       @id @default(autoincrement())
+  flight_leg_id             Int
+  schedule_id               Int?
+  passenger_weight_kg       Decimal   @default(0) @db.Decimal(10, 2)
+  baggage_weight_kg         Decimal   @default(0) @db.Decimal(10, 2)
+  freight_weight_kg         Decimal   @default(0) @db.Decimal(10, 2)
+  fuel_weight_kg            Decimal   @default(0) @db.Decimal(10, 2)
+  crew_weight_kg            Decimal   @default(0) @db.Decimal(10, 2)
+  empty_weight_kg           Decimal   @default(0) @db.Decimal(10, 2)
+  total_weight_kg           Decimal   @default(0) @db.Decimal(10, 2)
+  required_fuel_kg          Decimal?  @db.Decimal(10, 2)
+  minimum_fuel_kg           Decimal?  @db.Decimal(10, 2)
+  fuel_state                String?   @db.VarChar(20)
+  fuel_rule_applied         String?   @db.Text
+  total_moment_kgm          Decimal?  @db.Decimal(10, 2)
+  cg_position_pct           Decimal?  @db.Decimal(10, 2)
+  effective_mtow_kg         Decimal?  @db.Decimal(10, 2)
+  effective_mlw_kg          Decimal?  @db.Decimal(10, 2)
+  mtow_used_pct             Decimal?  @db.Decimal(10, 2)
+  mlw_used_pct              Decimal?  @db.Decimal(10, 2)
+  binding_constraint        String?   @db.VarChar(20)
+  binding_constraint_detail String?   @db.Text
+  computed_by               String    @default("system") @db.VarChar(50)
+  computed_at               DateTime? @default(now()) @db.Timestamptz()
+  notes                     String?   @db.Text
+  created_at                DateTime? @default(now()) @db.Timestamptz()
+  updated_at                DateTime? @default(now()) @db.Timestamptz()
+
+  flight_leg flight_legs @relation(fields: [flight_leg_id], references: [id], onDelete: Cascade)
+  schedule   schedules?  @relation(fields: [schedule_id], references: [id], onDelete: Cascade)
+
+  @@index([flight_leg_id])
+  @@index([schedule_id])
+  @@map("weight_balance_snapshots")
+}
+
+// ============================================================================
+// RBAC TABLES (Migration 015)
+// ============================================================================
+
+/// Permission-based access control — roles
+model roles {
+  id              Int       @id @default(autoincrement())
+  slug            String    @unique @db.VarChar(50)
+  name            String    @db.VarChar(50)
+  description     String?   @db.Text
+  hierarchy_level Int       @default(0)
+  is_system       Boolean   @default(false)
+  created_at      DateTime  @default(now()) @db.Timestamptz()
+  updated_at      DateTime  @default(now()) @db.Timestamptz()
+
+  user_roles          user_roles[]
+  role_permissions    role_permissions[]
+
+  @@index([hierarchy_level])
+  @@map("roles")
+}
+
+/// Permission-based access control — permissions
+model permissions {
+  id          Int      @id @default(autoincrement())
+  resource    String   @db.VarChar(50)
+  action      String   @db.VarChar(50)
+  description String?  @db.Text
+  created_at  DateTime @default(now()) @db.Timestamptz()
+
+  role_permissions role_permissions[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+/// Permission-based access control — role-permission junction
+model role_permissions {
+  id            Int      @id @default(autoincrement())
+  role_id       Int
+  permission_id Int
+  created_at    DateTime @default(now()) @db.Timestamptz()
+
+  role        roles       @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  permission  permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+
+  @@unique([role_id, permission_id])
+  @@index([role_id])
+  @@index([permission_id])
+  @@map("role_permissions")
+}
+
+/// Permission-based access control — user-role junction
+model user_roles {
+  id          Int      @id @default(autoincrement())
+  user_id     Int
+  role_id     Int
+  assigned_by Int?
+  created_at  DateTime @default(now()) @db.Timestamptz()
+
+  user        users  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role        roles  @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  assignedBy  users? @relation("user_role_assigned_by", fields: [assigned_by], references: [id], onDelete: SetNull)
+
+  @@unique([user_id, role_id])
+  @@index([user_id])
+  @@index([role_id])
+  @@map("user_roles")
+}
+
+/// Permission-based access control — audit log
+model audit_log {
+  id          Int      @id @default(autoincrement())
+  actor_id    Int
+  action      String   @db.VarChar(100)
+  entity_type String?  @db.VarChar(50)
+  entity_id   Int?
+  old_values  Json?    @db.JsonB
+  new_values  Json?    @db.JsonB
+  ip_address  String?  @db.VarChar(45)
+  user_agent  String?  @db.VarChar(255)
+  assigned_by Int?
+  created_at  DateTime @default(now()) @db.Timestamptz()
+
+  actor        users @relation("audit_actor", fields: [actor_id], references: [id], onDelete: Restrict)
+  assigned_by_user users? @relation("audit_assigned_by", fields: [assigned_by], references: [id])
+
+  @@index([actor_id])
+  @@index([action])
+  @@index([entity_type, entity_id])
+  @@index([created_at])
+  @@map("audit_log")
+}
+
+// ============================================================================
+// EXTERNAL / SUPABASE TABLES (from generated types, not in migration files)
+// ============================================================================
+
+/// Password reset tokens (likely from Supabase Auth or custom auth)
+model password_reset_tokens {
+  id         Int       @id @default(autoincrement())
+  user_id    Int
+  token      String    @db.VarChar(255)
+  expires_at DateTime  @db.Timestamptz()
+  used_at    DateTime? @db.Timestamptz()
+  created_at DateTime  @default(now()) @db.Timestamptz()
+  updated_at DateTime  @default(now()) @db.Timestamptz()
+
+  user users @relation(fields: [user_id], references: [id])
+
+  @@map("password_reset_tokens")
+}
+
+/// Email verification tokens (likely from Supabase Auth or custom auth)
+model email_verification_tokens {
+  id         Int       @id @default(autoincrement())
+  user_id    Int
+  token      String    @db.VarChar(255)
+  expires_at DateTime  @db.Timestamptz()
+  used_at    DateTime? @db.Timestamptz()
+  created_at DateTime  @default(now()) @db.Timestamptz()
+  updated_at DateTime  @default(now()) @db.Timestamptz()
+
+  user users @relation(fields: [user_id], references: [id])
+
+  @@map("email_verification_tokens")
+}
+
+/// Data table migrations (likely from a migration framework)
+model data_table_migrations {
+  id         String   @id @default(uuid()) @db.Uuid
+  name       String   @db.VarChar(255)
+  checksum   String?  @db.VarChar(255)
+  batch      Int
+  applied_at DateTime @default(now()) @db.Timestamptz()
+
+  @@map("data_table_migrations")
+}
+
+/// Time templates for preferred booking times
+model time_templates {
+  id                 Int      @id @default(autoincrement())
+  user_id            Int
+  day_of_week        Int
+  preferred_time_start DateTime? @db.Time
+  preferred_time_end   DateTime? @db.Time
+  origin_code        String?  @db.VarChar(10)
+  destination_code   String?  @db.VarChar(10)
+  is_active          Boolean  @default(true)
+  created_at         DateTime @default(now()) @db.Timestamptz()
+  updated_at         DateTime @default(now()) @db.Timestamptz()
+
+  user users @relation(fields: [user_id], references: [id])
+
+  @@map("time_templates")
+}
+
+/// Loadsheet — flight manifest for single-crew BN-2 Islander operations
+model loadsheets {
+  id                Int       @id @default(autoincrement())
+  flight_id         Int       @unique
+  schedule_id       Int?
+  pilot_id          Int?
+  aircraft_id       Int?
+  status            String    @default("draft")
+  empty_weight_kg   Decimal?  @db.Decimal(6,1)
+  pilot_weight_kg   Decimal?  @db.Decimal(5,1) @default(80)
+  cabin_baggage_kg  Decimal?  @db.Decimal(5,1) @default(0)
+  total_pax         Int       @default(0)
+  checksum          String?   @db.VarChar(64)
+  notes             String?   @db.Text
+  finalized_at      DateTime? @db.Timestamptz()
+  finalized_by      Int?
+  archived_at       DateTime? @db.Timestamptz()
+  created_at        DateTime  @default(now()) @db.Timestamptz()
+  updated_at        DateTime  @default(now()) @db.Timestamptz()
+
+  flight           flights    @relation(fields: [flight_id], references: [id], onDelete: Restrict)
+  schedule         schedules? @relation(fields: [schedule_id], references: [id])
+  pilot            pilots?    @relation(fields: [pilot_id], references: [id])
+  aircraft         aircraft?  @relation(fields: [aircraft_id], references: [id])
+  finalized_by_user users?    @relation("loadsheet_finalized_by", fields: [finalized_by], references: [id])
+  passengers       loadsheet_passengers[]
+  sectors          loadsheet_sectors[]
+  audit_logs       loadsheet_audit_log[]
+
+  @@map("loadsheets")
+}
+
+model loadsheet_passengers {
+  id                    Int       @id @default(autoincrement())
+  loadsheet_id          Int
+  booking_passenger_id  Int
+  booking_leg_id        Int
+  seat_row              Int?
+  seat_side             String?   @db.VarChar(1)
+  clothed_weight_kg     Decimal?  @db.Decimal(5,1)
+  baggage_weight_kg     Decimal?  @db.Decimal(5,1) @default(0)
+  freight_weight_kg     Decimal?  @db.Decimal(5,1) @default(0)
+  boarded               Boolean   @default(false)
+  boarded_at            DateTime? @db.Timestamptz()
+
+  loadsheet           loadsheets          @relation(fields: [loadsheet_id], references: [id], onDelete: Cascade)
+  booking_passenger   booking_passengers  @relation(fields: [booking_passenger_id], references: [id])
+  booking_leg         booking_legs        @relation(fields: [booking_leg_id], references: [id])
+
+  @@unique([loadsheet_id, booking_passenger_id])
+  @@map("loadsheet_passengers")
+}
+
+model loadsheet_sectors {
+  id                Int       @id @default(autoincrement())
+  loadsheet_id      Int
+  flight_leg_id     Int
+  leg_sequence      Int
+  origin_code       String?   @db.VarChar(4)
+  destination_code  String?   @db.VarChar(4)
+  distance_nm       Decimal?  @db.Decimal(5,1)
+  planned_time_min  Int?
+  etd               DateTime? @db.Time
+  eta               DateTime? @db.Time
+  atd               DateTime? @db.Time
+  ata               DateTime? @db.Time
+  actual_time_min   Int?
+  fuel_on_board_kg  Decimal?  @db.Decimal(5,1)
+  fuel_burn_kg      Decimal?  @db.Decimal(5,1)
+  fuel_remaining_kg Decimal?  @db.Decimal(5,1)
+  takeoff_weight_kg Decimal?  @db.Decimal(7,1)
+  landing_weight_kg Decimal?  @db.Decimal(7,1)
+  cog_position_mm   Decimal?  @db.Decimal(6,1)
+  cog_status        String?   @db.VarChar(10)
+  tow_status        String?   @db.VarChar(10)
+  notes             String?   @db.Text
+
+  loadsheet   loadsheets  @relation(fields: [loadsheet_id], references: [id], onDelete: Cascade)
+  flight_leg  flight_legs @relation(fields: [flight_leg_id], references: [id], onDelete: Cascade)
+
+  @@unique([loadsheet_id, flight_leg_id])
+  @@map("loadsheet_sectors")
+}
+
+model loadsheet_audit_log {
+  id              Int       @id @default(autoincrement())
+  loadsheet_id    Int
+  action          String    @db.VarChar(50)
+  field_name      String?   @db.VarChar(100)
+  old_value       String?   @db.Text
+  new_value       String?   @db.Text
+  actor_id        Int?
+  ip_address      String?   @db.Inet
+  created_at      DateTime  @default(now()) @db.Timestamptz()
+
+  loadsheet loadsheets @relation(fields: [loadsheet_id], references: [id], onDelete: Cascade)
+  actor     users?     @relation("loadsheet_audit_actor", fields: [actor_id], references: [id])
+
+  @@index([loadsheet_id, created_at])
+  @@map("loadsheet_audit_log")
+}
+
+/// Published daily flight schedule (public-facing)
+model published_schedules {
+  id              Int       @id @default(autoincrement())
+  schedule_id     Int
+  public_token    String    @unique @db.VarChar(32)
+  version         Int       @default(1)
+  published_at    DateTime  @default(now()) @db.Timestamptz()
+  published_by    Int?
+  amendment_note  String?   @db.Text
+  disclaimer_text String?   @db.Text @default("Flights may change at short notice. Check for updates before travel.")
+  is_active       Boolean   @default(true)
+  created_at      DateTime  @default(now()) @db.Timestamptz()
+
+  schedule  schedules  @relation(fields: [schedule_id], references: [id], onDelete: Cascade)
+  publisher users?     @relation("published_by_user", fields: [published_by], references: [id])
+  flights   published_schedule_flights[]
+
+  @@index([public_token])
+  @@index([schedule_id])
+  @@map("published_schedules")
+}
+
+model published_schedule_flights {
+  id                      Int       @id @default(autoincrement())
+  published_schedule_id   Int
+  flight_id               Int?
+  flight_number           String    @db.VarChar(20)
+  origin_code             String?   @db.VarChar(4)
+  destination_code        String?   @db.VarChar(4)
+  departure_time          DateTime? @db.Timestamptz()
+  arrival_time            DateTime? @db.Timestamptz()
+  status                  String?   @db.VarChar(20)
+  aircraft_type           String?   @db.VarChar(100)
+  aircraft_registration   String?   @db.VarChar(20)
+  pilot_name              String?   @db.VarChar(255)
+  stop_count              Int       @default(0)
+  notes                   String?   @db.Text
+
+  published_schedule published_schedules @relation(fields: [published_schedule_id], references: [id], onDelete: Cascade)
+  flight             flights?            @relation(fields: [flight_id], references: [id])
+
+  @@index([published_schedule_id])
+  @@map("published_schedule_flights")
+}
+
+model fare_matrix {
+  origin_code      String     @db.VarChar(4)
+  destination_code String     @db.VarChar(4)
+  fare_amount_gbp  Decimal    @db.Decimal(8,2)
+  updated_at       DateTime?  @default(now()) @db.Timestamptz()
+
+  @@id([origin_code, destination_code])
+  @@map("fare_matrix")
+}
+
+model payment_allocations {
+  id                        Int       @id @default(autoincrement())
+  payment_id                Int
+  booking_leg_passenger_id  Int
+  allocated_amount          Decimal   @db.Decimal(10,2)
+  allocation_type           String    @default("full") @db.VarChar(20)
+  created_at                DateTime? @default(now()) @db.Timestamptz()
+
+  payment              payments               @relation(fields: [payment_id], references: [id], onDelete: Cascade)
+  booking_leg_passenger booking_leg_passengers @relation(fields: [booking_leg_passenger_id], references: [id], onDelete: Restrict)
+
+  @@index([payment_id])
+  @@index([booking_leg_passenger_id])
+  @@map("payment_allocations")
+}
+
+model invoice_line_items {
+  id                        Int       @id @default(autoincrement())
+  invoice_id                String    @db.Uuid
+  booking_leg_passenger_id  Int?
+  description               String    @db.VarChar(255)
+  unit_price                Decimal   @db.Decimal(10,2)
+  quantity                  Int       @default(1)
+  discount_amount           Decimal?  @db.Decimal(10,2) @default(0)
+  line_total                Decimal   @db.Decimal(10,2)
+  tax_rate                  Decimal?  @db.Decimal(5,2) @default(0)
+  tax_amount                Decimal?  @db.Decimal(10,2) @default(0)
+  created_at                DateTime? @default(now()) @db.Timestamptz()
+
+  invoice              invoices               @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+  booking_leg_passenger booking_leg_passengers? @relation(fields: [booking_leg_passenger_id], references: [id], onDelete: SetNull)
+
+  @@index([invoice_id])
+  @@map("invoice_line_items")
+}
+
+// ============================================================================
+// MAINTENANCE SYSTEM TABLES (Phase 1)
+// ============================================================================
+
+model flight_logs {
+  id               Int       @id @default(autoincrement())
+  flight_id        Int?
+  aircraft_id      Int
+  captain_id       Int?
+  departure_date   DateTime  @default(now()) @db.Date
+  block_off_time   DateTime? @db.Time
+  block_on_time    DateTime? @db.Time
+  tach_start       Decimal?  @db.Decimal(7, 1)
+  tach_end         Decimal?  @db.Decimal(7, 1)
+  cycles           Int       @default(1)
+  fuel_uplift_ltr  Int?
+  fuel_start_ltr   Int?
+  fuel_end_ltr     Int?
+  oil_uplift_ltr   Decimal?  @db.Decimal(3, 1)
+  origin_code      String?   @db.VarChar(10)
+  destination_code String?   @db.VarChar(10)
+  remarks          String?
+  created_by       Int?
+  created_at       DateTime? @default(now()) @db.Timestamptz
+
+  @@index([aircraft_id, departure_date])
+  @@index([departure_date])
+  @@map("flight_logs")
+}
+
+model maintenance_tasks {
+  id                   Int       @id @default(autoincrement())
+  aircraft_id          Int
+  task_type            String    @default("inspection") @db.VarChar(50)
+  ata_chapter          String?   @db.VarChar(10)
+  title                String    @db.VarChar(255)
+  description          String?
+  interval_type        String    @default("hours") @db.VarChar(20)
+  interval_value       Int
+  last_completed_at    DateTime? @db.Timestamptz
+  last_completed_hours Decimal?  @db.Decimal(7, 1)
+  last_completed_cycles Int?     @default(0)
+  next_due_hours       Decimal?  @db.Decimal(7, 1)
+  next_due_date        DateTime? @db.Date
+  status               String?   @default("open") @db.VarChar(20)
+  assigned_to          Int?
+  priority             String?   @default("routine") @db.VarChar(10)
+  created_at           DateTime? @default(now()) @db.Timestamptz
+  completed_at         DateTime? @db.Timestamptz
+  completed_by         Int?
+
+  @@index([aircraft_id, status])
+  @@index([status])
+  @@map("maintenance_tasks")
+}
+
+model defects {
+  id                      Int       @id @default(autoincrement())
+  aircraft_id             Int
+  flight_log_id           Int?
+  reported_by             Int
+  reported_at             DateTime? @default(now()) @db.Timestamptz
+  ata_chapter             String?   @db.VarChar(10)
+  title                   String    @db.VarChar(255)
+  description             String?
+  severity                String?   @default("minor") @db.VarChar(20)
+  mel_reference           String?   @db.VarChar(50)
+  mel_category            String?   @db.VarChar(1)
+  deferral_status         String?   @default("open") @db.VarChar(20)
+  deferral_approved_by    Int?
+  deferral_expiry_date    DateTime? @db.Date
+  rectification           String?
+  rectified_at            DateTime? @db.Timestamptz
+  rectified_by            Int?
+  maintenance_task_id     Int?
+  created_at              DateTime? @default(now()) @db.Timestamptz
+
+  @@index([aircraft_id, deferral_status])
+  @@map("defects")
+}
+
+model lifed_components {
+  id                  Int       @id @default(autoincrement())
+  aircraft_id         Int
+  component_name      String    @db.VarChar(255)
+  part_number         String?   @db.VarChar(100)
+  serial_number       String?   @db.VarChar(100)
+  ata_chapter         String?   @db.VarChar(10)
+  tbo_hours           Decimal   @db.Decimal(7, 1)
+  tbo_cycles          Int?
+  tbo_calendar_months Int?
+  installed_hours     Decimal   @db.Decimal(7, 1)
+  installed_cycles    Int?      @default(0)
+  installed_date      DateTime  @db.Date
+  current_hours       Decimal   @db.Decimal(7, 1)
+  current_cycles      Int?      @default(0)
+  hours_remaining     Decimal?  @db.Decimal(7, 1)
+  cycles_remaining    Int?
+  status              String?   @default("active") @db.VarChar(20)
+  last_inspected_at   DateTime? @db.Timestamptz
+  remarks             String?
+  created_at          DateTime? @default(now()) @db.Timestamptz
+
+  @@index([aircraft_id, status])
+  @@map("lifed_components")
+}
+
+model sign_offs {
+  id                       Int       @id @default(autoincrement())
+  entity_type              String    @db.VarChar(30)
+  entity_id                Int
+  signed_by                Int
+  signed_at                DateTime? @default(now()) @db.Timestamptz
+  certification_statement  String?
+  licence_number           String?   @db.VarChar(50)
+  created_at               DateTime? @default(now()) @db.Timestamptz
+
+  @@index([entity_type, entity_id])
+  @@map("sign_offs")
+}
+
+model ata_chapters {
+  chapter       String  @id @db.VarChar(10)
+  title         String  @db.VarChar(255)
+  description   String?
+  aircraft_type String? @default("BN-2B Islander") @db.VarChar(100)
+
+  @@map("ata_chapters")
+}

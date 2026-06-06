@@ -1,47 +1,18 @@
-import type { MetaFunction } from "@remix-run/node";
+import type { LoaderFunctionArgs } from "@remix-run/node";
 import { redirect } from "@remix-run/node";
+import { getUserId, getUserIdentity, redirectToRoleHome } from "../utils/auth.server";
 
-import Guide from "~/components/Guide";
-import Logo from "~/components/Logo";
-import { getSupabaseClient } from "~/utils/getSupabaseClient";
+export async function loader({ request }: LoaderFunctionArgs) {
+  const userId = await getUserId(request);
 
-export async function loader() {
-  let isSupabaseAvailable = true;
-
-  try {
-    getSupabaseClient();
-  } catch (error) {
-    isSupabaseAvailable = false;
-  }
-
-  if (isSupabaseAvailable) {
+  if (!userId) {
+    // Not authenticated — redirect to login
     return redirect("/login");
   }
 
-  return Response.json({});
-}
+  // Authenticated — redirect to permission-based home
+  const identity = await getUserIdentity(userId);
+  const permissions = identity?.permissions ?? [];
 
-export const meta: MetaFunction = () => {
-  return [
-    { title: "New Remix App" },
-    { name: "description", content: "Welcome to Remix!" },
-  ];
-};
-
-export default function Index() {
-  return (
-    <>
-      <nav className="flex justify-center w-full px-4 pt-8">
-        <Logo />
-      </nav>
-      <main className="grow">
-        <Guide />
-      </main>
-      <footer className="w-full px-4 pb-8 mx-auto max-w-7xl">
-        <p className="text-sm text-center">
-          &copy; {new Date().getFullYear()} Netlify. All rights reserved.
-        </p>
-      </footer>
-    </>
-  );
+  return redirect(redirectToRoleHome(permissions, request.url));
 }

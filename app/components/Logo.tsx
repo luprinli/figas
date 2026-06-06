@@ -27,7 +27,7 @@ const Logo = () => {
         />
       </svg>
       <span className="text-xl text-slate-900 font-semibold uppercase">
-        Remix Admin
+        FIGAS
       </span>
     </Link>
   );

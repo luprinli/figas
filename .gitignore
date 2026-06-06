@@ -14,3 +14,9 @@ supabase/.temp
 
 # netlify
 .netlify
+/generated/prisma
+
+# Playwright
+tests/e2e/auth-state.json
+test-results/
+playwright-report/

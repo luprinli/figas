@@ -7,7 +7,11 @@ import {
 } from "@remix-run/react";
 import type { LinksFunction } from "@remix-run/node";
 
-import styles from "~/styles/tailwind.css?url";
+import styles from "./styles/tailwind.css?url";
+import printStyles from "./styles/print.css?url";
+import ToastContainer from "./components/Toast";
+import ThemeProvider from "./components/ThemeProvider";
+import { GlobalErrorBoundary } from "./components/GlobalErrorBoundary";
 
 export const links: LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -21,6 +25,8 @@ export const links: LinksFunction = () => [
     href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
   },
   { rel: "stylesheet", href: styles },
+  { rel: "stylesheet", href: printStyles, media: "print" },
+  { rel: "manifest", href: "/manifest.json" },
 ];
 
 export default function App() {
@@ -29,14 +35,20 @@ export default function App() {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="theme-color" content="#2563eb" />
         <Meta />
         <Links />
       </head>
-      <body className="flex flex-col min-h-screen text-slate-700 bg-slate-100">
-        <Outlet />
-        <ScrollRestoration />
-        <Scripts />
+      <body className="flex flex-col min-h-screen text-slate-700 bg-slate-100 dark:bg-slate-900 dark:text-slate-300">
+        <ThemeProvider>
+          <Outlet />
+          <ScrollRestoration />
+          <Scripts />
+          <ToastContainer />
+        </ThemeProvider>
       </body>
     </html>
   );
 }
+
+export { GlobalErrorBoundary as ErrorBoundary };

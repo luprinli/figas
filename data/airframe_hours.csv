@@ -1,0 +1,6 @@
+call_sign,last_reading_date,total_hours,next_check_date,next_check_type,days_remaining,next_check_due_hours,hours_until_next_check,next_500_hour_check,hours_until_500_check,next_1000_hour_check,hours_until_1000_check,status
+VP-FBD,2025-08-25,20677:14,2025-09-09,100,-111,20677:15,0:01,20686:38,9:24,21186:38,509:24,overdue
+VP-FBN,2025-11-19,17648:56,2026-01-05,50,7,17650:25,1:29,18452:43,803:47,17952:43,303:47,approaching_due
+VP-FBO,2025-11-20,14039:42,2026-01-14,100,16,14083:59,44:17,14947:08,907:26,14447:08,407:26,on_schedule
+VP-FBR,2025-11-22,17517:18,2025-12-24,50,-5,17518:15,0:57,18319:47,802:29,17828:49,311:31,overdue
+VP-FMC,2025-11-21,3335:36,2026-01-11,100,13,3338:59,3:23,3475:04,139:28,3975:04,639:28,approaching_due

@@ -1,0 +1,386 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FIGAS Fare Pricing Model",
+  "description": "Schema for structured fare pricing in FIGAS Multi-Leg Booking System",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "system": {
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "totalRoutes": {
+          "type": "integer"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "fareValidity": {
+          "type": "object",
+          "properties": {
+            "effectiveFrom": {
+              "type": "string",
+              "format": "date"
+            },
+            "effectiveTo": {
+              "type": "string",
+              "format": "date"
+            },
+            "reviewCycle": {
+              "type": "string",
+              "enum": [
+                "MONTHLY",
+                "QUARTERLY",
+                "ANNUALLY"
+              ]
+            }
+          },
+          "required": [
+            "effectiveFrom",
+            "effectiveTo",
+            "reviewCycle"
+          ]
+        }
+      },
+      "required": [
+        "totalRoutes",
+        "currency",
+        "fareValidity"
+      ]
+    },
+    "aerodromes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "facilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "isActive"
+        ]
+      }
+    },
+    "fareStructure": {
+      "type": "object",
+      "properties": {
+        "baseFares": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "routeId": {
+                "type": "string"
+              },
+              "origin": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "name"
+                ]
+              },
+              "destination": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "name"
+                ]
+              },
+              "baseFare": {
+                "type": "number",
+                "minimum": 0
+              },
+              "currency": {
+                "type": "string"
+              },
+              "isSymmetric": {
+                "type": "boolean"
+              },
+              "applicableAircraft": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "passengerTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "ADULT",
+                    "CHILD",
+                    "INFANT"
+                  ]
+                }
+              },
+              "fareRules": {
+                "type": "object",
+                "properties": {
+                  "minimumAdvanceBooking": {
+                    "type": "integer"
+                  },
+                  "maximumAdvanceBooking": {
+                    "type": "integer"
+                  },
+                  "changeFee": {
+                    "type": "number"
+                  },
+                  "cancellationFee": {
+                    "type": "number"
+                  },
+                  "refundable": {
+                    "type": "boolean"
+                  },
+                  "baggageAllowance": {
+                    "type": "object",
+                    "properties": {
+                      "checked": {
+                        "type": "number"
+                      },
+                      "cabin": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              },
+              "taxBreakdown": {
+                "type": "object",
+                "properties": {
+                  "baseFare": {
+                    "type": "number"
+                  },
+                  "fuelSurcharge": {
+                    "type": "number"
+                  },
+                  "securityFee": {
+                    "type": "number"
+                  },
+                  "airportTax": {
+                    "type": "number"
+                  },
+                  "vat": {
+                    "type": "number"
+                  },
+                  "total": {
+                    "type": "number"
+                  }
+                }
+              },
+              "temporalRules": {
+                "type": "object",
+                "properties": {
+                  "peakHours": {
+                    "type": "object",
+                    "properties": {
+                      "multiplier": {
+                        "type": "number"
+                      },
+                      "hours": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "weekendSurcharge": {
+                    "type": "number"
+                  },
+                  "holidaySurcharge": {
+                    "type": "number"
+                  }
+                }
+              },
+              "validationRules": {
+                "type": "object",
+                "properties": {
+                  "minPassengers": {
+                    "type": "integer"
+                  },
+                  "maxPassengers": {
+                    "type": "integer"
+                  },
+                  "weightLimitPerPassenger": {
+                    "type": "number"
+                  },
+                  "specialRequirements": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "routeId",
+              "origin",
+              "destination",
+              "baseFare",
+              "currency"
+            ]
+          }
+        }
+      }
+    },
+    "integrationPoints": {
+      "type": "object",
+      "properties": {
+        "bookingSystem": {
+          "type": "object",
+          "properties": {
+            "endpoint": {
+              "type": "string"
+            },
+            "method": {
+              "type": "string"
+            },
+            "requestSchema": {
+              "type": "object"
+            }
+          }
+        },
+        "ticketingSystem": {
+          "type": "object",
+          "properties": {
+            "endpoint": {
+              "type": "string"
+            },
+            "method": {
+              "type": "string"
+            },
+            "requires": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "paymentSystem": {
+          "type": "object",
+          "properties": {
+            "endpoint": {
+              "type": "string"
+            },
+            "method": {
+              "type": "string"
+            },
+            "supportedMethods": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "auditSystem": {
+          "type": "object",
+          "properties": {
+            "endpoint": {
+              "type": "string"
+            },
+            "method": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "validationLogic": {
+      "type": "object",
+      "properties": {
+        "fareValidation": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "passengerValidation": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "temporalValidation": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "businessRules": {
+      "type": "object",
+      "properties": {
+        "pricingRules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "modificationRules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cancellationRules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "system",
+    "metadata",
+    "aerodromes",
+    "fareStructure"
+  ]
+}

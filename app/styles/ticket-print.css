@@ -1,0 +1,430 @@
+/* ── Flight Ticket Print Stylesheet ──────────────────────────────────────────
+ * Used by FlightTicket.tsx for clean A4 print layout.
+ * Imported via <link> or <style> tag when print button is clicked.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/* ── Reset & Base ─────────────────────────────────────────────────────────── */
+@media print {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 12mm 15mm 15mm 15mm;
+  }
+
+  body {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      Helvetica, Arial, sans-serif;
+    font-size: 10pt;
+    line-height: 1.4;
+    color: #1e293b;
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Hide non-ticket elements */
+  nav,
+  header,
+  footer,
+  .sidebar,
+  .no-print,
+  button,
+  [role="navigation"],
+  [aria-label="Sidebar"] {
+    display: none !important;
+  }
+}
+
+/* ── Ticket Container ─────────────────────────────────────────────────────── */
+.flight-ticket {
+  max-width: 210mm;
+  margin: 0 auto;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+@media print {
+  .flight-ticket {
+    max-width: 100%;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    page-break-inside: avoid;
+  }
+}
+
+/* ── Ticket Header ────────────────────────────────────────────────────────── */
+.ticket-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #fff;
+}
+
+.ticket-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ticket-header-brand svg {
+  width: 28px;
+  height: 28px;
+  fill: #f8fafc;
+}
+
+.ticket-header-brand h1 {
+  font-size: 16pt;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin: 0;
+}
+
+.ticket-header-reference {
+  text-align: right;
+}
+
+.ticket-header-reference .label {
+  font-size: 7pt;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.7;
+  display: block;
+}
+
+.ticket-header-reference .value {
+  font-size: 14pt;
+  font-weight: 700;
+  font-family: "Courier New", Courier, monospace;
+  letter-spacing: 0.1em;
+}
+
+@media print {
+  .ticket-header {
+    background: #0f172a !important;
+    color: #fff !important;
+  }
+}
+
+/* ── Ticket Body ──────────────────────────────────────────────────────────── */
+.ticket-body {
+  padding: 16px 20px;
+}
+
+/* ── Passenger Info Strip ─────────────────────────────────────────────────── */
+.passenger-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+
+.passenger-strip .field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.passenger-strip .field .label {
+  font-size: 7pt;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.passenger-strip .field .value {
+  font-size: 10pt;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+@media print {
+  .passenger-strip {
+    background: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+  }
+}
+
+/* ── Leg Cards ────────────────────────────────────────────────────────────── */
+.ticket-legs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.ticket-leg {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ticket-leg-route {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #f1f5f9;
+  min-width: 160px;
+}
+
+.ticket-leg-route .airport-code {
+  font-size: 12pt;
+  font-weight: 700;
+  color: #0f172a;
+  font-family: "Courier New", Courier, monospace;
+}
+
+.ticket-leg-route .arrow {
+  color: #94a3b8;
+  font-size: 10pt;
+}
+
+.ticket-leg-details {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 10px 14px;
+  align-items: center;
+}
+
+.ticket-leg-details .detail {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ticket-leg-details .detail .label {
+  font-size: 6.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.ticket-leg-details .detail .value {
+  font-size: 9pt;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+@media print {
+  .ticket-leg-route {
+    background: #f1f5f9 !important;
+  }
+}
+
+/* ── Seat & Status Badges ─────────────────────────────────────────────────── */
+.ticket-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 7.5pt;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ticket-badge--seat {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.ticket-badge--checked-in {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.ticket-badge--boarded {
+  background: #bbf7d0;
+  color: #166534;
+}
+
+.ticket-badge--not-checked-in {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+@media print {
+  .ticket-badge--seat {
+    background: #dbeafe !important;
+    color: #1d4ed8 !important;
+  }
+  .ticket-badge--checked-in {
+    background: #dcfce7 !important;
+    color: #15803d !important;
+  }
+  .ticket-badge--boarded {
+    background: #bbf7d0 !important;
+    color: #166534 !important;
+  }
+  .ticket-badge--not-checked-in {
+    background: #fef3c7 !important;
+    color: #b45309 !important;
+  }
+}
+
+/* ── Barcode Strip ────────────────────────────────────────────────────────── */
+.ticket-barcode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 2px dashed #e2e8f0;
+  margin-top: 8px;
+}
+
+.ticket-barcode svg {
+  width: 40px;
+  height: 24px;
+  fill: #1e293b;
+}
+
+.ticket-barcode .reference {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 11pt;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: #1e293b;
+}
+
+/* ── Payment Summary Strip ────────────────────────────────────────────────── */
+.ticket-payment {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 16px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  font-size: 9pt;
+}
+
+.ticket-payment .total {
+  font-weight: 700;
+  font-size: 11pt;
+}
+
+@media print {
+  .ticket-payment {
+    background: #f8fafc !important;
+  }
+}
+
+/* ── Footer ───────────────────────────────────────────────────────────────── */
+.ticket-footer {
+  padding: 10px 20px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 7pt;
+  color: #94a3b8;
+}
+
+.ticket-footer .disclaimer {
+  max-width: 70%;
+  line-height: 1.5;
+}
+
+/* ── Print Button ─────────────────────────────────────────────────────────── */
+.ticket-print-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: #0f172a;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 9pt;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.ticket-print-button:hover {
+  background: #1e293b;
+}
+
+.ticket-print-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Loading / Empty / Error States ───────────────────────────────────────── */
+.ticket-skeleton {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 20px;
+  background: #fff;
+}
+
+.ticket-skeleton .skeleton-line {
+  height: 12px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.ticket-skeleton .skeleton-line:last-child {
+  width: 60%;
+}
+
+.ticket-skeleton .skeleton-line:nth-child(2) {
+  width: 80%;
+}
+
+.ticket-empty {
+  border: 2px dashed #e2e8f0;
+  border-radius: 8px;
+  padding: 32px 20px;
+  text-align: center;
+  color: #94a3b8;
+}
+
+.ticket-empty svg {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 8px;
+  fill: #cbd5e1;
+}
+
+.ticket-empty p {
+  font-size: 9pt;
+  margin: 0;
+}
+
+.ticket-error {
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 16px 20px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 9pt;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}

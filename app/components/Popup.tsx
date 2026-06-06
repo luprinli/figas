@@ -24,7 +24,7 @@ export default function Popup({
         !popupRef.current.contains(event.target as Node) &&
         !(buttonRef.current && buttonRef.current.contains(event.target as Node))
       ) {
-        setIsOpen(!isOpen);
+        setIsOpen(false);
       }
     };
 
@@ -34,7 +34,7 @@ export default function Popup({
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isOpen, buttonRef]);
+  }, [isOpen, buttonRef, setIsOpen]);
 
   if (!isOpen) return null;
 

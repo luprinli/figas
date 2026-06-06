@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes } from "react";
+﻿import type { InputHTMLAttributes } from "react";
 import React from "react";
 
 interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -31,7 +31,7 @@ const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
         {label && (
           <label
             htmlFor={id}
-            className="block mb-2 text-sm tracking-wide text-slate-700"
+            className="block mb-2 text-sm tracking-wide text-slate-700 dark:text-slate-200 dark:text-slate-300 dark:text-slate-500"
           >
             {label}{" "}
             {required && (
@@ -53,7 +53,7 @@ const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
           required={required}
           placeholder={placeholder}
           className={[
-            "block w-full rounded-md border p-3 text-sm text-slate-700 transition placeholder:font-light border-slate-200 focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100 focus:outline-none",
+            "block w-full rounded-md border p-3 text-sm text-slate-700 dark:text-slate-200 dark:bg-slate-700 dark:border-slate-600 transition placeholder:font-light border-slate-200 dark:border-slate-700 focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100 focus:outline-none",
             className,
           ]
             .filter(Boolean)

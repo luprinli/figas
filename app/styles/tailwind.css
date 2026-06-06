@@ -1,8 +1,50 @@
 @import "tailwindcss";
 @plugin '@tailwindcss/typography';
 
+@theme {
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-light: #dbeafe;
+  --color-success: #059669;
+  --color-success-light: #d1fae5;
+  --color-warning: #d97706;
+  --color-warning-light: #fef3c7;
+  --color-danger: #dc2626;
+  --color-danger-light: #fee2e2;
+  --color-info: #0284c7;
+  --color-info-light: #e0f2fe;
+  --color-fuel-ok: #059669;
+  --color-fuel-low: #d97706;
+  --color-fuel-critical: #dc2626;
+  --color-cg-ok: #059669;
+  --color-cg-warn: #d97706;
+  --color-cg-violation: #dc2626;
+  --color-surface: #ffffff;
+  --color-surface-secondary: #f8fafc;
+  --color-surface-tertiary: #f1f5f9;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-dropdown: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --shadow-modal: 0 8px 24px rgba(0, 0, 0, 0.2);
+  --font-family-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
 @layer components {
   .prose img {
     @apply border rounded-md border-slate-200;
+  }
+}
+
+@layer components {
+  .layout-section {
+    @apply space-y-6;
+  }
+  .layout-section-compact {
+    @apply space-y-4;
+  }
+  .layout-row {
+    @apply flex justify-between items-center gap-4;
+  }
+  .layout-grid-cards {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3;
   }
 }

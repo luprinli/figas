@@ -1,0 +1,54 @@
+{
+  "name": "FIGAS Flight Operations",
+  "short_name": "FIGAS",
+  "description": "Falkland Islands Government Air Service — Flight booking, scheduling, check-in, and operations management",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f1f5f9",
+  "theme_color": "#2563eb",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/icons/icon-512-maskable.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["travel", "business", "utilities"],
+  "lang": "en-GB",
+  "dir": "ltr",
+  "scope": "/",
+  "id": "figas-pwa-v1",
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Schedule",
+      "short_name": "Schedule",
+      "description": "View flight schedule",
+      "url": "/operations/schedule"
+    },
+    {
+      "name": "Check-In",
+      "short_name": "Check-In",
+      "description": "Process passenger check-in",
+      "url": "/checkin/counter"
+    },
+    {
+      "name": "Bookings",
+      "short_name": "Bookings",
+      "description": "Manage bookings",
+      "url": "/bookings"
+    }
+  ]
+}
