@@ -28,7 +28,7 @@
     "test:all": "vitest run && playwright test",
     "test:related": "node scripts/ci/detect-changed-suites.js --run",
     "test:smoke": "vitest run tests/smoke",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
