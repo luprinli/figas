@@ -26,7 +26,10 @@ services:
     numInstances: 1 # keep at 1: in-process SSE state + per-process DB pool.
     autoDeploy: true
     # `npm ci` runs the `postinstall` hook (prisma generate) before the build.
-    buildCommand: npm ci && npm run build
+    # `--include=dev` forces devDependencies (vite, @remix-run/dev, prisma, tsx,
+    # tailwindcss) to install even though NODE_ENV=production, which npm would
+    # otherwise use to omit them. They are needed to build and to run db push.
+    buildCommand: npm ci --include=dev && npm run build
     # Syncs the database schema to prisma/schema.prisma before each deploy goes
     # live. Idempotent; fails safely (no --accept-data-loss) if a change would
     # drop data. Seed data is loaded once via Render Shell (see README/SETUP).
