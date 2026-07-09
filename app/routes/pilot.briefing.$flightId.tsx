@@ -29,8 +29,8 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
        ao.code AS origin_code, ad.code AS destination_code,
        a.registration AS aircraft_registration, a.type AS aircraft_type,
        COALESCE(a.empty_weight_kg, 1627) AS empty_weight_kg,
-       COALESCE(a.mtow_kg, 2994) AS mtow_kg,
-       COALESCE(a.mlw_kg, 2994) AS mlw_kg,
+       COALESCE(a.max_takeoff_weight_kg, 2994) AS mtow_kg,
+       COALESCE(a.max_takeoff_weight_kg, 2994) AS mlw_kg,
        f.operational_notes
  FROM flights f
  JOIN aerodromes ao ON ao.id = f.origin_aerodrome_id
@@ -71,7 +71,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         name: string; origin: string; destination: string; seat: string; weightKg: number;
     }>>(
         `SELECT bp.first_name || ' ' || bp.last_name AS name,
-       blp.origin_code AS origin, blp.destination_code AS destination,
+       bl.origin_code AS origin, bl.destination_code AS destination,
        COALESCE(blp.seat_number, '—') AS seat,
        COALESCE(blp.clothed_weight_kg, 70) AS "weightKg"
  FROM booking_leg_passengers blp

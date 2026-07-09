@@ -23,7 +23,6 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     empty_weight_kg: number;
     mtow_kg: number;
     mlw_kg: number;
-    cruise_speed_ktas: number | null;
     registration: string | null;
     type: string | null;
     pilot_weight_kg: number;
@@ -32,9 +31,8 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         ao.code AS origin_code, ad.code AS destination_code,
         f.aircraft_id, f.pilot_id,
         COALESCE(a.empty_weight_kg, 1627) AS empty_weight_kg,
-        COALESCE(a.mtow_kg, 2994) AS mtow_kg,
-        COALESCE(a.mlw_kg, 2994) AS mlw_kg,
-        a.cruise_speed_ktas,
+        COALESCE(a.max_takeoff_weight_kg, 2994) AS mtow_kg,
+        COALESCE(a.max_takeoff_weight_kg, 2994) AS mlw_kg,
         a.registration, a.type,
         COALESCE(p.weight_kg, 80) AS pilot_weight_kg
      FROM flights f
@@ -61,14 +59,14 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     freight_weight_kg: number | null;
   }>>(
     `SELECT fl.id, fl.origin_code, fl.destination_code,
-        fl.distance_nm, fl.leg_sequence,
+        fl.distance_nm, fl.leg_number AS leg_sequence,
         COALESCE(SUM(blp.freight_weight_kg), 0) AS freight_weight_kg
      FROM flight_legs fl
      LEFT JOIN booking_leg_passengers blp ON blp.flight_leg_id = fl.id
      WHERE fl.flight_id = $1
      GROUP BY fl.id, fl.origin_code, fl.destination_code,
-              fl.distance_nm, fl.leg_sequence
-     ORDER BY fl.leg_sequence`,
+              fl.distance_nm, fl.leg_number
+     ORDER BY fl.leg_number`,
     [flightId]
   );
 
@@ -87,11 +85,12 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         CONCAT(bp.first_name, ' ', bp.last_name) AS name,
         COALESCE(blp.clothed_weight_kg, 70) AS clothed_weight_kg,
         COALESCE(blp.baggage_weight_kg, 0) AS baggage_weight_kg,
-        blp.origin_code, blp.destination_code,
+        bl.origin_code, bl.destination_code,
         blp.seat_number,
         ls.seat_row, ls.seat_side
      FROM booking_leg_passengers blp
      JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
+     JOIN booking_legs bl ON bl.id = blp.booking_leg_id
      LEFT JOIN loadsheets l ON l.flight_id = $1
      LEFT JOIN loadsheet_passengers ls
        ON ls.loadsheet_id = l.id AND ls.booking_passenger_id = blp.booking_passenger_id
@@ -146,7 +145,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
       emptyWeightKg: Number(flight.empty_weight_kg),
       mtowKg: Number(flight.mtow_kg),
       mlwKg: Number(flight.mlw_kg),
-      cruiseSpeedKtas: flight.cruise_speed_ktas ? Number(flight.cruise_speed_ktas) : undefined,
+      cruiseSpeedKtas: undefined,
     },
     legs: legs.map((l) => ({
       id: Number(l.id),
