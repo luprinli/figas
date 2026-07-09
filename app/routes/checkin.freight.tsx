@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, Form, useNavigation } from "@remix-run/react";
+import { useLoaderData, Form } from "@remix-run/react";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
 import { requireUser } from "../utils/layout.server";
@@ -72,7 +72,6 @@ export async function action({ request }: ActionFunctionArgs) {
 
 export default function FreightReceiving() {
   const { freight, unassigned, assigned } = useLoaderData<typeof loader>();
-  const navigation = useNavigation();
 
   const columns: Column<Record<string, unknown>>[] = [
     { key: "waybill_number", header: "Waybill", sortable: true, render: (r) => (

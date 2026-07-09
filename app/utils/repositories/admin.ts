@@ -30,7 +30,7 @@ export interface AerodromeRow {
   is_active: boolean;
 }
 
-export interface AircraftRow {
+export interface AdminAircraftRow {
   id: number;
   registration: string;
   type: string;
@@ -364,17 +364,17 @@ export const adminRepository = {
     });
   },
 
-  async getAllAircraft(): Promise<AircraftRow[]> {
+  async getAllAircraft(): Promise<AdminAircraftRow[]> {
     return db.aircraft.findMany({
       select: { id: true, registration: true, type: true, seat_count: true, is_active: true },
       orderBy: { registration: "asc" },
-    }) as unknown as AircraftRow[];
+    }) as unknown as AdminAircraftRow[];
   },
 
   async getAllAircraftPaginated(
     page: number,
     perPage: number
-  ): Promise<{ rows: AircraftRow[]; totalCount: number }> {
+  ): Promise<{ rows: AdminAircraftRow[]; totalCount: number }> {
     const offset = (page - 1) * perPage;
     const [totalCount, rows] = await Promise.all([
       db.aircraft.count(),
@@ -385,15 +385,15 @@ export const adminRepository = {
         take: perPage,
       }),
     ]);
-    return { rows: rows as unknown as AircraftRow[], totalCount };
+    return { rows: rows as unknown as AdminAircraftRow[], totalCount };
   },
 
-  async findAircraftById(id: number): Promise<AircraftRow | null> {
+  async findAircraftById(id: number): Promise<AdminAircraftRow | null> {
     const result = await db.aircraft.findUnique({
       select: { id: true, registration: true, type: true, seat_count: true, is_active: true },
       where: { id },
     });
-    return (result as unknown as AircraftRow) ?? null;
+    return (result as unknown as AdminAircraftRow) ?? null;
   },
 
   async createAircraft(data: {
@@ -404,7 +404,7 @@ export const adminRepository = {
     max_takeoff_weight_kg: number;
     max_payload_kg: number;
     fuel_capacity_kg: number;
-  }): Promise<AircraftRow> {
+  }): Promise<AdminAircraftRow> {
     const result = await db.aircraft.create({
       data: {
         registration: data.registration,
@@ -417,7 +417,7 @@ export const adminRepository = {
       },
       select: { id: true, registration: true, type: true, seat_count: true, is_active: true },
     });
-    return result as unknown as AircraftRow;
+    return result as unknown as AdminAircraftRow;
   },
 
   async updateAircraft(

@@ -1,16 +1,16 @@
 ﻿import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { Form, useLoaderData, useSearchParams } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { Form, useLoaderData, useSearchParams , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { bookingLegPassengerRepository } from "../utils/repositories/booking-leg-passenger";
 import { getUserId } from "../utils/auth.server";
 import { db } from "../utils/db.server";
 import Button from "../components/Button";
-import DashboardCard from "../components/DashboardCard";
 import PrintButton, { buildBaggageTagOptions } from "../components/PrintButton";
 import DatePicker from "../components/DatePicker";
-import Skeleton from "../components/Skeleton";
+import { TourTrigger } from "../components/TourTrigger";
+import { checkinCounterTour } from "../utils/tour/definitions/checkin-counter";
 
 export const meta: MetaFunction = () => [{ title: "Check-In Counter - FIGAS" }];
 
@@ -168,7 +168,6 @@ export async function action({ request }: ActionFunctionArgs) {
     const flightId = formData.get("flight_id")?.toString();
     const paymentsJson = formData.get("payments")?.toString() ?? "[]";
     const payments: Array<{ method: string; amount: number; reference?: string }> = JSON.parse(paymentsJson);
-    const authorizationCode = formData.get("authorization_code")?.toString() || "";
     const weightOverrideCode = formData.get("weight_override_code")?.toString() || "";
 
     if (bodyWt > 0) {
@@ -199,6 +198,29 @@ export async function action({ request }: ActionFunctionArgs) {
     }
     await bookingLegPassengerRepository.checkIn(legPaxId, userId);
     return redirect(`/checkin/counter?flightId=${flightId}`);
+  }
+
+  if (intent === "batch-checkin") {
+    const flightId = formData.get("flight_id")?.toString();
+    if (!flightId) return json({ error: "Flight ID required" }, { status: 400 });
+
+    const unchecked = await db.$queryRawUnsafe<Array<{ id: number }>>(
+      `SELECT blp.id
+       FROM booking_leg_passengers blp
+       JOIN booking_legs bl ON bl.id = blp.booking_leg_id
+       WHERE bl.flight_id = $1 AND blp.checked_in = false`,
+      [Number(flightId)]
+    );
+
+    if (unchecked.length === 0) {
+      return json({ error: "All passengers already checked in" }, { status: 400 });
+    }
+
+    for (const p of unchecked) {
+      await bookingLegPassengerRepository.checkIn(p.id, userId);
+    }
+
+    return redirect(`/checkin/counter?flightId=${flightId}&batch=${unchecked.length}`);
   }
 
   return json({ error: "Unknown intent" }, { status: 400 });
@@ -289,7 +311,7 @@ function CardProcessor({ onComplete }: { onComplete: (approved: boolean, ref: st
   const [s, setS] = useState<"idle"|"processing"|"approved"|"declined">("idle");
   return (
     <div className="space-y-3">
-      <div className={`p-4 rounded-lg border text-center ${s==="idle"?"bg-slate-50 dark:bg-slate-700 border-slate-200":s==="processing"?"bg-amber-50 dark:bg-amber-900/30 border-amber-200":s==="approved"?"bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200":"bg-red-50 dark:bg-red-900/30 border-red-200"}`}>
+      <div className={`p-4 rounded-lg border text-center ${s==="idle"?"bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600":s==="processing"?"bg-amber-50 dark:bg-amber-900/30 border-amber-200":s==="approved"?"bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200":"bg-red-50 dark:bg-red-900/30 border-red-200"}`}>
         {s==="idle"&&<p className="text-sm text-slate-600 dark:text-slate-300">Terminal ready</p>}
         {s==="processing"&&<p className="text-sm text-amber-700 dark:text-amber-400 animate-pulse">Processing...</p>}
         {s==="approved"&&<p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">✓ Approved</p>}
@@ -354,7 +376,6 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
   const [flightFilter, setFlightFilter] = useState("all");
   const uncheckin = passengers.filter(p => !p.checkedIn && (flightFilter === "all" || String(flight.id) === flightFilter));
   const checked = passengers.filter(p=>p.checkedIn).length;
-  const canCheckin = pax && pax.origin === "STY";
 
   return (
     <div className="p-4 space-y-4">
@@ -365,12 +386,23 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
           <span className="text-sm text-slate-600 dark:text-slate-300">{String(flight.origin_code)} → {String(flight.destination_code)}</span>
           <span className="text-sm text-slate-500">{String(flight.registration)}</span>
         </div>
-        <span className="text-sm text-slate-600">{checked}/{passengers.length} checked in</span>
+        <div className="flex items-center gap-3">
+          <TourTrigger config={checkinCounterTour} />
+          <Form method="post" onSubmit={(e) => { if (!confirm(`Check in all ${uncheckin.length} unchecked passengers?`)) e.preventDefault(); }}>
+            <input type="hidden" name="intent" value="batch-checkin" />
+            <input type="hidden" name="flight_id" value={String(flight.id)} />
+            <button type="submit" disabled={uncheckin.length === 0}
+              className="rounded-md bg-cyan-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed">
+              Batch Check-in ({uncheckin.length})
+            </button>
+          </Form>
+          <span className="text-sm text-slate-600">{checked}/{passengers.length} checked in</span>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* COL 1: Passenger Manifest */}
-        <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden bg-white dark:bg-slate-800">
+        <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden bg-white dark:bg-slate-800" data-tour="checkin-manifest">
             <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
               <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Passengers ({uncheckin.length})</h3>
               <select value={flightFilter} onChange={e => setFlightFilter(e.target.value)} className="ml-auto text-xs rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 px-2 py-0.5 text-slate-600 dark:text-slate-300">
@@ -410,15 +442,15 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
           {pax && !pax.checkedIn && pax.origin === "STY" && (
             <>
               <div>
-                <label className="block text-xs text-slate-500 mb-1">Body Weight (kg)</label>
-                <div className="flex items-center gap-1"><input type="number" value={bodyWeight} onChange={e=>setBodyWeight(Number(e.target.value))} step="0.1" min="20" max="200" className="block w-24 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm" />
+                <label htmlFor="counter-body-weight" className="block text-xs text-slate-500 mb-1">Body Weight (kg)</label>
+                <div className="flex items-center gap-1"><input id="counter-body-weight" type="number" value={bodyWeight} onChange={e=>setBodyWeight(Number(e.target.value))} step="0.1" min="20" max="200" className="block w-24 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm" />
                   <button type="button" onClick={()=>setBodyWeight(70)} className="text-[10px] px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-slate-500">70</button>
                   <button type="button" onClick={()=>setBodyWeight(85)} className="text-[10px] px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-slate-500">85</button>
                 </div>
               </div>
               <div>
-                <label className="block text-xs text-slate-500 mb-1">Baggage (kg)</label>
-                <div className="flex items-center gap-1"><input type="number" value={baggageWeight} onChange={e=>setBaggageWeight(Number(e.target.value))} step="0.1" min="0" max="100" className="block w-24 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm" />
+                <label htmlFor="counter-baggage-weight" className="block text-xs text-slate-500 mb-1">Baggage (kg)</label>
+                <div className="flex items-center gap-1"><input id="counter-baggage-weight" type="number" value={baggageWeight} onChange={e=>setBaggageWeight(Number(e.target.value))} step="0.1" min="0" max="100" className="block w-24 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm" />
                   <button type="button" onClick={()=>setBaggageWeight(0)} className="text-[10px] px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-slate-500">0</button>
                   <button type="button" onClick={()=>setBaggageWeight(15)} className="text-[10px] px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-slate-500">15</button>
                   <button type="button" onClick={()=>setBaggageWeight(20)} className="text-[10px] px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-slate-500">20</button>
@@ -430,7 +462,7 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
         </div>
 
         {/* COL 3: POS Terminal (active when posActive) */}
-        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
+        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden" data-tour="checkin-pos">
           <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
             <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">POS Terminal</h3>
             {posActive && <span className="text-[10px] text-emerald-600 font-medium">ACTIVE</span>}
@@ -440,11 +472,11 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
             <div className="p-6 text-center text-sm text-slate-500">
               <p>Select a passenger from the manifest to activate the POS terminal.</p>
               <div className="border-t border-slate-100 dark:border-slate-700 pt-4 mt-4 text-left">
-                <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">Today's Transactions</p>
+                <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">Today&rsquo;s Transactions</p>
                 <div className="max-h-[200px] overflow-y-auto space-y-1.5">
                   {tillPayments.slice(0,8).map((tp,i)=>(<div key={i} className="flex justify-between text-[11px]"><span className="text-slate-500">{tp.bookingReference}</span><span className="tabular-nums">£{Number(tp.amount).toFixed(2)}</span><span className="text-slate-500 capitalize">{tp.method.replace("_"," ")}</span></div>))}
                 </div>
-                {tillPayments.length>0&&<p className="text-xs font-medium mt-2 pt-2 border-t border-slate-100">Till: £{tillPayments.reduce((s,tp)=>s+Number(tp.amount),0).toFixed(2)}</p>}
+                {tillPayments.length>0&&<p className="text-xs font-medium mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">Till: £{tillPayments.reduce((s,tp)=>s+Number(tp.amount),0).toFixed(2)}</p>}
               </div>
             </div>
           ) : (
@@ -452,7 +484,7 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
               {/* Charges */}
               <div className="p-3 space-y-1">
                 {lineItems.length===0?<p className="text-xs text-slate-500">No charges due</p>:lineItems.map(i=>(<div key={i.id} className="flex justify-between text-xs"><span>{i.label}</span><span className="tabular-nums font-medium">£{i.amount.toFixed(2)}</span></div>))}
-                <div className="flex justify-between text-sm font-bold pt-2 border-t border-slate-100"><span>TOTAL</span><span>£{totalDue.toFixed(2)}</span></div>
+                <div className="flex justify-between text-sm font-bold pt-2 border-t border-slate-100 dark:border-slate-700"><span>TOTAL</span><span>£{totalDue.toFixed(2)}</span></div>
               </div>
 
               {/* Payments list */}
@@ -504,7 +536,7 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
               </div>
 
               {/* Complete Sale */}
-              <div className="p-3">
+              <div className="p-3" data-tour="checkin-complete">
                 <Form method="post">
                   <input type="hidden" name="intent" value="checkin-with-payment" />
                   <input type="hidden" name="leg_pax_id" value={pax?.legPassengerId ?? 0} />

@@ -192,7 +192,7 @@ export default function BookingCostSummary({
       )}
 
       {/* Subtotal */}
-      <div className="border-t border-slate-100 pt-2 mt-2 space-y-1">
+      <div className="border-t border-slate-100 dark:border-slate-700 pt-2 mt-2 space-y-1">
         <SummaryRow label="Subtotal (fare)" value={formatCurrency(calculation.subtotal)} />
         {calculation.freightTotal > 0 && (
           <SummaryRow label="Freight total" value={formatCurrency(calculation.freightTotal)} />

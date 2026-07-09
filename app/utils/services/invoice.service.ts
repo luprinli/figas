@@ -11,7 +11,6 @@ import {
   InvoiceStatus,
   AccountingEntryType,
   InvoiceItemType,
-  DEFAULT_FARE_PER_PASSENGER,
   FREIGHT_RATE_PER_KG,
   DEFAULT_PAYMENT_TERM_DAYS,
 } from "../constants";

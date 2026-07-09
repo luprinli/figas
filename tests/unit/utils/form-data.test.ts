@@ -4,10 +4,10 @@ import { parseIndexedFormData } from "~/utils/form-data";
 describe("parseIndexedFormData()", () => {
   it("parses form data correctly", () => {
     const formData = new FormData();
-    formData.append("origin", "PSY");
+    formData.append("origin", "STY");
     formData.append("origin", "MPA");
     formData.append("destination", "MPA");
-    formData.append("destination", "PSY");
+    formData.append("destination", "STY");
 
     const result = parseIndexedFormData<{ origin: string; destination: string }>(
       formData,
@@ -15,15 +15,15 @@ describe("parseIndexedFormData()", () => {
     );
 
     expect(result).toHaveLength(2);
-    expect(result[0].origin).toBe("PSY");
+    expect(result[0].origin).toBe("STY");
     expect(result[0].destination).toBe("MPA");
     expect(result[1].origin).toBe("MPA");
-    expect(result[1].destination).toBe("PSY");
+    expect(result[1].destination).toBe("STY");
   });
 
   it("handles missing fields gracefully", () => {
     const formData = new FormData();
-    formData.append("origin", "PSY");
+    formData.append("origin", "STY");
     // No "destination" field appended
 
     const result = parseIndexedFormData<{ origin: string; destination: string }>(
@@ -32,7 +32,7 @@ describe("parseIndexedFormData()", () => {
     );
 
     expect(result).toHaveLength(1);
-    expect(result[0].origin).toBe("PSY");
+    expect(result[0].origin).toBe("STY");
     expect(result[0].destination).toBe("");
   });
 
@@ -66,12 +66,12 @@ describe("parseIndexedFormData()", () => {
 
   it("filters empty rows when filterEmpty option is true", () => {
     const formData = new FormData();
-    formData.append("origin", "PSY");
+    formData.append("origin", "STY");
     formData.append("origin", ""); // empty row
     formData.append("origin", "MPA");
     formData.append("destination", "MPA");
     formData.append("destination", ""); // empty row
-    formData.append("destination", "PSY");
+    formData.append("destination", "STY");
 
     const result = parseIndexedFormData<{ origin: string; destination: string }>(
       formData,
@@ -80,10 +80,10 @@ describe("parseIndexedFormData()", () => {
     );
 
     expect(result).toHaveLength(2);
-    expect(result[0].origin).toBe("PSY");
+    expect(result[0].origin).toBe("STY");
     expect(result[0].destination).toBe("MPA");
     expect(result[1].origin).toBe("MPA");
-    expect(result[1].destination).toBe("PSY");
+    expect(result[1].destination).toBe("STY");
   });
 
   it("handles single field extraction", () => {
@@ -103,7 +103,7 @@ describe("parseIndexedFormData()", () => {
 
   it("handles uneven column lengths", () => {
     const formData = new FormData();
-    formData.append("origin", "PSY");
+    formData.append("origin", "STY");
     formData.append("origin", "MPA");
     formData.append("origin", "SHR");
     formData.append("destination", "MPA");
@@ -116,7 +116,7 @@ describe("parseIndexedFormData()", () => {
 
     // rowCount = max(3, 1) = 3
     expect(result).toHaveLength(3);
-    expect(result[0].origin).toBe("PSY");
+    expect(result[0].origin).toBe("STY");
     expect(result[0].destination).toBe("MPA");
     expect(result[1].origin).toBe("MPA");
     expect(result[1].destination).toBe(""); // missing value becomes empty string

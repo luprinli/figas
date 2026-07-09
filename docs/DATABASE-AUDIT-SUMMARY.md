@@ -144,7 +144,7 @@
 
 ## 6. Cross-References
 
-- **Implementation Plan:** [`docs/IMPLEMENTATION-PLAN.md`](IMPLEMENTATION-PLAN.md) — Phase 3: Data Integrity & Configuration Centralization
+- **Master Plan:** [`plans/MASTER-PLAN.md`](../plans/MASTER-PLAN.md) — Data integrity & configuration roadmap
 - **Architecture:** [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) — Section 7: Repository Pattern
 - **Data Model:** [`docs/DATA_MODEL.md`](DATA_MODEL.md) — Complete table documentation
 - **Original Phase 1 Audit:** [`docs/archive/database-audit-phase1.md`](archive/database-audit-phase1.md)

@@ -39,7 +39,7 @@ export default function EngineerFlights() {
 
   const columns: Column<Record<string, unknown>>[] = [
     { key: "flight_number", header: "Flight", sortable: true, render: (r) => (
-      <Link to={`/ops/flight/${r.id}/loadsheet/print`} target="_blank" className="font-medium text-sky-600 hover:text-sky-800 dark:text-sky-400">
+      <Link to={`/ops/flight/${r.id}/loadsheet/print`} target="_blank" className="font-medium text-sky-600 hover:text-sky-800 dark:text-sky-400" rel="noreferrer">
         {String(r.flight_number)}
       </Link>
     )},

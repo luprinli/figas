@@ -164,7 +164,6 @@ export default function OperationsDashboard() {
 
     const upcomingCount = pipelineCounts?.upcoming ?? 0;
     const completedCount = pipelineCounts?.completed ?? 0;
-    const cancelledCount = pipelineCounts?.cancelled ?? 0;
     const flightData = Array.isArray(flights) ? (flights as Array<Record<string, unknown>>) : [];
 
     const bookingColumns: Column<BookingDisplayItem>[] = [
@@ -243,7 +242,7 @@ export default function OperationsDashboard() {
             {/* Today's Flights */}
             <div className="rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex justify-between items-center">
-                    <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Today's Flights</h2>
+                    <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Today&rsquo;s Flights</h2>
                 </div>
                 <DataTable
                     columns={flightColumns}

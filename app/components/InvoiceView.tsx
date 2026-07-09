@@ -109,7 +109,7 @@ export default function InvoiceView({
   return (
     <div className="rounded-lg bg-white dark:bg-slate-800 shadow-sm dark:shadow-slate-900/20 ring-1 ring-slate-200 dark:ring-slate-700">
       {/* Header */}
-      <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
+      <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-700 px-6 py-5">
         <div>
           <h2 className="text-2xl/7 font-bold text-slate-900 dark:text-slate-100">INVOICE</h2>
           <p className="mt-1 text-sm/5 text-slate-500 dark:text-slate-400 dark:text-slate-500">
@@ -187,7 +187,7 @@ export default function InvoiceView({
         </div>
 
         {/* Summary */}
-        <div className="border-t border-slate-100 pt-4">
+        <div className="border-t border-slate-100 dark:border-slate-700 pt-4">
           <div className="ml-auto max-w-xs space-y-2">
             <div className="flex justify-between">
               <span className="text-sm/5 text-slate-500 dark:text-slate-400 dark:text-slate-500">Subtotal</span>

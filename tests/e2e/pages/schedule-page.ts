@@ -15,7 +15,7 @@ export class SchedulePage {
     this.page = page;
     this.datePickerButton = page.locator('button:has(svg)').first();
     this.unassignedHeading = page.getByRole("heading", { name: "Unassigned Passengers" });
-    this.draggableItems = page.locator('[draggable="true"]');
+    this.draggableItems = page.locator('[data-testid="booking-item"]');
     this.scheduleBoard = page.locator('[data-testid="schedule-board"]');
     this.draftFlightPlaceholder = page.locator("text=Draft Flight").first();
     this.scheduleStatusBar = page.locator('[data-testid="schedule-status-bar"]');

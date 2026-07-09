@@ -17,12 +17,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
     await requirePermission(request, Permission.ADMIN_ACCESS);
 
     const stats = await adminRepository.getDashboardStats();
+    const stripeConfigured = !!process.env.STRIPE_SECRET_KEY;
 
-    return json({ stats });
+    return json({ stats, stripeConfigured });
 }
 
 export default function AdminDashboard() {
-    const { stats } = useLoaderData<typeof loader>();
+    const { stats, stripeConfigured } = useLoaderData<typeof loader>();
     const navigation = useNavigation();
     const isLoading = navigation.state === "loading";
 
@@ -47,7 +48,7 @@ export default function AdminDashboard() {
 
     const healthItems: SystemHealthItem[] = [
         { label: "Database", status: "ok", detail: "PostgreSQL 16" },
-        { label: "Stripe", status: process.env.STRIPE_SECRET_KEY ? "ok" : "warning", detail: "Payments" },
+        { label: "Stripe", status: stripeConfigured ? "ok" : "warning", detail: "Payments" },
         { label: "Migrations", status: "ok", detail: "Up to date" },
         { label: "Service Worker", status: "ok", detail: "Registered" },
     ];

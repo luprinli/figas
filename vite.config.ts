@@ -1,6 +1,5 @@
 import { vitePlugin as remix } from "@remix-run/dev";
 import { defineConfig } from "vite";
-import { netlifyPlugin } from "@netlify/remix-adapter/plugin";
 import path from "node:path";
 
 declare module "@remix-run/node" {
@@ -50,7 +49,6 @@ export default defineConfig({
         v3_lazyRouteDiscovery: true,
       },
     }),
-    netlifyPlugin(),
   ],
   define: {
     // Polyfill crypto for browser environments (needed by some dependencies)

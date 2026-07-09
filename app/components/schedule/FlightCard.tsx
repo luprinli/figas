@@ -112,13 +112,17 @@ const statusAccentMap: Record<string, string> = {
 };
 
 export default function FlightCard({
-  flight, maxTakeoffWeightKg, className, renderPassengerRow, linkable = true, onRemoveFlight, onFlightUpdated, onOpenLoadsheet,
+  flight, className, renderPassengerRow, linkable = true, onRemoveFlight, onFlightUpdated, onOpenLoadsheet,
 }: FlightCardProps) {
   const [passengersExpanded, setPassengersExpanded] = useState(false);
   const [mouseIsOver, setMouseIsOver] = useState(false);
   const [showPilotOptions, setShowPilotOptions] = useState(false);
   const [showAircraftOptions, setShowAircraftOptions] = useState(false);
   const [checkInTime, setCheckInTime] = useState(flight.check_in_time ?? "08:00");
+  const [assigningType, setAssigningType] = useState<"pilot" | "aircraft" | null>(null);
+  const [assignError, setAssignError] = useState<string | null>(null);
+  const [optimisticPilotName, setOptimisticPilotName] = useState<string | null>(null);
+  const [optimisticAircraftReg, setOptimisticAircraftReg] = useState<string | null>(null);
   const assignmentFetcher = useFetcher();
 
   const passengerIds = new Set<number>();
@@ -127,8 +131,8 @@ export default function FlightCard({
   const combinedWeight = (flight.total_passenger_weight_kg ?? 0) + (flight.total_baggage_weight_kg ?? 0);
   const hasMultiStopRoute = flight.flight_legs.length > 0;
   const accentClass = statusAccentMap[flight.status] ?? "border-l-slate-300";
-  const hasAircraft = !!(flight.aircraft_type || flight.aircraft_registration);
-  const hasPilot = !!flight.pilot_name;
+  const hasAircraft = !!(flight.aircraft_type || optimisticAircraftReg || flight.aircraft_registration);
+  const hasPilot = !!(optimisticPilotName || flight.pilot_name);
   const canAssignAircraft = flight.canAssignAircraft && flight.availableAircraft.length > 0;
   const canAssignPilot = flight.canAssignPilot && flight.availablePilots.length > 0;
 
@@ -152,6 +156,10 @@ export default function FlightCard({
   // ── Assignment submission via Remix fetcher ────────────────────────────
   function submitAssign(type: "pilot" | "aircraft", id: number) {
     lastAssignmentRef.current = { type, id, timestamp: Date.now() };
+    setAssigningType(type);
+    setAssignError(null);
+    if (type === "pilot") { const p = flight.availablePilots.find((x) => x.id === id); if (p) setOptimisticPilotName(p.name); }
+    else { const a = flight.availableAircraft.find((x) => x.id === id); if (a) setOptimisticAircraftReg(a.registration); }
     const formData = new FormData();
     formData.set("intent", `assign-${type}`);
     formData.set("flightId", String(flight.id));
@@ -161,8 +169,6 @@ export default function FlightCard({
     if (type === "aircraft") setShowAircraftOptions(false); else setShowPilotOptions(false);
   }
 
-  // When assignment completes, push updated flight to parent state directly
-  // (same pattern as passenger assign-booking handler in the schedule route).
   const lastAssignmentRef = useRef<{ type: string; id: number; timestamp: number } | null>(null);
 
   useEffect(() => {
@@ -170,19 +176,45 @@ export default function FlightCard({
       const data = assignmentFetcher.data as { success?: boolean; error?: string; updatedFlight?: Record<string, unknown> };
       if (data.success && lastAssignmentRef.current) {
         lastAssignmentRef.current = null;
-        if (data.updatedFlight && onFlightUpdated) {
-          onFlightUpdated(data.updatedFlight);
-        }
+        setAssigningType(null);
+        setAssignError(null);
+        setOptimisticPilotName(null);
+        setOptimisticAircraftReg(null);
+        if (data.updatedFlight && onFlightUpdated) onFlightUpdated(data.updatedFlight);
+      } else if (data.error) {
+        setAssignError(data.error);
+        setAssigningType(null);
+        setOptimisticPilotName(null);
+        setOptimisticAircraftReg(null);
       }
     }
   }, [assignmentFetcher.state, assignmentFetcher.data, onFlightUpdated]);
 
   // ── Per-stop validation ──────────────────────────────────────────────────
   const [validation, setValidation] = useState<FlightValidationResult | null>(null);
+  const validationRef = useRef(validation);
+  validationRef.current = validation;
+
+  const lastValidationKey = useRef("");
   useEffect(() => {
     // Gate: validation requires BOTH pilot AND aircraft assigned
-    if (!hasAircraft || !hasPilot) { setValidation(null); return; }
-    if (!flight.max_takeoff_weight_kg) { setValidation(null); return; }
+    if (!hasAircraft || !hasPilot) { setValidation(null); lastValidationKey.current = ""; return; }
+    if (!flight.max_takeoff_weight_kg) { setValidation(null); lastValidationKey.current = ""; return; }
+
+    // Build a stable key from the actual data to skip unnecessary recomputation
+    const inputKey = [
+      flight.max_takeoff_weight_kg, flight.max_landing_weight_kg, flight.empty_weight_kg,
+      flight.fuel_capacity_kg, flight.fuel_burn_rate_kg_per_hour, flight.cruise_speed_kt,
+      flight.max_range_nm, flight.aircraft_type, flight.aircraft_registration, flight.seat_count,
+      flight.total_freight_weight_kg,
+      flight.stop_manifests.map((sm) =>
+        sm.aerodrome_code + ":" + sm.departing_passengers.map((p) => p.id).sort().join(",") + ":" + sm.arriving_passengers.map((p) => p.id).sort().join(",")
+      ).join("|"),
+      flight.flight_legs.map((l) => l.leg_sequence + ":" + l.origin_code + ":" + l.destination_code + ":" + l.distance_nm).join("|"),
+      JSON.stringify(flight.fuelAndDistance),
+    ].join(";;");
+    if (lastValidationKey.current === inputKey && validationRef.current) return;
+    lastValidationKey.current = inputKey;
     let cancelled = false;
     async function compute() {
       const seenIds = new Set<number>();
@@ -192,7 +224,18 @@ export default function FlightCard({
         for (const p of sm.arriving_passengers) { if (!seenIds.has(p.id)) { seenIds.add(p.id); passengers.push({ id: p.id, name: p.compact_name, origin_code: sm.aerodrome_code, destination_code: p.destination_code, clothed_weight_kg: p.body_weight_kg, baggage_weight_kg: p.baggage_weight_kg }); } }
       }
       const legs: ValidationLeg[] = flight.flight_legs.map(l => ({ leg_sequence: l.leg_sequence, origin_code: l.origin_code, destination_code: l.destination_code, distance_nm: l.distance_nm }));
-      const a: ValidationAircraft = { type: flight.aircraft_type ?? flight.aircraft_registration ?? "", registration: flight.aircraft_registration ?? "", seat_count: flight.seat_count ?? 0, max_takeoff_weight_kg: flight.max_takeoff_weight_kg!, max_landing_weight_kg: flight.max_landing_weight_kg!, empty_weight_kg: flight.empty_weight_kg!, fuel_capacity_kg: flight.fuel_capacity_kg!, fuel_burn_rate_kg_per_hour: flight.fuel_burn_rate_kg_per_hour!, cruise_speed_kt: flight.cruise_speed_kt!, max_range_nm: flight.max_range_nm! };
+      const a: ValidationAircraft = {
+        type: flight.aircraft_type ?? flight.aircraft_registration ?? "",
+        registration: flight.aircraft_registration ?? "",
+        seat_count: flight.seat_count ?? 0,
+        max_takeoff_weight_kg: flight.max_takeoff_weight_kg ?? 0,
+        max_landing_weight_kg: flight.max_landing_weight_kg ?? flight.max_takeoff_weight_kg ?? 0,
+        empty_weight_kg: flight.empty_weight_kg ?? 0,
+        fuel_capacity_kg: flight.fuel_capacity_kg ?? 0,
+        fuel_burn_rate_kg_per_hour: flight.fuel_burn_rate_kg_per_hour ?? 45,
+        cruise_speed_kt: flight.cruise_speed_kt ?? 140,
+        max_range_nm: flight.max_range_nm ?? 800,
+      };
       const aerodromes: ValidationAerodrome[] = []; const sc = new Set<string>();
       for (const l of flight.flight_legs) { const dc = l.destination_code.toUpperCase(); if (!sc.has(dc)) { sc.add(dc); aerodromes.push({ code: dc, mtow_limit_kg: null, mlw_limit_kg: null, runway_length: null }); } }
       const fd: FuelAndDistanceMap = new Map(); if (flight.fuelAndDistance) for (const [k, v] of Object.entries(flight.fuelAndDistance)) fd.set(k, v);
@@ -209,7 +252,9 @@ export default function FlightCard({
 
   // ── Ordinal ──
   const ord = flight.flight_ordinal;
-  const ordinalText = ord != null ? (() => { const s = ["th","st","nd","rd"]; const v = ord % 100; return `${ord}${s[(v-20)%10]??s[v]??s[0]} Flight`; })() : null;
+  const aircraftTag = flight.aircraft_registration?.replace("VP-", "") ?? "TBD";
+  const ordSuffix = (n: number) => { const s = ["th","st","nd","rd"]; const v = n % 100; return s[(v-20)%10] ?? s[v] ?? s[0]; };
+  const ordinalText = ord != null ? `${aircraftTag} ${ord}${ordSuffix(ord)} Flight` : null;
 
   const cardContent = (
     <>
@@ -225,7 +270,7 @@ export default function FlightCard({
             : hasPilot ? "border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30 dark:bg-green-900/30 text-green-700 dark:text-green-400 dark:text-green-400"
             : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500"}`}>
           <svg className="h-3 w-3 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="8" cy="5" r="3" /><path d="M3 14c0-3 2.2-5 5-5s5 2 5 5" /></svg>
-          <span className="max-w-[100px] truncate">{hasPilot ? flight.pilot_name : (canAssignPilot ? "Pilot" : "TBC")}</span>
+          <span className="max-w-[100px] truncate">{assigningType === "pilot" ? "Assigning..." : hasPilot ? (optimisticPilotName || flight.pilot_name) : (canAssignPilot ? "Pilot" : "TBC")}</span>
           <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${flight.pilot_status === "confirmed" ? "bg-green-50 dark:bg-green-900/30 dark:bg-green-900/300" : flight.pilot_status === "assigned" ? "bg-blue-50 dark:bg-blue-900/30 dark:bg-blue-900/300" : hasPilot ? "bg-slate-300" : "bg-red-300"}`} />
         </button>
 
@@ -236,7 +281,7 @@ export default function FlightCard({
             : hasAircraft ? "border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30 dark:bg-green-900/30 text-green-700 dark:text-green-400 dark:text-green-400"
             : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500"}`}>
           <svg className="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M21 14v-2l-8-4V4a1 1 0 0 0-1-1 1 1 0 0 0-1 1v4l-8 4v2l8-2v5l-2 1.5V20l3-.5 3 .5v-1.5L13 17v-5l8 2Z" /></svg>
-          <span className="max-w-[120px] truncate">{hasAircraft ? [flight.aircraft_type, flight.aircraft_registration].filter(Boolean).join(" ") : (canAssignAircraft ? "Aircraft" : "TBC")}</span>
+          <span className="max-w-[120px] truncate">{assigningType === "aircraft" ? "Assigning..." : hasAircraft ? (optimisticAircraftReg || flight.aircraft_registration) : (canAssignAircraft ? "Aircraft" : "TBC")}</span>
           {flight.seat_count != null && <span className="font-normal opacity-70">·{flight.seat_count}s</span>}
         </button>
 
@@ -253,6 +298,12 @@ export default function FlightCard({
             <span className="hidden sm:inline">Loadsheet</span>
           </button>
           <TimePicker value={checkInTime} onChange={setCheckInTime} />
+          {(() => {
+            const rawDur = flight.duration_minutes ?? (hasMultiStopRoute ? flight.flight_legs.reduce((s, l) => s + Number(l.distance_nm ?? 0), 0) / 140 * 60 : null);
+            const dur = rawDur != null ? Number(rawDur) : null;
+            if (dur != null && isFinite(dur) && dur > 0) return <span className="text-[10px] tabular-nums text-slate-400 dark:text-slate-500">{Math.floor(dur / 60)}h {Math.round(dur % 60)}m</span>;
+            return null;
+          })()}
           {mouseIsOver && onRemoveFlight && (
             <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemoveFlight(flight.id); }}
               className="rounded-full p-1 text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:bg-red-900/30 dark:hover:bg-red-900/30 dark:bg-red-900/30 hover:text-red-500 transition-colors" title="Remove flight">
@@ -263,6 +314,9 @@ export default function FlightCard({
       </div>
 
       {/* ── Assignment chips ── */}
+      {assignError && (
+        <div className="mb-1.5 rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-2 py-1 text-[10px] text-red-700 dark:text-red-400">{assignError}</div>
+      )}
       {showAircraftOptions && canAssignAircraft && (
         <div className="mb-1.5 flex flex-wrap gap-1">
           {flight.availableAircraft.map(a => (

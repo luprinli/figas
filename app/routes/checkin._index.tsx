@@ -1,4 +1,4 @@
-﻿import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+﻿import type { MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { Link, useLoaderData, useNavigation, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import { checkinRepository } from "../utils/repositories/checkin";
@@ -12,7 +12,7 @@ import Card from "../components/Card";
 
 export const meta: MetaFunction = () => [{ title: "Check-In - FIGAS" }];
 
-export async function loader({ request }: LoaderFunctionArgs) {
+export async function loader() {
   const today = new Date().toISOString().slice(0, 10);
 
   const [pendingResult, flightsResult, recentResult] = await Promise.all([
@@ -123,7 +123,7 @@ export default function CheckinIndex() {
       <Card>
         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex justify-between items-center">
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
-            Today's Schedule — {new Date(today).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+            Today&rsquo;s Schedule — {new Date(today).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
           </h2>
           <Link to="/checkin/lookup" className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400">Search →</Link>
         </div>

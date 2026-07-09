@@ -210,9 +210,9 @@ export default function ManageUsers() {
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
+            <span className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
               Date of Birth
-            </label>
+            </span>
             <DOBPicker
               value={dateOfBirth}
               onChange={setDateOfBirth}

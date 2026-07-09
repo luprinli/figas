@@ -1,6 +1,9 @@
 ﻿import { useEffect, useRef, useState } from "react";
 import { useFetcher } from "@remix-run/react";
+import { X, Printer } from "lucide-react";
 import ManifestJourney from "./ManifestJourney";
+import CGEnvelopeChart from "../seat-map/CGEnvelopeChart";
+import { useWeightBalance } from "../../hooks/useWeightBalance";
 
 interface LoadsheetModalProps {
   flightId: number;
@@ -42,17 +45,23 @@ interface LoadsheetData {
   canEdit: boolean; canEnterActual: boolean; isLocked: boolean; canPerformInFlight: boolean;
 }
 
-export default function LoadsheetModal({ flightId, flightNumber, isOpen, onClose, canPerformInFlight }: LoadsheetModalProps) {
+export default function LoadsheetModal({ flightId, isOpen, onClose, canPerformInFlight }: LoadsheetModalProps) {
   const fetcher = useFetcher<LoadsheetData>();
   const [mode, setMode] = useState<"ops" | "pax">(canPerformInFlight ? "ops" : "pax");
   const overlayRef = useRef<HTMLDivElement>(null);
 
+  const wb = useWeightBalance(isOpen ? flightId : null);
+
   useEffect(() => {
     if (isOpen && flightId > 0) {
-      fetcher.load(`/ops/flight/${flightId}/loadsheet`);
       setMode(canPerformInFlight ? "ops" : "pax");
+      console.log("[LoadsheetModal] OPEN — fetching loadsheet for flight", flightId, "canPerformInFlight:", canPerformInFlight);
+      fetcher.load(`/ops/flight/${flightId}/loadsheet`);
+      wb.load();
+    } else {
+      console.log("[LoadsheetModal] CLOSED — flight", flightId);
     }
-  }, [isOpen, flightId]);
+  }, [isOpen, flightId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -66,22 +75,37 @@ export default function LoadsheetModal({ flightId, flightNumber, isOpen, onClose
     if (e.target === overlayRef.current) onClose();
   }
 
+  useEffect(() => {
+    console.log(
+      "[LoadsheetModal] fetcher.state =",
+      fetcher.state,
+      "| hasData =",
+      !!fetcher.data,
+      "| flightId =",
+      flightId
+    );
+  }, [fetcher.state, fetcher.data, flightId]);
+
   if (!isOpen) return null;
 
   const data = fetcher.data;
-  const isLoading = fetcher.state !== "idle" || !data;
+  const isLoading = !data && fetcher.state !== "idle";
+  const isMutating = fetcher.state === "submitting";
 
   const statusColors: Record<string, string> = {
-    draft: "bg-amber-100 text-amber-700",
-    review: "bg-blue-100 text-blue-700",
-    active: "bg-emerald-100 text-emerald-700",
-    finalized: "bg-slate-200 text-slate-600 dark:text-slate-300 dark:text-slate-500",
+    draft: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
+    review: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
+    active: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300",
+    finalized: "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300",
   };
 
   return (
     <div
       ref={overlayRef}
       onClick={handleBackdropClick}
+      onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
+      role="button"
+      tabIndex={-1}
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-[5vh] pb-[5vh]"
     >
       <div className="relative w-full max-w-4xl rounded-xl bg-white dark:bg-slate-800 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -90,9 +114,7 @@ export default function LoadsheetModal({ flightId, flightNumber, isOpen, onClose
           onClick={onClose}
           className="absolute right-3 top-3 z-10 rounded-full p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 dark:hover:bg-slate-700 hover:text-slate-600 dark:text-slate-300 dark:text-slate-500"
         >
-          <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
+          <X size={20} absoluteStrokeWidth />
         </button>
 
         {isLoading ? (
@@ -102,6 +124,12 @@ export default function LoadsheetModal({ flightId, flightNumber, isOpen, onClose
           </div>
         ) : data ? (
           <div className="p-4 sm:p-6">
+            {isMutating && (
+              <div className="mb-3 flex items-center gap-2 rounded bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 px-3 py-1.5 text-xs text-cyan-700 dark:text-cyan-300">
+                <div className="h-3 w-3 animate-spin rounded-full border-2 border-cyan-300 dark:border-cyan-600 border-t-cyan-600 dark:border-t-cyan-300" />
+                Updating...
+              </div>
+            )}
             {/* ── Header ── */}
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2 pr-8">
               <div>
@@ -119,10 +147,7 @@ export default function LoadsheetModal({ flightId, flightNumber, isOpen, onClose
                   onClick={() => window.open(`/ops/flight/${flightId}/loadsheet/print`, "_blank")}
                   className="rounded-md border border-slate-200 dark:border-slate-700 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1 text-xs font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 dark:hover:bg-slate-700/50 hover:text-slate-700 no-print"
                 >
-                  <svg className="h-3.5 w-3.5 inline mr-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" />
-                    <rect x="6" y="14" width="12" height="8" />
-                  </svg>
+                  <Printer size={14} className="inline mr-1" absoluteStrokeWidth />
                   Print
                 </button>
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[data.loadsheet.status] ?? "bg-slate-100 dark:bg-slate-700"}`}>
@@ -136,7 +161,7 @@ export default function LoadsheetModal({ flightId, flightNumber, isOpen, onClose
               <button
                 onClick={() => setMode("ops")}
                 className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                  mode === "ops" ? "bg-white text-slate-800 dark:text-slate-100 shadow-sm dark:shadow-slate-900/20" : "text-slate-500 hover:text-slate-700 dark:text-slate-200"
+                  mode === "ops" ? "bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 shadow-sm dark:shadow-slate-900/20" : "text-slate-500 hover:text-slate-700 dark:text-slate-200"
                 }`}
               >
                 Operations
@@ -144,7 +169,7 @@ export default function LoadsheetModal({ flightId, flightNumber, isOpen, onClose
               <button
                 onClick={() => setMode("pax")}
                 className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                  mode === "pax" ? "bg-white text-slate-800 dark:text-slate-100 shadow-sm dark:shadow-slate-900/20" : "text-slate-500 hover:text-slate-700 dark:text-slate-200"
+                  mode === "pax" ? "bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 shadow-sm dark:shadow-slate-900/20" : "text-slate-500 hover:text-slate-700 dark:text-slate-200"
                 }`}
               >
                 Passengers
@@ -207,7 +232,7 @@ export default function LoadsheetModal({ flightId, flightNumber, isOpen, onClose
                         const lowFuel = s.fuel_remaining_kg != null && Number(s.fuel_remaining_kg) < 10;
                         const violation = s.tow_status === "violation" || s.cog_status === "violation";
                         return (
-                          <tr key={s.leg_sequence} className="border-b border-slate-100">
+                          <tr key={s.leg_sequence} className="border-b border-slate-100 dark:border-slate-700">
                             <td className="py-1.5 px-2 font-mono text-slate-600 dark:text-slate-300 dark:text-slate-500">{s.leg_sequence}</td>
                             <td className="py-1.5 px-2 font-medium text-slate-700 dark:text-slate-200">{s.origin_code}→{s.destination_code}</td>
                             <td className="py-1.5 px-2 font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500">{Number(s.distance_nm)}</td>
@@ -260,6 +285,54 @@ export default function LoadsheetModal({ flightId, flightNumber, isOpen, onClose
                     </tbody>
                   </table>
                 </div>
+
+                {/* ── CG Envelope Chart ── */}
+                {wb.isLoaded && wb.data && wb.data.sectors.length > 0 && (
+                  <div className="mb-4 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+                    <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                      CG Envelope
+                      {wb.data.errors.length > 0 && (
+                        <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+                          {wb.data.errors.length} violation{wb.data.errors.length !== 1 ? "s" : ""}
+                        </span>
+                      )}
+                      {wb.data.warnings.length > 0 && (
+                        <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                          {wb.data.warnings.length} warning{wb.data.warnings.length !== 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </h3>
+                    <CGEnvelopeChart
+                      points={wb.data.sectors.map((s) => ({
+                        label: `S${s.legSequence}`,
+                        cgMM: s.cogMm,
+                        weightKg: s.takeoffWeightKg,
+                      }))}
+                      envelope={{
+                        forwardLimitMM: 2057.4,
+                        aftLimitMM: 2565.4,
+                        mtowKg: wb.meta?.aircraftRegistration
+                          ? wb.data.sectors[0]?.takeoffWeightKg ?? 2994
+                          : 2994,
+                      }}
+                      className="mx-auto"
+                    />
+                    {wb.data.warnings.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {wb.data.warnings.map((w, i) => (
+                          <p key={i} className="text-xs text-amber-600">{w}</p>
+                        ))}
+                      </div>
+                    )}
+                    {wb.data.errors.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {wb.data.errors.map((e, i) => (
+                          <p key={i} className="text-xs text-red-600 font-medium">{e}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
 
@@ -270,12 +343,13 @@ export default function LoadsheetModal({ flightId, flightNumber, isOpen, onClose
                   <div
                     key={p.id}
                     className={`flex items-center gap-3 rounded-lg border p-3 ${
-                      p.boarded ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-white dark:bg-slate-800"
+                      p.boarded ? "border-emerald-200 bg-emerald-50" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
                     }`}
                   >
                     <button
                       onClick={() => {
                         if (!data.canEnterActual || !canPerformInFlight) return;
+                        console.log("[LoadsheetModal] SUBMIT toggle-boarding — passenger:", p.id, "name:", p.name, "current boarded:", p.boarded, "flight:", flightId);
                         fetcher.submit(
                           { intent: "toggle-boarding", passengerId: String(p.id), boarded: String(p.boarded) },
                           { method: "post", action: `/ops/flight/${flightId}/loadsheet` }
@@ -283,7 +357,7 @@ export default function LoadsheetModal({ flightId, flightNumber, isOpen, onClose
                       }}
                       disabled={!data.canEnterActual || !canPerformInFlight}
                       className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold ${
-                        p.boarded ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-300 text-slate-300 dark:text-slate-500"
+                        p.boarded ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-300 dark:border-slate-600 text-slate-300 dark:text-slate-500"
                       } ${data.canEnterActual && canPerformInFlight ? "cursor-pointer active:scale-95" : "cursor-default"}`}
                     >
                       {p.boarded ? "✓" : ""}
@@ -311,20 +385,24 @@ export default function LoadsheetModal({ flightId, flightNumber, isOpen, onClose
             {data.canEdit && canPerformInFlight && (
               <div className="mt-4 flex items-center gap-2 border-t border-slate-200 dark:border-slate-700 pt-3">
                 <button
-                  onClick={() => fetcher.submit(
+                  onClick={() => {
+                    console.log("[LoadsheetModal] SUBMIT regenerate — flight:", flightId);
+                    fetcher.submit(
                     { intent: "regenerate" },
                     { method: "post", action: `/ops/flight/${flightId}/loadsheet` }
-                  )}
+                  );}}
                   className="rounded-md border border-slate-200 dark:border-slate-700 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:bg-slate-700"
                 >
                   Regenerate
                 </button>
                 {(data.loadsheet.status === "active" || data.loadsheet.status === "review") && (
                   <button
-                    onClick={() => fetcher.submit(
+                    onClick={() => {
+                      console.log("[LoadsheetModal] SUBMIT finalize — flight:", flightId, "status:", data.loadsheet.status);
+                      fetcher.submit(
                       { intent: "finalize" },
                       { method: "post", action: `/ops/flight/${flightId}/loadsheet` }
-                    )}
+                    );}}
                     className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
                   >
                     Finalize

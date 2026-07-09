@@ -7,7 +7,7 @@
 // ---------------------------------------------------------------------------
 export const MOCK_AERODROMES = [
   {
-    code: "PSY",
+    code: "STY",
     name: "Stanley Airport (Port Stanley)",
     city: "Stanley",
     runway_length: 1200.0,
@@ -86,7 +86,7 @@ export const MOCK_USER_IDS = {
 export const TEST_VALUES = {
   scheduleDate: new Date("2026-06-15T00:00:00.000Z"),
   flightNumber: "FIG-101",
-  originCode: "PSY",
+  originCode: "STY",
   destinationCode: "MPA",
   bookingReference: "BK-00001",
   pilotAssignmentRole: "captain" as const,

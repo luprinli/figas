@@ -1,8 +1,6 @@
 ﻿import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, Link } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
-import { useCallback } from "react";
+import { useLoaderData, Link , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import DataGrid from "../components/DataGrid";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission, DEFAULT_PAGE_SIZE } from "../utils/constants";

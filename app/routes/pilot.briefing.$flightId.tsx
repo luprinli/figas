@@ -1,12 +1,15 @@
-﻿import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+﻿import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { useLoaderData, useFetcher, useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
 import { db } from "../utils/db.server";
+import { requireUser } from "../utils/layout.server";
 import PilotBriefing from "../components/pilot/PilotBriefing";
 import type { PilotBriefingData } from "../components/pilot/PilotBriefing";
+import { TourTrigger } from "../components/TourTrigger";
+import { pilotBriefingTour } from "../utils/tour/definitions/pilot-briefing";
 
 export const meta: MetaFunction<typeof loader> = ({ data }) => [
     { title: `Pilot Briefing — ${data?.flightNumber ?? ""} - FIGAS` },
@@ -72,14 +75,25 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         fuel_weight_kg: number; crew_weight_kg: number; total_weight_kg: number;
         mtow_used_pct: number; mlw_used_pct: number; cg_position_pct: number;
         binding_constraint: string;
+        required_fuel_kg: number | null;
+        minimum_fuel_kg: number | null;
+        fuel_state: string | null;
+        fuel_rule_applied: string | null;
+        starting_fuel_kg: number | null;
+        reserve_fuel_kg: number | null;
     }>>(
-        `SELECT passenger_weight_kg, baggage_weight_kg, freight_weight_kg,
-       fuel_weight_kg, crew_weight_kg, total_weight_kg,
-       mtow_used_pct, mlw_used_pct, cg_position_pct,
-       COALESCE(binding_constraint, 'OK') AS binding_constraint
- FROM weight_balance_snapshots
- WHERE flight_id = $1
- ORDER BY id DESC LIMIT 1`,
+        `SELECT wbs.passenger_weight_kg, wbs.baggage_weight_kg, wbs.freight_weight_kg,
+        wbs.fuel_weight_kg, wbs.crew_weight_kg, wbs.total_weight_kg,
+        wbs.mtow_used_pct, wbs.mlw_used_pct, wbs.cg_position_pct,
+        COALESCE(wbs.binding_constraint, 'OK') AS binding_constraint,
+        wbs.required_fuel_kg, wbs.minimum_fuel_kg,
+        wbs.fuel_state, wbs.fuel_rule_applied,
+        wbs.starting_fuel_kg, wbs.reserve_fuel_kg
+ FROM weight_balance_snapshots wbs
+ JOIN flight_legs fl ON fl.id = wbs.flight_leg_id
+ WHERE fl.flight_id = $1
+ ORDER BY wbs.id DESC LIMIT 1`,
+
         [Number(params.flightId)]
     );
 
@@ -103,7 +117,15 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
             seat: String(p.seat),
             weightKg: Number(p.weightKg),
         })),
-        fuelPlan: {
+        fuelPlan: wbResult.length > 0 ? {
+            requiredFuelKg: Number(wbResult[0].required_fuel_kg ?? 45),
+            reserveFuelKg: Number(wbResult[0].reserve_fuel_kg ?? 35),
+            burnRateKgPerHr: 45,
+            enduranceMinutes: wbResult[0].fuel_weight_kg
+              ? Math.round((Number(wbResult[0].fuel_weight_kg) / 45) * 60)
+              : 120,
+            needsStanleyRevisit: wbResult[0].fuel_state === "stanley_revisit",
+        } : {
             requiredFuelKg: 45,
             reserveFuelKg: 35,
             burnRateKgPerHr: 45,
@@ -135,9 +157,75 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     return json({ ...briefingData, flightNumber: f.flight_number });
 }
 
+export async function action({ request, params }: ActionFunctionArgs) {
+  const { userId } = await requireUser(request);
+  const flightId = Number(params.flightId);
+  if (!flightId) return json({ error: "Flight ID required" }, { status: 400 });
+
+  const formData = await request.formData();
+  const intent = formData.get("intent")?.toString();
+
+  if (intent === "accept-briefing") {
+    const existing = await db.$queryRawUnsafe<Array<{ id: number }>>(
+      `SELECT id FROM sign_offs WHERE entity_type = 'briefing' AND entity_id = $1 AND signed_by = $2 LIMIT 1`,
+      [flightId, Number(userId)]
+    );
+
+    if (existing.length > 0) {
+      return json({ error: "Briefing already accepted" }, { status: 409 });
+    }
+
+    await db.$queryRawUnsafe(
+      `INSERT INTO sign_offs (entity_type, entity_id, signed_by, signed_at, certification_statement)
+       VALUES ('briefing', $1, $2, NOW(), $3)`,
+      [flightId, Number(userId), `I have reviewed and accept the briefing for flight #${flightId}`]
+    );
+
+    await db.$queryRawUnsafe(
+      `UPDATE pilot_assignments SET confirmed_at = NOW(), status = 'confirmed'
+       WHERE flight_id = $1 AND pilot_id IN (
+         SELECT id FROM pilots WHERE user_id = $2
+       )`,
+      [flightId, Number(userId)]
+    );
+
+    return json({ success: true, message: "Briefing accepted" });
+  }
+
+  return json({ error: "Unknown intent" }, { status: 400 });
+}
+
 export default function PilotBriefingRoute() {
     const data = useLoaderData<typeof loader>();
-    return <PilotBriefing data={data as PilotBriefingData} />;
+    const fetcher = useFetcher<{ success?: boolean; error?: string; message?: string }>();
+    const accepted = fetcher.data?.success === true;
+
+    return (
+      <div>
+        <div className="flex justify-end px-4 pt-4">
+          <TourTrigger config={pilotBriefingTour} />
+        </div>
+        <PilotBriefing data={data as PilotBriefingData} />
+        <div className="mt-6 flex justify-center">
+          {accepted ? (
+            <span className="rounded-md bg-emerald-100 px-4 py-2 text-sm font-medium text-emerald-700">
+              Briefing Accepted
+            </span>
+          ) : (
+            <fetcher.Form method="post">
+              <input type="hidden" name="intent" value="accept-briefing" />
+              <button
+                type="submit"
+                data-tour="accept-briefing"
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                Accept Briefing
+              </button>
+            </fetcher.Form>
+          )}
+        </div>
+      </div>
+    );
 }
 
 

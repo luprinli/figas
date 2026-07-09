@@ -7,6 +7,7 @@ import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
 import { getSession } from "../session.server";
 import PageLayout from "../components/PageLayout";
+import { Clock, Plane, Plus, Users } from "lucide-react";
 import StatCard from "../components/StatCard";
 import ClientGroupComponent from "../components/ClientGroup";
 import type { BookingWithMeta } from "../components/ClientGroup";
@@ -26,40 +27,6 @@ interface LoaderData {
   warnings: string[];
   canCreate: boolean;
   userIdentity: { name: string; email: string } | null;
-}
-
-// ── SVG Icons (inline) ─────────────────────────────────────────────────────────
-
-function ClockIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z" clipRule="evenodd" />
-    </svg>
-  );
-}
-
-function UsersIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-      <path d="M7 8a3 3 0 100-6 3 3 0 000 6zM14.5 9a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM1.615 16.428a1.224 1.224 0 01-.569-1.175 6.002 6.002 0 0111.908 0c.058.467-.172.92-.57 1.174A9.953 9.953 0 017 18a9.953 9.953 0 01-5.385-1.572zM14.5 16h-.106c.07-.393.088-.794.048-1.196a7.502 7.502 0 00-1.7-3.694 4.502 4.502 0 005.528 0 7.502 7.502 0 00-1.7 3.694c-.04.402-.022.803.048 1.196H14.5z" clipRule="evenodd" />
-    </svg>
-  );
-}
-
-function PendingIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-    </svg>
-  );
-}
-
-function AirplaneIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-      <path d="M3.75 3a.75.75 0 00-.75.75v.5c0 .414.336.75.75.75H4c6.28 0 11.584-1.33 14.416-3.828a.75.75 0 00.012-1.05A.75.75 0 0017.25.25H3.75zM2.25 7.5a.75.75 0 00-.75.75v.5c0 .414.336.75.75.75H4c3.751 0 7.082-.48 10.042-1.353a.75.75 0 00-.084-1.488A28.557 28.557 0 004 7.5H2.25zM2.25 12a.75.75 0 00-.75.75v.5c0 .414.336.75.75.75H4c2.214 0 4.363-.186 6.375-.524a.75.75 0 00-.124-1.488A27.903 27.903 0 004 12H2.25z" />
-    </svg>
-  );
 }
 
 // ── Loader ─────────────────────────────────────────────────────────────────────
@@ -300,7 +267,7 @@ export default function AgentBookingsIndex() {
         <EmptyState
           title="No clients or bookings yet"
           description="Your portfolio is empty. Start by creating a new booking for a client."
-          icon={<UsersIcon className="h-12 w-12" />}
+          icon={<Users size={48} />}
           action={canCreate ? { label: "New Booking", to: "/bookings/new" } : undefined}
         />
       </PageLayout>
@@ -329,9 +296,7 @@ export default function AgentBookingsIndex() {
             to="/bookings/new"
             className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm dark:shadow-slate-900/20 hover:bg-blue-700 transition-colors"
           >
-            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-            </svg>
+            <Plus size={16} />
             New Booking
           </Link>
         )}
@@ -342,17 +307,17 @@ export default function AgentBookingsIndex() {
         <StatCard
           label="Active Clients"
           value={activeClients}
-          icon={<UsersIcon className="h-6 w-6" />}
+          icon={<Users size={24} />}
         />
         <StatCard
           label="Pending Bookings"
           value={pendingBookings}
-          icon={<PendingIcon className="h-6 w-6" />}
+          icon={<Clock size={24} />}
         />
         <StatCard
           label="Upcoming Departures"
           value={upcomingCount}
-          icon={<AirplaneIcon className="h-6 w-6" />}
+          icon={<Plane size={24} />}
         />
       </div>
 
@@ -360,7 +325,7 @@ export default function AgentBookingsIndex() {
       {departingSoon.length > 0 && (
         <div className="mb-8">
           <div className="mb-3 flex items-center gap-2">
-            <ClockIcon className="h-5 w-5 text-amber-500" />
+            <Clock size={20} className="text-amber-500" />
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Departing Soon</h2>
             <Badge variant="warning">{departingSoon.length}</Badge>
           </div>

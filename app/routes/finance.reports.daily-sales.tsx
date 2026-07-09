@@ -1,7 +1,7 @@
 ﻿import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { useLoaderData, useSearchParams , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 import { useState } from "react";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
@@ -180,9 +180,9 @@ export default function DailySalesReport() {
       <Card>
         <div className="flex items-end gap-4">
           <div>
-            <label className="block text-sm/5 font-medium text-slate-700 dark:text-slate-200 mb-1">
+            <span className="block text-sm/5 font-medium text-slate-700 dark:text-slate-200 mb-1">
               Date Range
-            </label>
+            </span>
             <DateRangePicker
               dateFrom={dateFrom}
               dateTo={dateTo}

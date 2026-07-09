@@ -133,8 +133,8 @@ export default function TimePicker({ value, onChange, label = "Check-in" }: Time
                     onClick={() => selectHour(h)}
                     className={`w-full py-1.5 text-sm font-mono text-center transition-colors ${
                       h === hour
-                        ? "bg-cyan-100 text-cyan-800 font-semibold"
-                        : "text-slate-600 hover:bg-white dark:bg-slate-800"
+                        ? "bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-300 font-semibold"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 dark:bg-slate-800"
                     }`}
                   >
                     {pad(h)}
@@ -165,8 +165,8 @@ export default function TimePicker({ value, onChange, label = "Check-in" }: Time
                     onClick={() => selectMinute(m)}
                     className={`w-full py-1.5 text-sm font-mono text-center transition-colors ${
                       m === minute
-                        ? "bg-cyan-100 text-cyan-800 font-semibold"
-                        : "text-slate-600 hover:bg-white dark:bg-slate-800"
+                        ? "bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-300 font-semibold"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 dark:bg-slate-800"
                     }`}
                   >
                     {pad(m)}
@@ -192,7 +192,7 @@ export default function TimePicker({ value, onChange, label = "Check-in" }: Time
                     className={`px-2 py-1 text-xs font-mono rounded-md border transition-colors ${
                       isSelected
                         ? "border-cyan-400 bg-cyan-50 text-cyan-800 font-semibold"
-                        : "border-slate-200 text-slate-600 dark:text-slate-300 hover:border-slate-300 hover:bg-slate-50 dark:bg-slate-700"
+                        : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/50"
                     }`}
                   >
                     {time}

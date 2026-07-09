@@ -1,7 +1,7 @@
 ﻿import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { Form, Link, useActionData, useLoaderData, useSearchParams } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { Form, Link, useActionData, useLoaderData, useSearchParams , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 import { bookingRepository } from "../utils/repositories/booking";
 import { checkinRepository } from "../utils/repositories/checkin";
 import type { BookingSearchResult } from "../utils/repositories/checkin";

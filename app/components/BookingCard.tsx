@@ -30,7 +30,7 @@ const variantClasses: Record<string, { container: string; title: string; text: s
     spacing: "mb-2",
   },
   hero: {
-    container: "p-6 border-indigo-200 bg-gradient-to-br from-white to-indigo-50",
+    container: "p-6 border-indigo-200 dark:border-indigo-800 bg-gradient-to-br from-white to-indigo-50 dark:from-slate-800 dark:to-indigo-950",
     title: "text-xl",
     text: "text-base",
     spacing: "mb-3",
@@ -80,11 +80,11 @@ export default function BookingCard({
   return (
     <Link
       to={linkTo}
-      className={`block rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm dark:shadow-slate-900/20 hover:shadow-md hover:border-slate-300 transition-all ${vc.container}`}
+      className={`block rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm dark:shadow-slate-900/20 hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 transition-all ${vc.container}`}
     >
       <div className={`flex items-start justify-between ${vc.spacing}`}>
         <div>
-          <span className={`${vc.title} font-bold text-slate-900`}>{booking.booking_reference}</span>
+          <span className={`${vc.title} font-bold text-slate-900 dark:text-slate-100`}>{booking.booking_reference}</span>
           {passenger && (
             <p className={`${vc.text} text-slate-600 dark:text-slate-300 mt-0.5`}>
               {passenger.first_name} {passenger.last_name}
@@ -100,20 +100,20 @@ export default function BookingCard({
       {firstLeg && (
         <div className={`flex items-center gap-2 ${vc.text} text-slate-700 dark:text-slate-200 ${vc.spacing}`}>
           <span className="font-semibold">{firstLeg.origin_code}</span>
-          <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">&rarr;</span>
+          <span className="text-slate-500 dark:text-slate-400">&rarr;</span>
           <span className="font-semibold">{firstLeg.destination_code}</span>
-          <span className="text-slate-500 ml-auto">
+          <span className="text-slate-500 dark:text-slate-400 ml-auto">
             {new Date(firstLeg.leg_date).toLocaleDateString()}
           </span>
         </div>
       )}
 
-      <div className={`flex items-center gap-3 ${vc.text} text-slate-500`}>
+      <div className={`flex items-center gap-3 ${vc.text} text-slate-500 dark:text-slate-400`}>
         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
           booking.booking_source === BookingSource.CUSTOMER_DIRECT
-            ? "bg-sky-50 text-sky-700"
+            ? "bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
             : booking.booking_source === BookingSource.BOOKING_AGENT
-            ? "bg-purple-50 text-purple-700"
+            ? "bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
             : "bg-amber-50 dark:bg-amber-900/30 text-amber-700"
         }`}>
           {sourceLabels[booking.booking_source] ?? booking.booking_source}
@@ -129,7 +129,7 @@ export default function BookingCard({
       </div>
 
       {actions && (
-        <div className={`mt-3 pt-3 border-t border-slate-100 flex items-center gap-2 ${vc.text}`}>
+        <div className={`mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center gap-2 ${vc.text}`}>
           {actions}
         </div>
       )}

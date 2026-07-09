@@ -29,7 +29,7 @@ export default function RouteSelector({
           className={`block w-full rounded-lg border px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:outline-none focus:ring-1 ${
             originError
               ? "border-red-300 focus:border-red-500 focus:ring-red-500"
-              : "border-slate-300 focus:border-sky-500 focus:ring-sky-500"
+              : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-sky-500 focus:ring-sky-500"
           }`}
         >
           <option value="">Select origin</option>
@@ -56,7 +56,7 @@ export default function RouteSelector({
           className={`block w-full rounded-lg border px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:outline-none focus:ring-1 ${
             destinationError
               ? "border-red-300 focus:border-red-500 focus:ring-red-500"
-              : "border-slate-300 focus:border-sky-500 focus:ring-sky-500"
+              : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-sky-500 focus:ring-sky-500"
           }`}
         >
           <option value="">Select destination</option>

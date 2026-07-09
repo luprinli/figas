@@ -7,6 +7,8 @@ import {
   handleCancel,
   type ActionResult,
 } from "~/utils/schedule-handlers.server";
+import type { ScheduleStatusType } from "~/utils/constants";
+import { db } from "~/utils/db.server";
 import { withRollback, dateOnly } from "../../fixtures/helpers";
 import {
   createTestSchedule,
@@ -40,7 +42,7 @@ describe("Schedule Status Flow", () => {
 
   // ── Test 1: Creates a schedule in draft status ────────────────────────────
   it("creates a schedule in draft status", async () => {
-    await withRollback(async (tx) => {
+    await withRollback(async () => {
       const schedule = await createTestSchedule({
         schedule_date: dateOnly(2026, 7, 1),
         created_by: testUserId,
@@ -54,14 +56,14 @@ describe("Schedule Status Flow", () => {
 
   // ── Test 2: Fails to approve a schedule with no flights ───────────────────
   it("fails to approve a schedule with no flights (returns 400)", async () => {
-    await withRollback(async (tx) => {
+    await withRollback(async () => {
       const schedule = await createTestSchedule({
         schedule_date: dateOnly(2026, 7, 2),
         created_by: testUserId,
       });
 
       // Set status to building so approve can be attempted
-      await scheduleRepository.updateStatus(schedule.id, "building" as any);
+      await scheduleRepository.updateStatus(schedule.id, "building" as unknown as ScheduleStatusType);
 
       const result = await handleApprove(schedule.id, testUserId);
       const err = getError(result);
@@ -74,14 +76,14 @@ describe("Schedule Status Flow", () => {
 
   // ── Test 3: Creates flights with bookings, then approve succeeds ──────────
   it("creates flights with bookings, then approve succeeds (status becomes approved)", async () => {
-    await withRollback(async (tx) => {
+    await withRollback(async () => {
       const schedule = await createTestSchedule({
         schedule_date: dateOnly(2026, 7, 3),
         created_by: testUserId,
       });
 
       // Set status to building
-      await scheduleRepository.updateStatus(schedule.id, "building" as any);
+      await scheduleRepository.updateStatus(schedule.id, "building" as unknown as ScheduleStatusType);
 
       // Create a flight
       const flight = await createTestFlight(schedule.id, {
@@ -112,20 +114,23 @@ describe("Schedule Status Flow", () => {
 
   // ── Test 4: Publishes an approved schedule succeeds ───────────────────────
   it("publishes an approved schedule succeeds (status becomes published)", async () => {
-    await withRollback(async (tx) => {
+    await withRollback(async () => {
       const schedule = await createTestSchedule({
         schedule_date: dateOnly(2026, 7, 4),
         created_by: testUserId,
       });
 
       // Set status to approved
-      await scheduleRepository.updateStatus(schedule.id, "approved" as any, {
+      await scheduleRepository.updateStatus(schedule.id, "approved" as unknown as ScheduleStatusType, {
         approved_by: testUserId,
       });
 
-      // Create a flight with a pilot assigned (required for publish)
+      // Create a flight with a pilot and aircraft assigned (required for publish)
+      const aircraft = await db.aircraft.findFirst({ select: { id: true } });
+      const aircraftId = aircraft?.id ?? 1;
       const flight = await createTestFlight(schedule.id, {
         flight_number: `TST-P1-${Date.now().toString(36)}`,
+        aircraft_id: aircraftId,
       });
 
       await createTestPilotAssignment(flight.id, schedule.id, {
@@ -147,14 +152,14 @@ describe("Schedule Status Flow", () => {
 
   // ── Test 5: Revises a published schedule reverts to draft ─────────────────
   it("revises a published schedule reverts to draft", async () => {
-    await withRollback(async (tx) => {
+    await withRollback(async () => {
       const schedule = await createTestSchedule({
         schedule_date: dateOnly(2026, 7, 5),
         created_by: testUserId,
       });
 
       // Set status to published
-      await scheduleRepository.updateStatus(schedule.id, "published" as any, {
+      await scheduleRepository.updateStatus(schedule.id, "published" as unknown as ScheduleStatusType, {
         published_by: testUserId,
       });
 
@@ -173,14 +178,14 @@ describe("Schedule Status Flow", () => {
 
   // ── Test 6: Approves the revised schedule succeeds ────────────────────────
   it("approves the revised schedule succeeds", async () => {
-    await withRollback(async (tx) => {
+    await withRollback(async () => {
       const schedule = await createTestSchedule({
         schedule_date: dateOnly(2026, 7, 6),
         created_by: testUserId,
       });
 
       // Set status to building (revise sets to draft, but approve needs building)
-      await scheduleRepository.updateStatus(schedule.id, "building" as any);
+      await scheduleRepository.updateStatus(schedule.id, "building" as unknown as ScheduleStatusType);
 
       // Create a flight with a booking leg
       const flight = await createTestFlight(schedule.id, {
@@ -207,14 +212,14 @@ describe("Schedule Status Flow", () => {
 
   // ── Test 7: Cancels the approved schedule succeeds ────────────────────────
   it("cancels the approved schedule succeeds (status becomes cancelled)", async () => {
-    await withRollback(async (tx) => {
+    await withRollback(async () => {
       const schedule = await createTestSchedule({
         schedule_date: dateOnly(2026, 7, 7),
         created_by: testUserId,
       });
 
       // Set status to approved
-      await scheduleRepository.updateStatus(schedule.id, "approved" as any, {
+      await scheduleRepository.updateStatus(schedule.id, "approved" as unknown as ScheduleStatusType, {
         approved_by: testUserId,
       });
 
@@ -230,14 +235,14 @@ describe("Schedule Status Flow", () => {
 
   // ── Test 8: Cancels a cancelled schedule fails with 400 ───────────────────
   it("cancels a cancelled schedule fails with 400", async () => {
-    await withRollback(async (tx) => {
+    await withRollback(async () => {
       const schedule = await createTestSchedule({
         schedule_date: dateOnly(2026, 7, 8),
         created_by: testUserId,
       });
 
       // Set status to cancelled
-      await scheduleRepository.updateStatus(schedule.id, "cancelled" as any, {
+      await scheduleRepository.updateStatus(schedule.id, "cancelled" as unknown as ScheduleStatusType, {
         cancelled_by: testUserId,
         cancellation_reason: "First cancel",
       });
@@ -253,14 +258,14 @@ describe("Schedule Status Flow", () => {
 
   // ── Test 9: Approves a cancelled schedule fails with 400 ──────────────────
   it("approves a cancelled schedule fails with 400", async () => {
-    await withRollback(async (tx) => {
+    await withRollback(async () => {
       const schedule = await createTestSchedule({
         schedule_date: dateOnly(2026, 7, 9),
         created_by: testUserId,
       });
 
       // Set status to cancelled
-      await scheduleRepository.updateStatus(schedule.id, "cancelled" as any, {
+      await scheduleRepository.updateStatus(schedule.id, "cancelled" as unknown as ScheduleStatusType, {
         cancelled_by: testUserId,
         cancellation_reason: "Weather",
       });
@@ -276,14 +281,14 @@ describe("Schedule Status Flow", () => {
 
   // ── Test 10: Cancels a building schedule succeeds ─────────────────────────
   it("cancels a building schedule succeeds", async () => {
-    await withRollback(async (tx) => {
+    await withRollback(async () => {
       const schedule = await createTestSchedule({
         schedule_date: dateOnly(2026, 7, 10),
         created_by: testUserId,
       });
 
       // Set status to building
-      await scheduleRepository.updateStatus(schedule.id, "building" as any);
+      await scheduleRepository.updateStatus(schedule.id, "building" as unknown as ScheduleStatusType);
 
       const result = await handleCancel(schedule.id, testUserId, "Schedule cancelled during building");
 
@@ -297,7 +302,7 @@ describe("Schedule Status Flow", () => {
 
   // ── Test 11: Publishes a non-approved schedule fails with 400 ─────────────
   it("publishes a non-approved schedule fails with 400", async () => {
-    await withRollback(async (tx) => {
+    await withRollback(async () => {
       const schedule = await createTestSchedule({
         schedule_date: dateOnly(2026, 7, 11),
         created_by: testUserId,
@@ -315,7 +320,7 @@ describe("Schedule Status Flow", () => {
 
   // ── Test 12: Revises a non-published schedule fails with 400 ──────────────
   it("revises a non-published schedule fails with 400", async () => {
-    await withRollback(async (tx) => {
+    await withRollback(async () => {
       const schedule = await createTestSchedule({
         schedule_date: dateOnly(2026, 7, 12),
         created_by: testUserId,

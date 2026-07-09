@@ -1,8 +1,9 @@
 ﻿import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Link, useLoaderData, Outlet } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { Link, useLoaderData, Outlet , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 import { useState } from "react";
+import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { requireAnyPermission } from "../utils/permissions.server";
 import { checkinRepository } from "../utils/repositories/checkin";
 import { db } from "../utils/db.server";
@@ -20,7 +21,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export default function CheckinLayout() {
-  const { user, pendingCount, flights } = useLoaderData<typeof loader>();
+  const { user, pendingCount } = useLoaderData<typeof loader>();
   const [collapsed, setCollapsed] = useState(false);
 
   const navItems = [
@@ -39,11 +40,9 @@ export default function CheckinLayout() {
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
           {!collapsed && <h2 className="text-sm font-bold tracking-wider">CHECK-IN</h2>}
           <button onClick={() => setCollapsed(!collapsed)} className="text-slate-400 hover:text-white p-1 rounded">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              {collapsed
-                ? <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-                : <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />}
-            </svg>
+            {collapsed
+              ? <ChevronsRight size={16} absoluteStrokeWidth />
+              : <ChevronsLeft size={16} absoluteStrokeWidth />}
           </button>
         </div>
         <nav className="flex-1 py-3 space-y-0.5 px-2">

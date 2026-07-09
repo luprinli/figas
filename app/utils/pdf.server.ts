@@ -50,8 +50,6 @@ const loadsheetTemplate = `
 </html>
 `;
 
-const briefingTemplate = loadsheetTemplate;
-
 export function generatePdfHtml(
   content: ReactNode,
   options: PdfGeneratorOptions

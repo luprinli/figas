@@ -43,9 +43,9 @@ describe("handleAutoBuild()", () => {
       const result = await handleAutoBuild(dateStr, testUserId);
       const err = getError(result);
 
-      // Either it errors with "no unassigned booking legs" or succeeds with 0 flights
+      // Either it errors with "no unassigned booking legs" or "no-fly day", or succeeds with 0 flights
       if (err) {
-        expect(err.error).toContain("No unassigned booking legs");
+        expect(err.error).toMatch(/No unassigned booking legs|no-fly day/);
       } else {
         expect(isSuccess(result)).toBe(true);
       }

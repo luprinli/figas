@@ -290,7 +290,7 @@ async function seedAerodromes(): Promise<void> {
   }
 
   // Also add STY (Stanley) which is used in the fare matrix and FlightList.csv
-  // but is coded as PSY in the aerodromes CSV
+  // which is coded as STY in the aerodromes CSV
   await pool.query(
     `INSERT INTO aerodromes (code, name, city, latitude, longitude, timezone, is_active)
      VALUES ($1, $2, $3, $4, $5, $6, $7)

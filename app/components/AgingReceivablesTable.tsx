@@ -47,7 +47,7 @@ export default function AgingReceivablesTable({
 
   return (
     <div className="overflow-x-auto rounded-lg bg-white dark:bg-slate-800 shadow-sm dark:shadow-slate-900/20 ring-1 ring-slate-200 dark:ring-slate-700">
-      <table className="min-w-full divide-y divide-slate-200">
+      <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
         <thead>
           <tr>
             <th
@@ -70,10 +70,10 @@ export default function AgingReceivablesTable({
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
           {BUCKET_KEYS.map((key) => {
             const bucket = buckets[key];
-            const colorClasses = bucketColorMap[key] ?? "bg-white text-slate-700 dark:text-slate-200";
+            const colorClasses = bucketColorMap[key] ?? "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200";
             const isClickable = !!onBucketClick;
 
             return (

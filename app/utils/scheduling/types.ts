@@ -24,7 +24,7 @@ export interface RouteStop {
   aerodromeCode: string;
   legSequence: number;
   distanceNm: number;
-  heading: number;
+  heading: number | null;
 }
 
 export interface RouteResult {

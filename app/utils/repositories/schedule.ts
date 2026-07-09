@@ -33,21 +33,23 @@ export const scheduleRepository = {
   },
 
   async findByDate(date: string): Promise<ScheduleRow | null> {
+    // Compare by date range (UTC midnight to midnight) to avoid timezone
+    // mismatch between local `new Date(date)` and UTC-stored timestamps.
+    const start = new Date(`${date}T00:00:00.000Z`);
+    const end = new Date(start.getTime() + 86_400_000);
     const schedule = await db.schedules.findFirst({
-      where: { schedule_date: new Date(date) },
+      where: { schedule_date: { gte: start, lt: end } },
       orderBy: { created_at: "desc" },
     });
     return (schedule as unknown as ScheduleRow) ?? null;
   },
 
   async findByDateRange(startDate: string, endDate: string): Promise<ScheduleRow[]> {
+    const start = new Date(`${startDate}T00:00:00.000Z`);
+    const end = new Date(`${endDate}T00:00:00.000Z`);
+    end.setDate(end.getDate() + 1);
     const schedules = await db.schedules.findMany({
-      where: {
-        schedule_date: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
-        },
-      },
+      where: { schedule_date: { gte: start, lt: end } },
       orderBy: { schedule_date: "desc" },
     });
     return schedules as unknown as ScheduleRow[];
@@ -210,8 +212,10 @@ export const scheduleRepository = {
    * Returns the existing schedule if one exists.
    */
   async findOrCreate(date: string, createdBy: number): Promise<ScheduleRow> {
+    const start = new Date(`${date}T00:00:00.000Z`);
+    const end = new Date(start.getTime() + 86_400_000);
     const existing = await db.schedules.findFirst({
-      where: { schedule_date: new Date(date) },
+      where: { schedule_date: { gte: start, lt: end } },
       orderBy: { created_at: "desc" },
     });
     if (existing) {
@@ -219,7 +223,7 @@ export const scheduleRepository = {
     }
     const schedule = await db.schedules.create({
       data: {
-        schedule_date: new Date(date),
+        schedule_date: start,
         created_by: createdBy,
         status: "draft" as ScheduleStatus,
       },

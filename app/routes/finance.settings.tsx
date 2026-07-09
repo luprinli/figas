@@ -1,7 +1,7 @@
 ﻿import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, Form, useNavigation, Link } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { useLoaderData, Form, useNavigation , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 import { requirePermission } from "../utils/permissions.server";
 import { Permission, PaymentTerms } from "../utils/constants";
 import { requireUser } from "../utils/layout.server";
@@ -60,7 +60,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export async function action({ request }: ActionFunctionArgs) {
-  const { userId } = await requireUser(request);
+  await requireUser(request);
   await requirePermission(request, Permission.SETTINGS_EDIT);
 
   const formData = await request.formData();

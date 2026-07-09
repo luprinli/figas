@@ -37,10 +37,10 @@ export interface LegsTableProps {
 /* ── Helpers ───────────────────────────────────────────── */
 
 const selectClass =
-  "block w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-2 py-1.5 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500";
+  "block w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2 py-1.5 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500";
 
 const selectErrorClass =
-  "block w-full rounded-lg border border-red-500 px-2 py-1.5 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500";
+  "block w-full rounded-lg border border-red-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2 py-1.5 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500";
 
 /* ── Component ─────────────────────────────────────────── */
 
@@ -206,7 +206,7 @@ export default function LegsTable({
             className={`block w-full rounded-lg border px-2 py-1.5 text-sm shadow-sm dark:shadow-slate-900/20 focus:outline-none focus:ring-1 ${
               timeError
                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                : "border-slate-300 focus:border-sky-500 focus:ring-sky-500"
+                : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-sky-500 focus:ring-sky-500"
             }`}
             onChange={() => onErrorClear?.(`leg_preferred_time_${idx}`)}
             onBlur={() => onErrorClear?.(`leg_preferred_time_${idx}`)}
@@ -225,13 +225,13 @@ export default function LegsTable({
   return (
     <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm dark:shadow-slate-900/20">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 px-6 py-4">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Flight Legs</h2>
       </div>
 
       {/* Table */}
       <div className="overflow-x-visible">
-        <table className="min-w-full divide-y divide-slate-200">
+        <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
           <thead className="bg-slate-50 dark:bg-slate-700">
             <tr>
               <th className="w-12 px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
@@ -254,7 +254,7 @@ export default function LegsTable({
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
             {legCount === 0 ? (
               <tr>
                 <td
@@ -273,7 +273,7 @@ export default function LegsTable({
 
       {/* Max limit warning */}
       {atMax && (
-        <div className="border-t border-slate-100 px-6 py-3 text-xs text-amber-600">
+        <div className="border-t border-slate-100 dark:border-slate-700 px-6 py-3 text-xs text-amber-600">
           Maximum of {maxLegs} legs reached.
         </div>
       )}

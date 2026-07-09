@@ -1,4 +1,5 @@
-﻿import type { RouteSuggestion } from "../../utils/scheduling/scheduling-types";
+﻿import { Route, Check, Star, AlertTriangle, Plus } from "lucide-react";
+import type { RouteSuggestion } from "../../utils/scheduling/scheduling-types";
 
 /**
  * OptimizationBar — Displays the route for a draft flight.
@@ -30,7 +31,7 @@ interface OptimizationBarProps {
 
 /**
  * Format a route summary string from suggested legs.
- * E.g., "PSY → BVI → NWI → PSY (245 nm, 3 stops)"
+ * E.g., "STY → BVI → NWI → STY (245 nm, 3 stops)"
  */
 function formatRouteSummary(legs: RouteSuggestion["suggested_legs"]): string {
     if (legs.length === 0) return "No route";
@@ -116,21 +117,11 @@ export default function OptimizationBar({
         <div className="mt-3 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 dark:bg-emerald-900/30 p-3">
             {/* Header */}
             <div className="mb-2 flex items-center gap-1.5">
-                <svg
-                    className="h-4 w-4 text-emerald-500 dark:text-emerald-400"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                >
-                    <polyline points="1,8 4,4 8,12 12,4 15,8" />
-                </svg>
+                <Route size={16} className="text-emerald-500 dark:text-emerald-400" strokeWidth={2} absoluteStrokeWidth />
                 <span className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
                     Route
                 </span>
-                <svg className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M13.5 3.5L6 11L2.5 7.5" stroke="currentColor" strokeWidth="2" fill="none" />
-                </svg>
+                <Check size={14} className="text-emerald-500 dark:text-emerald-400" strokeWidth={2} absoluteStrokeWidth />
             </div>
 
             {/* Route summary */}
@@ -189,15 +180,7 @@ export default function OptimizationBar({
             {/* Aircraft recommendation */}
             {suggestion.aircraft_recommendation && (
                 <div className="mb-2 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 dark:text-slate-500">
-                    <svg
-                        className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400 dark:text-slate-500"
-                        viewBox="0 0 16 16"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                    >
-                        <path d="M8 1 L9 5 L14 6 L10 9 L11 14 L8 12 L5 14 L6 9 L2 6 L7 5 Z" />
-                    </svg>
+                    <Star size={14} className="text-slate-500 dark:text-slate-400 dark:text-slate-500" strokeWidth={1.5} absoluteStrokeWidth />
                     <span>
                         Recommended:{" "}
                         <span className="font-medium text-slate-700 dark:text-slate-200">
@@ -211,13 +194,7 @@ export default function OptimizationBar({
             {hasWarnings && (
                 <div className="mb-2 rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30 dark:bg-amber-900/30 px-2.5 py-1.5">
                     <div className="flex items-start gap-1.5">
-                        <svg
-                            className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-500 dark:text-amber-400"
-                            viewBox="0 0 16 16"
-                            fill="currentColor"
-                        >
-                            <path d="M8 1L1 14h14L8 1zm0 3.5v4M8 11v1" stroke="currentColor" strokeWidth="1.5" fill="none" />
-                        </svg>
+                        <AlertTriangle size={14} className="mt-0.5 flex-shrink-0 text-amber-500 dark:text-amber-400" strokeWidth={1.5} absoluteStrokeWidth />
                         <div className="space-y-1">
                             {suggestion.weight_warnings.map((warning, i) => {
                                 const severity = getWarningSeverity(warning);
@@ -244,9 +221,7 @@ export default function OptimizationBar({
                     onClick={onAmend}
                     className="inline-flex items-center gap-1 rounded-md border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400 dark:text-emerald-400 hover:bg-emerald-50 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/30 transition-colors"
                 >
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <path d="M8 3v10M3 8h10" />
-                    </svg>
+                    <Plus size={14} strokeWidth={1.5} absoluteStrokeWidth />
                     Amend Route
                 </button>
             </div>

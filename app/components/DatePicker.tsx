@@ -102,7 +102,7 @@ export default function DatePicker({
       if (isSelected) {
         classes += " bg-blue-600 text-white rounded-full";
       } else if (isDisabled) {
-        classes += " text-slate-300 dark:text-slate-500 dark:text-slate-600 cursor-not-allowed";
+        classes += " text-slate-300 dark:text-slate-600 cursor-not-allowed";
         if (isNoFly) {
           classes += " line-through text-red-400";
         }

@@ -87,7 +87,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
           className={[
             baseStyles,
             disabled || loading
-              ? "opacity-50 bg-slate-500 text-white dark:bg-slate-600 dark:text-slate-400 hover:bg-slate-500 hover:text-white dark:hover:bg-slate-600 dark:hover:text-slate-400 dark:text-slate-500"
+              ? "opacity-50 pointer-events-none"
               : resolvedVariant,
             "cursor-pointer relative",
             className,

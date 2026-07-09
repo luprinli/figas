@@ -49,13 +49,15 @@ The system serves multiple personas: passengers (self-service), booking agents, 
 | **Framework** | [Remix v2](https://remix.run) (React Router v6) | Server-side rendering, nested routes, loaders/actions |
 | **Language** | [TypeScript](https://www.typescriptlang.org/) v5.1 | Type safety across the full stack |
 | **Database** | [PostgreSQL](https://www.postgresql.org/) 16 | Relational data store with JSONB support |
-| **Database Driver** | [`pg`](https://node-postgres.com/) v8.20 | Native PostgreSQL client |
+| **ORM / Driver** | [Prisma](https://www.prisma.io/) v7 (`@prisma/client` + `@prisma/adapter-pg`) | PrismaClient singleton with raw-SQL query shims over a PostgreSQL adapter |
+| **Email** | [Nodemailer](https://nodemailer.com/) v9 | Transactional email (SMTP) |
+| **Icons** | [`lucide-react`](https://lucide.dev/) | Icon set |
 | **Styling** | [Tailwind CSS](https://tailwindcss.com/) v4 | Utility-first CSS framework |
 | **Payments** | [Stripe](https://stripe.com) v22.1 | Payment processing (Checkout Sessions, webhooks) |
 | **Drag & Drop** | [`@dnd-kit`](https://dndkit.com/) v6/v10 | Schedule board drag-and-drop |
 | **Auth** | Session-based (cookie) | Server-side sessions with PBAC |
 | **Build** | [Vite](https://vitejs.dev/) v5 | Fast development and production builds |
-| **Deployment** | [Netlify](https://www.netlify.com/) | Serverless deployment via `@netlify/remix-adapter` |
+| **Deployment** | [Render](https://render.com/) | Persistent Node web service via `render.yaml` (SSE + pooled DB) |
 
 ---
 
@@ -82,7 +84,7 @@ The system serves multiple personas: passengers (self-service), booking agents, 
 │  │  app/routes/operations.bookings.$bookingId.tsx               │   │
 │  │  app/routes/checkin.counter.tsx                              │   │
 │  │  app/routes/operations.schedule._index.tsx                   │   │
-│  │  ... (40+ route files)                                       │   │
+│  │  ... (85+ route files)                                       │   │
 │  └──────────────────────┬───────────────────────────────────────┘   │
 │                         │                                          │
 │  ┌──────────────────────▼───────────────────────────────────────┐   │
@@ -100,7 +102,7 @@ The system serves multiple personas: passengers (self-service), booking agents, 
 │  │  app/utils/repositories/booking-leg.ts                       │   │
 │  │  app/utils/repositories/booking-passenger.ts                 │   │
 │  │  app/utils/repositories/booking-leg-passenger.ts             │   │
-│  │  ... (25+ repository files)                                  │   │
+│  │  ... (28+ repository files)                                  │   │
 │  └──────────────────────┬───────────────────────────────────────┘   │
 │                         │                                          │
 │  ┌──────────────────────▼───────────────────────────────────────┐   │
@@ -114,21 +116,21 @@ The system serves multiple personas: passengers (self-service), booking agents, 
 │  └──────────────────────┬───────────────────────────────────────┘   │
 │                         │                                          │
 │  ┌──────────────────────▼───────────────────────────────────────┐   │
-│  │              Database Layer (pg Pool)                         │   │
-│  │  app/utils/db.server.ts → PostgreSQL                         │   │
+│  │              Database Layer (Prisma + adapter-pg)            │   │
+│  │  app/utils/db.server.ts → PrismaClient → PostgreSQL         │   │
 │  └──────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Key Design Decisions
 
-1. **Repository Pattern** — All database access is abstracted through repository modules in [`app/utils/repositories/`](app/utils/repositories/). This keeps SQL queries isolated from route handlers and enables consistent query patterns.
+1. **Repository Pattern** — All database access is abstracted through repository modules in [`app/utils/repositories/`](app/utils/repositories/) (28+ files). Repositories issue hand-written SQL via the `db.query()` / `db.queryOne()` helpers exposed by [`app/utils/db.server.ts`](app/utils/db.server.ts). As of the Prisma migration, `db` is a `PrismaClient` singleton (backed by `@prisma/adapter-pg`) that provides these raw-SQL shims for backward compatibility, so query patterns stay isolated from route handlers.
 
 2. **Server-Side Rendering** — Remix handles all data fetching on the server via loaders. Forms submit to actions on the same server, providing fast initial page loads and progressive enhancement.
 
 3. **PBAC over RBAC** — The system uses Permission-Based Access Control (PBAC) rather than simple Role-Based Access Control. Permissions are granular (`resource:action` format) and assigned to roles. Users can hold multiple roles. See [`app/utils/permissions.server.ts`](app/utils/permissions.server.ts).
 
-4. **Junction Table for Passenger-Leg Relationship** — The [`booking_leg_passengers`](migrations/016_create_booking_leg_passengers.sql) table creates a many-to-many relationship between legs and passengers, enabling per-leg baggage, freight, check-in, seat assignment, and boarding tracking.
+4. **Junction Table for Passenger-Leg Relationship** — The [`booking_leg_passengers`](migrations/archive/016_create_booking_leg_passengers.sql) table creates a many-to-many relationship between legs and passengers, enabling per-leg baggage, freight, check-in, seat assignment, and boarding tracking.
 
 5. **5-Phase Scheduling Pipeline** — The daily schedule builder runs five sequential phases: cluster → route (nearest-neighbor) → aircraft assignment → weight & balance → pilot assignment. See [`app/utils/scheduling/index.ts`](app/utils/scheduling/index.ts).
 
@@ -151,32 +153,34 @@ Booking (1) ──→ Booking Legs (many)
 Each booking has:
 - **One or more legs** (origin → destination on a date)
 - **One or more passengers** (personal data)
-- Each passenger is linked to each leg via the [`booking_leg_passengers`](migrations/016_create_booking_leg_passengers.sql) junction table, which stores per-leg baggage, freight, check-in status, seat assignment, and boarding status.
+- Each passenger is linked to each leg via the [`booking_leg_passengers`](migrations/archive/016_create_booking_leg_passengers.sql) junction table, which stores per-leg baggage, freight, check-in status, seat assignment, and boarding status.
 
 ### Key Tables
 
 | Table | Purpose |
 |-------|---------|
-| [`bookings`](migrations/001_create_tables.sql) | Booking records with reference, status, payment info |
-| [`booking_legs`](migrations/001_create_tables.sql) | Individual itinerary legs (origin, destination, date, flight assignment) |
-| [`booking_passengers`](migrations/016_create_booking_leg_passengers.sql) | Passenger personal data (name, DOB, weight, residency) |
-| [`booking_leg_passengers`](migrations/016_create_booking_leg_passengers.sql) | Junction: per-leg passenger data (baggage, freight, check-in, seat) |
-| [`schedules`](migrations/014_create_scheduling_tables.sql) | Daily schedule records with pipeline status |
-| [`flights`](migrations/001_create_tables.sql) | Flight records |
-| [`flight_legs`](migrations/014_create_scheduling_tables.sql) | Sequenced stops within a sortie flight |
-| [`flight_manifests`](migrations/001_create_tables.sql) | Per-flight passenger manifests |
-| [`weight_balance_snapshots`](migrations/014_create_scheduling_tables.sql) | Per-leg weight & balance calculations |
-| [`pilot_assignments`](migrations/014_create_scheduling_tables.sql) | Pilot-to-flight assignments |
-| [`payments`](migrations/001_create_tables.sql) | Payment records |
-| [`invoices`](migrations/007_create_invoices.sql) | Invoice records |
-| [`accounting_entries`](migrations/008_create_accounting_journal.sql) | Double-entry journal entries |
-| [`users`](migrations/001_create_tables.sql) | User accounts |
-| [`roles` / `permissions` / `role_permissions` / `user_roles`](migrations/015_create_rbac_tables.sql) | PBAC tables |
-| [`aerodromes`](migrations/001_create_tables.sql) | Airport/airstrip reference data |
-| [`aircraft`](migrations/001_create_tables.sql) | Aircraft fleet data |
-| [`fare_routes`](migrations/001_create_tables.sql) | Fare pricing between aerodromes |
+| [`bookings`](migrations/archive/001_create_tables.sql) | Booking records with reference, status, payment info |
+| [`booking_legs`](migrations/archive/001_create_tables.sql) | Individual itinerary legs (origin, destination, date, flight assignment) |
+| [`booking_passengers`](migrations/archive/016_create_booking_leg_passengers.sql) | Passenger personal data (name, DOB, weight, residency) |
+| [`booking_leg_passengers`](migrations/archive/016_create_booking_leg_passengers.sql) | Junction: per-leg passenger data (baggage, freight, check-in, seat) |
+| [`schedules`](migrations/archive/014_create_scheduling_tables.sql) | Daily schedule records with pipeline status |
+| [`flights`](migrations/archive/001_create_tables.sql) | Flight records |
+| [`flight_legs`](migrations/archive/014_create_scheduling_tables.sql) | Sequenced stops within a sortie flight |
+| [`flight_manifests`](migrations/archive/001_create_tables.sql) | Per-flight passenger manifests |
+| [`weight_balance_snapshots`](migrations/archive/014_create_scheduling_tables.sql) | Per-leg weight & balance calculations |
+| [`pilot_assignments`](migrations/archive/014_create_scheduling_tables.sql) | Pilot-to-flight assignments |
+| [`payments`](migrations/archive/001_create_tables.sql) | Payment records |
+| [`invoices`](migrations/archive/007_create_invoices.sql) | Invoice records |
+| [`accounting_entries`](migrations/archive/008_create_accounting_journal.sql) | Double-entry journal entries |
+| [`users`](migrations/archive/001_create_tables.sql) | User accounts |
+| [`roles` / `permissions` / `role_permissions` / `user_roles`](migrations/archive/015_create_rbac_tables.sql) | PBAC tables |
+| [`aerodromes`](migrations/archive/001_create_tables.sql) | Airport/airstrip reference data |
+| [`aircraft`](migrations/archive/001_create_tables.sql) | Aircraft fleet data |
+| [`fare_routes`](migrations/archive/001_create_tables.sql) | Fare pricing between aerodromes |
 
 For a complete data model reference, see [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md).
+
+> **Note on migrations**: The historical numbered migrations (`001`–`019`) referenced above have been consolidated into seven files under [`migrations/consolidated/`](migrations/consolidated/) (the runner in [`app/utils/migrate.ts`](app/utils/migrate.ts) applies this directory). The original per-feature migrations are preserved under [`migrations/archive/`](migrations/archive/) — the table links point there for line-level schema reference. Later feature migrations (`008`–`018`) and one-off `fix-*.sql` scripts live at the top of [`migrations/`](migrations/).
 
 ---
 
@@ -211,13 +215,14 @@ Required variables:
 # Install dependencies
 npm install
 
-# Set up the database
+# Create the database
 createdb figas
-npm run migrate
 
-# (Optional) Seed reference data
-npm run seed
+# Run migrations, seed reference + demo data, and set up PBAC roles/users
+npm run setup
 ```
+
+The `setup` script runs migrations, then `seed:full` (reference + demo data), `seed:pbac` (roles/permissions), and `seed:pbac:assign` (assigns roles to seeded users). To run steps individually, see the scripts table below.
 
 ### Running the Development Server
 
@@ -234,10 +239,22 @@ The app will be available at `http://localhost:5173`.
 | `npm run dev` | Start development server with hot reload |
 | `npm run build` | Build for production |
 | `npm start` | Start production server |
-| `npm run migrate` | Run pending database migrations |
-| `npm run seed` | Seed reference data (aerodromes, aircraft, fares) |
+| `npm run migrate` | Run pending database migrations (`migrations/consolidated/`) |
+| `npm run seed` | Seed core reference data (`app/utils/seed.ts`) |
+| `npm run seed:full` | Seed reference + demo booking data |
+| `npm run seed:users` | Seed role-based user accounts |
+| `npm run seed:pbac` | Seed PBAC roles and permissions |
+| `npm run seed:pbac:assign` | Assign seeded roles to users |
+| `npm run setup` | Full bootstrap: migrate + seed:full + seed:pbac + seed:pbac:assign |
 | `npm run lint` | Run ESLint |
 | `npm run typecheck` | Run TypeScript type checking |
+| `npm test` | Run Vitest unit + integration tests |
+| `npm run test:unit` | Run unit tests only |
+| `npm run test:integration` | Run integration tests only |
+| `npm run test:e2e` | Run Playwright end-to-end tests |
+| `npm run test:smoke` | Run smoke tests |
+| `npm run test:related` | Run test suites affected by changed files |
+| `npm run test:all` | Run Vitest + Playwright suites |
 
 ---
 
@@ -265,28 +282,35 @@ The app will be available at `http://localhost:5173`.
 │   │   ├── engineer.*        # Engineer routes
 │   │   └── api.*             # API routes (Stripe webhook)
 │   ├── utils/
-│   │   ├── repositories/     # Database access layer (25+ files)
-│   │   ├── scheduling/       # Scheduling pipeline (7 files)
-│   │   ├── services/         # Business logic services (5 files)
-│   │   ├── db.server.ts      # Database connection pool
+│   │   ├── repositories/     # Database access layer (28+ files)
+│   │   ├── scheduling/       # Scheduling / CVRP pipeline (24+ files)
+│   │   ├── services/         # Business logic services (11 files)
+│   │   ├── pricing/          # Fare/pricing engine + invoice lines
+│   │   ├── loadsheet/        # Loadsheet generation & calculations
+│   │   ├── publishing/       # Schedule publishing
+│   │   ├── db.server.ts      # PrismaClient singleton + raw-SQL helpers
 │   │   ├── permissions.server.ts  # PBAC implementation
 │   │   ├── stripe.server.ts  # Stripe client singleton
 │   │   ├── migrate.ts        # Migration runner
 │   │   ├── seed.ts           # Data seeder
 │   │   ├── auth.server.ts    # Authentication
-│   │   ├── session.server.ts # Session management
+│   │   ├── csrf.server.ts    # CSRF protection
 │   │   └── constants.ts      # Enums and constants
-│   ├── styles/
-│   │   └── tailwind.css      # Tailwind CSS v4 entry point
+│   ├── hooks/                # Client hooks (keyboard shortcuts, etc.)
+│   ├── styles/               # Tailwind CSS v4 + print stylesheets
 │   ├── root.tsx              # Root layout
+│   ├── session.server.ts     # Session management
 │   └── entry.client.tsx      # Client entry point
-├── migrations/               # SQL migration files (001-016)
+├── migrations/               # SQL migrations: consolidated/ (applied), archive/ (historical), 008-018 + fix-*.sql
 ├── data/                     # Reference data (CSV files)
-├── prisma/                   # Prisma schema (for PBAC migration only)
+├── prisma/                   # Prisma schema, generated-client seed & audit scripts (PBAC + data utilities)
+├── generated/prisma/         # Auto-generated Prisma client & model types
+├── scripts/                  # Seeders, DB maintenance, integrity checks, CI helpers
+├── tests/                    # Vitest (unit/integration/smoke) + Playwright (e2e) suites
 ├── public/                   # Static assets
 ├── docs/                     # Documentation
-├── plans/                    # Architecture/design plans
-├── netlify.toml              # Netlify deployment config
+├── plans/                    # Active architecture/design plans
+├── render.yaml               # Render deployment blueprint
 └── package.json
 ```
 
@@ -299,7 +323,7 @@ The app will be available at `http://localhost:5173`.
 1. **Step 1 — Booking Details**: Create a pending booking record with user, organization, and billing info
 2. **Step 2 — Legs**: Add one or more itinerary legs (origin, destination, date, preferred time)
 3. **Step 3 — Passengers**: Add passenger personal data (name, DOB, weight, residency)
-4. **Step 4 — Junction Records**: Link passengers to legs via [`booking_leg_passengers`](migrations/016_create_booking_leg_passengers.sql) with per-leg baggage, freight, and seat assignment
+4. **Step 4 — Junction Records**: Link passengers to legs via [`booking_leg_passengers`](migrations/archive/016_create_booking_leg_passengers.sql) with per-leg baggage, freight, and seat assignment
 
 Implemented in [`app/routes/operations.bookings.new.tsx`](app/routes/operations.bookings.new.tsx) using the [`BookingWizard`](app/components/BookingWizard.tsx) component.
 
@@ -405,25 +429,45 @@ Browser (updated page)
 
 \* Required for payment processing; the app can run without Stripe for development.
 
+Additional variables (see [`.env.example`](.env.example)): `SMTP_*` (transactional email via Nodemailer), `WB_VIOLATIONS_BLOCK_APPROVAL` (block schedule approval on weight & balance violations), and seeded role credentials (`ADMIN_EMAIL`, `PILOT1_EMAIL`, etc.).
+
+---
+
+## Testing
+
+The project uses **Vitest** for unit/integration/smoke tests and **Playwright** for end-to-end tests. Test suites live under [`tests/`](tests/) with shared fixtures in [`tests/fixtures/`](tests/fixtures/).
+
+```bash
+npm test                  # Vitest unit + integration
+npm run test:unit         # Unit tests (tests/unit)
+npm run test:integration  # Integration tests (tests/integration)
+npm run test:smoke        # Smoke tests (tests/smoke)
+npm run test:e2e          # Playwright end-to-end tests
+npm run test:related      # Only suites affected by changed files
+npm run test:all          # Vitest + Playwright
+```
+
+CI runs lint, typecheck, and targeted/e2e suites via the workflows in [`.github/workflows/`](.github/workflows/). Git hooks (Husky + lint-staged) enforce ESLint, Prettier, and Commitlint on commit.
+
 ---
 
 ## Deployment
 
-The application is configured for deployment on **Netlify** via the [`netlify.toml`](netlify.toml) configuration file.
+The application is configured for deployment on **Render** as a persistent Node web service, via the [`render.yaml`](render.yaml) blueprint. A long-running server is used deliberately because the app relies on a Server-Sent Events endpoint ([`app/routes/api.schedule-events.ts`](app/routes/api.schedule-events.ts)) and a per-process database connection pool — both of which suit a persistent process better than short-lived serverless functions.
 
 ```bash
-# Build for production
-npm run build
-
-# Deploy to Netlify (requires Netlify CLI)
-netlify deploy --prod
+# Render runs these automatically from render.yaml:
+#   build:  npm ci && npm run build      (postinstall runs `prisma generate`)
+#   deploy: npm run migrate              (preDeployCommand — applies migrations)
+#   start:  npm run start                (remix-serve on $PORT)
 ```
 
 Key deployment notes:
-- The build output goes to `build/client/` (configured in `netlify.toml`)
-- The Remix server adapter (`@netlify/remix-adapter`) handles serverless function deployment
-- Environment variables must be configured in the Netlify dashboard
-- The database must be accessible from Netlify's serverless functions (use a cloud-hosted PostgreSQL like Supabase)
+- The build runs `prisma generate` via the `postinstall` hook, then `remix vite:build` (output: `build/server/` + `build/client/`).
+- The production server is `@remix-run/serve` (`npm run start`), which binds `0.0.0.0` and honors the `PORT` env var that Render provides.
+- Database migrations run as Render's `preDeployCommand` (`npm run migrate`); this requires a paid instance type. On the free tier, run migrations manually or via a one-off Render Job.
+- `DATABASE_URL` is wired automatically from the managed Render PostgreSQL database; `SESSION_SECRET` and `CSRF_SECRET` are auto-generated. Set Stripe/SMTP secrets and `APP_URL` in the Render dashboard.
+- To deploy elsewhere, the standard Remix Node build (`build/server/index.js`) works with any Node host; only `render.yaml` is Render-specific.
 
 ---
 
@@ -438,13 +482,16 @@ Comprehensive documentation is maintained in the `docs/` directory:
 | [`docs/SCHEDULING.md`](docs/SCHEDULING.md) | Scheduling pipeline reference (status lifecycle, dnd-kit, validation) |
 | [`docs/WORKFLOWS.md`](docs/WORKFLOWS.md) | Business workflows (booking, check-in, payment, scheduling) |
 | [`docs/SETUP.md`](docs/SETUP.md) | Environment setup and development guide |
-| [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md) | Modernization roadmap (6-phase plan) |
-| [`docs/IMPLEMENTATION-COMPLETION-REPORT.md`](docs/IMPLEMENTATION-COMPLETION-REPORT.md) | Audit-verified completion report with shelfware inventory and deferred task feasibility plans |
+| [`docs/business-rules.md`](docs/business-rules.md) | Domain business rules and constraints |
 | [`docs/DATABASE-AUDIT-SUMMARY.md`](docs/DATABASE-AUDIT-SUMMARY.md) | Consolidated database audit findings |
+| [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) | Full annotated directory tree |
+| [`plans/MASTER-PLAN.md`](plans/MASTER-PLAN.md) | Active high-level roadmap |
 
-**Authoritative technical contracts** are maintained as agent skills:
-- [`.agents/skills/flight-schedule/SKILL.md`](.agents/skills/flight-schedule/SKILL.md) — Scheduling system interfaces, invariants, and test contracts
-- [`.agents/skills/figas-test-automation/SKILL.md`](.agents/skills/figas-test-automation/SKILL.md) — Testing patterns and fixtures
+**Authoritative domain contracts** are maintained as agent skills under [`.agents/skills/`](.agents/skills/):
+- `flight-schedule` — Scheduling system interfaces, invariants, and test contracts
+- `booking`, `checkin`, `finance`, `admin` — Domain workflow invariants
+- `figas-test-automation` — Testing patterns and fixtures
+- `_global/` — Cross-cutting standards (testing, CI/CD, code stability)
 
 **Historical planning documents** are archived in [`docs/archive/`](docs/archive/). Active (not yet completed) plans remain in [`plans/`](plans/).
 
@@ -466,8 +513,9 @@ Comprehensive documentation is maintained in the `docs/` directory:
 1. Create a feature branch from `main`
 2. Make changes following the development guidelines
 3. Run `npm run typecheck` and `npm run lint`
-4. Test migrations with `npm run migrate`
-5. Submit a pull request with a clear description of changes
+4. Run the relevant tests (`npm run test:related` or `npm test`)
+5. Test migrations with `npm run migrate`
+6. Submit a pull request with a clear description of changes
 
 ---
 

@@ -87,7 +87,7 @@ export default function WeightSummary({
 
       {/* Passenger list */}
       {passengers.length > 0 && (
-        <div className="mt-4 border-t border-slate-100 pt-3">
+        <div className="mt-4 border-t border-slate-100 dark:border-slate-700 pt-3">
           <h4 className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
             Passengers
           </h4>

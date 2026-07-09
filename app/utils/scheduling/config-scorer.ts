@@ -1,35 +1,5 @@
-import type { RouteResult, AircraftAssignmentResult, PilotAssignmentResult, WeightBalanceResult } from "./types";
-import type { ClusterResult } from "./types";
-
-export interface BuildMetrics {
-  totalDistanceNm: number;
-  totalPassengers: number;
-  totalFlightTimeHours: number;
-  flightCount: number;
-  avgPassengersPerFlight: number;
-  aircraftUtilization: number;
-  hasWarnings: boolean;
-  hasErrors: boolean;
-  warningCount: number;
-}
-
-export interface BuildConfig {
-  id: string;
-  strategy: string;
-  scheduleDate: string;
-  flights: FlightPlan[];
-  score: number;
-  metrics: BuildMetrics;
-}
-
-export interface FlightPlanLeg {
-  leg_sequence: number;
-  origin_code: string;
-  destination_code: string;
-  distance_nm: number;
-  departure_time: string | null;
-  arrival_time: string | null;
-}
+// ── Build configuration types ────────────────────────────────────────────────
+// Shared shapes produced by config-generator and scored here.
 
 export interface PassengerManifest {
   id: number;
@@ -40,6 +10,15 @@ export interface PassengerManifest {
   freight_weight_kg: number;
   origin_code: string;
   destination_code: string;
+}
+
+export interface FlightPlanLeg {
+  leg_sequence: number;
+  origin_code: string;
+  destination_code: string;
+  distance_nm: number;
+  departure_time: string | null;
+  arrival_time: string | null;
 }
 
 export interface FlightPlan {
@@ -60,6 +39,27 @@ export interface FlightPlan {
   pilotName: string | null;
   weightWarnings: string[];
   isFeasible: boolean;
+}
+
+export interface BuildMetrics {
+  totalDistanceNm: number;
+  totalPassengers: number;
+  totalFlightTimeHours: number;
+  flightCount: number;
+  avgPassengersPerFlight: number;
+  aircraftUtilization: number;
+  hasWarnings: boolean;
+  hasErrors: boolean;
+  warningCount: number;
+}
+
+export interface BuildConfig {
+  id: string;
+  strategy: string;
+  scheduleDate: string;
+  flights: FlightPlan[];
+  score: number;
+  metrics: BuildMetrics;
 }
 
 function computeMetrics(
@@ -91,36 +91,45 @@ function computeMetrics(
 /**
  * Score a build configuration on a 0-100 scale.
  *
- * Weights:
- *   - Passenger fit (30%): How well passengers are distributed across flights.
- *     Penalizes overstuffed flights and fragmented single-passenger flights.
+ * Weights (optimized for CVRP "minimum flights, shortest distance" objective):
+ *   - Flight economy (35%): Penalizes high flight count. Fewer flights = higher score.
+ *     Goal: minimize number of flights (primary).
  *   - Distance efficiency (25%): Lower total distance scores higher.
- *     Baseline ~200nm for a full Falklands sortie.
- *   - Aircraft utilization (25%): Higher seat fill rate = better.
- *   - Feasibility (20%): Errors = 0, warnings = 50, clean = 100.
+ *     Goal: shortest total distance (secondary).
+ *   - Passenger coverage (25%): % of total passengers assigned.
+ *     Goal: serve ALL unassigned passengers.
+ *   - Feasibility (15%): Errors = 0, warnings = 50, clean = 100.
  */
 export function scoreConfig(
   config: BuildConfig,
   warnings: string[],
-  errors: string[]
+  errors: string[],
+  totalUnassignedPassengers?: number
 ): number {
   const metrics = computeMetrics(config.flights, warnings, errors);
 
-  const passengerFitScore = metrics.flightCount > 0
-    ? Math.min(100, metrics.avgPassengersPerFlight * 20)
+  // Passenger coverage: how many of the total unassigned passengers are served
+  const coverageScore = totalUnassignedPassengers && totalUnassignedPassengers > 0
+    ? Math.min(100, (metrics.totalPassengers / totalUnassignedPassengers) * 100)
+    : metrics.flightCount > 0 ? 100 : 0;
+
+  // Flight economy: penalize high flight count
+  // Baseline: 1 flight = 100, 10+ flights = 0
+  const flightEconomyScore = metrics.flightCount > 0
+    ? Math.max(0, 100 - (metrics.flightCount - 1) * 10)
     : 0;
 
+  // Distance efficiency: lower total distance scores higher
+  // Baseline ~200nm for a full Falklands sortie
   const distanceScore = Math.max(0, 100 - metrics.totalDistanceNm * 0.25);
-
-  const utilizationScore = metrics.aircraftUtilization * 100;
 
   const feasibilityScore = metrics.hasErrors ? 0 : metrics.hasWarnings ? 50 : 100;
 
   const score =
-    passengerFitScore * 0.30 +
+    flightEconomyScore * 0.35 +
     distanceScore * 0.25 +
-    utilizationScore * 0.25 +
-    feasibilityScore * 0.20;
+    coverageScore * 0.25 +
+    feasibilityScore * 0.15;
 
   config.metrics = metrics;
   config.score = Math.round(Math.min(100, Math.max(0, score)));

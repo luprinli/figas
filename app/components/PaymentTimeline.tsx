@@ -36,10 +36,10 @@ function formatTimestamp(timestamp: string): string {
 
 function getStatusColor(status: string): string {
   const lower = status.toLowerCase();
-  if (lower === "success" || lower === "paid" || lower === "completed") return "text-green-600 bg-green-100";
-  if (lower === "failed" || lower === "overdue" || lower === "cancelled") return "text-red-600 bg-red-100";
-  if (lower === "pending" || lower === "processing") return "text-amber-600 bg-amber-100";
-  return "text-slate-600 bg-slate-100 dark:bg-slate-700";
+  if (lower === "success" || lower === "paid" || lower === "completed") return "text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30";
+  if (lower === "failed" || lower === "overdue" || lower === "cancelled") return "text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30";
+  if (lower === "pending" || lower === "processing") return "text-amber-600 bg-amber-100 dark:text-amber-400 dark:bg-amber-900/30";
+  return "text-slate-600 bg-slate-100 dark:text-slate-300 dark:bg-slate-700";
 }
 
 function getEventIcon(type: PaymentTimelineEvent["type"]): string {

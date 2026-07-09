@@ -1,4 +1,5 @@
 ﻿import { useDraggable } from "@dnd-kit/core";
+import { X } from "lucide-react";
 import { formatCompactName } from "../../utils/format-compact-name";
 
 export interface DraggablePassengerData {
@@ -46,7 +47,7 @@ export function DraggablePassengerRow({
       <span
         ref={setNodeRef}
         style={style}
-        className="inline-block rounded border-2 border-dashed border-red-400 dark:border-red-700 bg-red-50 dark:bg-red-900/30 dark:bg-red-900/30/30 px-1 text-sm opacity-50"
+        className="inline-block rounded border-2 border-dashed border-red-400 dark:border-red-700 bg-red-50 dark:bg-red-900/30 px-1 text-sm opacity-50"
         role="button"
         aria-grabbed={true}
         aria-label={`Dragging passenger ${formatCompactName(passenger.compact_name)}`}
@@ -73,15 +74,12 @@ export function DraggablePassengerRow({
       title="Drag to unassign pool to remove from flight"
     >
       {formatCompactName(passenger.compact_name)}
-      <svg
-        className="h-3 w-3 flex-shrink-0 text-slate-300 dark:text-slate-500 dark:text-slate-500 opacity-0 transition group-hover:text-red-400 group-hover:opacity-100"
-        fill="none"
-        viewBox="0 0 24 24"
+      <X
+        size={12}
+        className="flex-shrink-0 text-slate-300 dark:text-slate-500 dark:text-slate-500 opacity-0 transition group-hover:text-red-400 group-hover:opacity-100"
         strokeWidth={1.5}
-        stroke="currentColor"
-      >
-        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-      </svg>
+        absoluteStrokeWidth
+      />
     </span>
   );
 }

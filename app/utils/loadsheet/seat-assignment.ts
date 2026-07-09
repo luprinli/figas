@@ -8,8 +8,8 @@ interface PassengerInput {
 export interface SeatAssignment {
   passengerId: number;
   bookingLegId: number;
-  seatRow: number;
-  seatSide: "L" | "R" | "C";
+  seatRow: number | null;
+  seatSide: "L" | "R" | "C" | null;
   clothedWeightKg: number;
   baggageWeightKg: number;
 }
@@ -30,9 +30,12 @@ const AFT_HOLD_ARM_MM = 4724.4;
 const PILOT_ARM_MM = 355.6;
 const FUEL_ARM_MM = 1143.0;
 const EMPTY_CG_ARM_MM = 2108.2;
+const CABIN_CENTER_ARM_MM = 2500.0;
 
 const CG_FWD_LIMIT_MM = 2057.4;
 const CG_AFT_LIMIT_MM = 2565.4;
+
+const MAX_SEATS = 9;
 
 const AVAILABLE_SEATS: Array<{ row: number; side: "L" | "R" | "C" }> = [
   { row: 1, side: "C" },
@@ -51,7 +54,9 @@ export function assignSeatsByCOG(passengers: PassengerInput[]): SeatAssignment[]
     (a, b) => b.clothedWeightKg + b.baggageWeightKg - (a.clothedWeightKg + a.baggageWeightKg)
   );
 
-  return sorted.slice(0, 9).map((p, i) => {
+  // First MAX_SEATS passengers get seat assignments sorted by CG-optimal placement;
+  // remaining passengers are included but without a seat (overflow / standing).
+  const seated = sorted.slice(0, MAX_SEATS).map((p, i) => {
     const seat = AVAILABLE_SEATS[i];
     return {
       passengerId: p.id,
@@ -62,6 +67,17 @@ export function assignSeatsByCOG(passengers: PassengerInput[]): SeatAssignment[]
       baggageWeightKg: p.baggageWeightKg,
     };
   });
+
+  const overflow = sorted.slice(MAX_SEATS).map((p) => ({
+    passengerId: p.id,
+    bookingLegId: p.bookingLegId,
+    seatRow: null,
+    seatSide: null,
+    clothedWeightKg: p.clothedWeightKg,
+    baggageWeightKg: p.baggageWeightKg,
+  }));
+
+  return [...seated, ...overflow];
 }
 
 export function computeCG(
@@ -81,10 +97,14 @@ export function computeCG(
   totalWeight += pilotWeightKg;
 
   for (const a of assignments) {
-    const key = `${a.seatRow}${a.seatSide}`;
-    const arm = SEAT_ARMS_MM[key] ?? 0;
-    const w = a.clothedWeightKg + a.baggageWeightKg;
-    totalMoment += w * arm;
+    const w = a.clothedWeightKg;
+    if (a.seatRow != null && a.seatSide != null) {
+      const key = `${a.seatRow}${a.seatSide}`;
+      const arm = SEAT_ARMS_MM[key] ?? 0;
+      totalMoment += w * arm;
+    } else {
+      totalMoment += w * CABIN_CENTER_ARM_MM;
+    }
     totalWeight += w;
   }
 

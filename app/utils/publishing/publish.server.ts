@@ -78,7 +78,6 @@ export async function publishSchedule(scheduleId: number, publishedBy: number, a
 async function queuePublishNotifications(scheduleId: number, token: string, version: number): Promise<void> {
   const date = await db.schedules.findUnique({ where: { id: scheduleId }, select: { schedule_date: true } });
   if (!date) return;
-  const dateStr = new Date(date.schedule_date).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
   // Query unique passenger emails for this schedule date
   const passengerEmails = await db.$queryRawUnsafe<{ email: string; user_id: number | null }[]>(

@@ -55,8 +55,9 @@ export default function ProgressBar({
     <div
       className={`flex items-center gap-4 rounded-lg border border-slate-200 dark:border-slate-700 border-l-4 bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20 ${accentColors[severity]} ${onClick ? "cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all" : ""} ${className}`}
       onClick={onClick}
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && onClick) { e.preventDefault(); onClick(); } }}
+      role="button"
+      tabIndex={0}
     >
       {/* Column 1: Aircraft identity */}
       <div className="w-36 shrink-0">

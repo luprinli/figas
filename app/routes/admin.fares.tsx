@@ -158,7 +158,7 @@ export default function ManageFares() {
               name="destination_code"
               required
               maxLength={4}
-              placeholder="e.g. PSY"
+              placeholder="e.g. STY"
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
             />
           </div>

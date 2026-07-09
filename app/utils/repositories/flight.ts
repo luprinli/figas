@@ -235,3 +235,58 @@ export const flightRepository = {
     }));
   },
 };
+
+/**
+ * Find a flight summary row by ID using the canonical shape expected by
+ * the frontend.  Replaces 4 duplicated inline $queryRawUnsafe blocks in
+ * schedule-handlers.server.ts.
+ *
+ * Accepts an optional Prisma transaction client for use inside tx blocks.
+ */
+export async function findSummaryById(
+  flightId: number,
+  client?: import("../../../generated/prisma/client").Prisma.TransactionClient
+): Promise<Record<string, unknown> | null> {
+  const executor = client ?? db;
+  const rows = await executor.$queryRawUnsafe<Record<string, unknown>[]>(
+    `SELECT f.id, f.flight_number, f.departure_time, f.arrival_time, f.status,
+            f.sort_order,
+            f.duration_minutes,
+            f.check_in_time,
+            a.max_takeoff_weight_kg,
+            NULL::numeric AS max_landing_weight_kg,
+            a.empty_weight_kg AS basic_empty_weight_kg,
+            NULL::numeric AS payload_kg,
+            NULL::numeric AS fuel_kg,
+            NULL::numeric AS crew_weight_kg,
+            COALESCE(f.origin_code, ao.code) AS origin_code,
+            COALESCE(f.destination_code, ad.code) AS destination_code,
+            a.registration AS aircraft_registration, a.type AS aircraft_type, a.seat_count,
+            p.name AS pilot_name, pa.status AS pilot_status,
+            0 AS flight_ordinal
+     FROM flights f
+     LEFT JOIN aerodromes ao ON ao.id = f.origin_aerodrome_id
+     LEFT JOIN aerodromes ad ON ad.id = f.destination_aerodrome_id
+     LEFT JOIN aircraft a ON a.id = f.aircraft_id
+     LEFT JOIN pilots p ON p.id = f.pilot_id
+     LEFT JOIN pilot_assignments pa ON pa.flight_id = f.id AND pa.status = 'confirmed'
+     WHERE f.id = $1`,
+    flightId
+  );
+  return rows[0] ?? null;
+}
+
+export async function findLegsByFlightId(
+  flightId: number,
+  client?: import("../../../generated/prisma/client").Prisma.TransactionClient
+): Promise<Record<string, unknown>[]> {
+  const executor = client ?? db;
+  return executor.$queryRawUnsafe<Record<string, unknown>[]>(
+    `SELECT fl.id, fl.flight_id, fl.leg_number AS leg_sequence, fl.etd AS departure_time, fl.eta AS arrival_time, fl.status,
+            fl.origin_code, fl.destination_code, fl.distance_nm, fl.heading
+     FROM flight_legs fl
+     WHERE fl.flight_id = $1
+     ORDER BY fl.leg_number`,
+    flightId
+  );
+}

@@ -1,8 +1,9 @@
 ﻿import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { Form, Link, useActionData, useLoaderData, useSubmit, useNavigation } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { Form, Link, useActionData, useLoaderData, useSubmit, useNavigation , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 import { useState, useRef, useCallback, useMemo } from "react";
+import { Minus } from "lucide-react";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission, MAX_PASSENGERS_PER_BOOKING, DEFAULT_MAX_LEGS_PER_BOOKING } from "../utils/constants";
 import { bookingRepository } from "../utils/repositories/booking";
@@ -676,9 +677,7 @@ export default function OperationsEditBooking() {
                   Leg {idx + 1}
                 </span>
                 <span className="font-medium text-slate-900 dark:text-slate-100">{leg.origin}</span>
-                <svg className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
-                </svg>
+                <Minus size={16} className="text-slate-500 dark:text-slate-400 shrink-0" absoluteStrokeWidth />
                 <span className="font-medium text-slate-900 dark:text-slate-100">{leg.destination}</span>
                 <span className="text-slate-500 ml-auto text-xs">{leg.date}</span>
               </div>

@@ -1,6 +1,7 @@
 ﻿import { useState, useCallback, useEffect } from "react";
 import { useFetcher } from "@remix-run/react";
 import type { ReactNode } from "react";
+import { Lock, Building2, CreditCard, AlertCircle, CheckCircle2, Check } from "lucide-react";
 import CreditCardIcon from "../icons/CreditCardIcon";
 import InvoiceIcon from "../icons/InvoiceIcon";
 import CashIcon from "../icons/CashIcon";
@@ -43,9 +44,7 @@ function getMethodConfig(method: { code: string; name: string; description: stri
         icon: <CreditCardIcon className="w-8 h-8 text-sky-600" />,
         badge: (
           <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 dark:bg-sky-900/30 px-2 py-0.5 text-[10px] font-medium text-sky-700">
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
+            <Lock size={12} absoluteStrokeWidth />
             Secured by Stripe
           </span>
         ),
@@ -74,7 +73,7 @@ function getMethodConfig(method: { code: string; name: string; description: stri
         code: method.code,
         name: method.name,
         description: method.description ?? "Transfer funds directly to our bank account. Use the booking reference as the payment reference.",
-        icon: <svg className="w-8 h-8 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" /></svg>,
+        icon: <Building2 size={32} className="text-blue-600 dark:text-blue-400" absoluteStrokeWidth />,
         badge: undefined,
         submitLabel: "Select Bank Transfer",
       };
@@ -117,9 +116,7 @@ function SkeletonCards() {
 function EmptyState() {
   return (
     <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 p-6 text-center">
-      <svg className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
-      </svg>
+      <CreditCard size={40} className="mx-auto text-slate-300 dark:text-slate-500 mb-2" absoluteStrokeWidth />
       <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No payment methods available.</p>
       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
         Contact support to enable payment options for this booking.
@@ -134,9 +131,7 @@ function ErrorBanner({ message }: { message: string }) {
   return (
     <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/30 p-4" role="alert">
       <div className="flex items-start gap-3">
-        <svg className="w-5 h-5 text-red-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-        </svg>
+        <AlertCircle size={20} className="text-red-500 mt-0.5 shrink-0" absoluteStrokeWidth />
         <div>
           <p className="text-sm font-medium text-red-800">{message}</p>
         </div>
@@ -152,9 +147,7 @@ function SuccessState({ method, amount }: { method: string; amount: number }) {
     <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:bg-emerald-900/30 p-4">
       <div className="flex items-start gap-4">
         <div className="shrink-0">
-          <svg className="w-10 h-10 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
+          <CheckCircle2 size={40} className="text-emerald-500" absoluteStrokeWidth />
         </div>
         <div>
           <h3 className="text-sm font-semibold text-emerald-900">Payment Method Selected</h3>
@@ -296,8 +289,8 @@ export default function PaymentMethodSelector({
                 "relative flex items-start gap-4 rounded-lg border p-4 shadow-sm dark:shadow-slate-900/20 cursor-pointer transition-all",
                 isSelected
                   ? "border-sky-400 ring-2 ring-sky-500 bg-sky-50/50"
-                  : "border-slate-200 bg-white dark:bg-slate-800 hover:border-slate-300 hover:bg-slate-50/50",
-                disabled ? "opacity-60 cursor-not-allowed" : "",
+                  : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50/50 dark:hover:bg-slate-700/50",
+                disabled ? "opacity-50 pointer-events-none" : "",
               ]
                 .filter(Boolean)
                 .join(" ")}
@@ -320,20 +313,14 @@ export default function PaymentMethodSelector({
                   "shrink-0 mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors",
                   isSelected
                     ? "border-sky-500 bg-sky-500"
-                    : "border-slate-300 bg-white dark:bg-slate-800",
+                    : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800",
                 ]
                   .filter(Boolean)
                   .join(" ")}
                 aria-hidden="true"
               >
                 {isSelected && (
-                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path
-                      fillRule="evenodd"
-                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
+                  <Check size={12} className="text-white" />
                 )}
               </span>
 

@@ -699,8 +699,8 @@ export interface AircraftScheduling extends AircraftRow {
 | Interface & type contracts | `.agents/skills/flight-schedule/SKILL.md` | Interface & Type Contracts |
 | PBAC permissions | [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) | Section 7: Auth & Authorization |
 | Database audit (consolidated) | [`docs/DATABASE-AUDIT-SUMMARY.md`](DATABASE-AUDIT-SUMMARY.md) | Full document |
-| Implementation roadmap | [`docs/IMPLEMENTATION-PLAN.md`](IMPLEMENTATION-PLAN.md) | Full document |
-| Architectural specification (historical) | [`plans/scheduling-architectural-specification.md`](../plans/scheduling-architectural-specification.md) | Full document |
+| Implementation roadmap | [`plans/MASTER-PLAN.md`](../plans/MASTER-PLAN.md) | Full document |
+| Historical scheduling plans | [`docs/archive/`](archive/) | `scheduling-implementation-plan.md`, `scheduling-workflow-pipeline.md`, etc. |
 | Historical audit reports | [`docs/archive/`](archive/) | Directory |
 | Consolidated scheduling migration | [`migrations/consolidated/004-scheduling.sql`](../migrations/consolidated/004-scheduling.sql) | Full file |
 | Schedule action handlers | [`app/utils/schedule-handlers.server.ts`](../app/utils/schedule-handlers.server.ts) | Full file |

@@ -1,6 +1,6 @@
 ﻿import { json, type LoaderFunctionArgs } from "@remix-run/node";
-import { useLoaderData, Link } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { useLoaderData, Link , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 import { getPublicSchedule } from "../utils/publishing/publish.server";
 
 export async function loader({ params }: LoaderFunctionArgs) {
@@ -12,7 +12,11 @@ export async function loader({ params }: LoaderFunctionArgs) {
     throw new Response(result.error ?? "Schedule not found", { status: 404 });
   }
 
-  return json(result);
+  return json({
+    ...result,
+    contactEmail: process.env.CONTACT_EMAIL || "ops@figas.gov.fk",
+    contactPhone: process.env.CONTACT_PHONE || "+500 27219",
+  });
 }
 
 interface ScheduleData {
@@ -93,7 +97,7 @@ export default function PublicSchedule() {
 
         <div className="mt-8 border-t border-slate-200 dark:border-slate-700 pt-4 text-center text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
           <p className="font-medium text-amber-600 mb-1">{schedule?.disclaimerText ?? "Flights may change at short notice. Check for updates before travel."}</p>
-          <p>Contact: {process.env.CONTACT_EMAIL || "ops@figas.gov.fk"} · {process.env.CONTACT_PHONE || "+500 27219"}</p>
+          <p>Contact: {data.contactEmail} · {data.contactPhone}</p>
           <p className="mt-1">
             Published: {schedule?.publishedAt ? new Date(schedule.publishedAt).toLocaleString("en-GB") : ""}
           </p>

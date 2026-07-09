@@ -307,8 +307,8 @@ export default function DateRangePicker({ dateFrom, dateTo, onDateChange }: Date
                   }}
                   className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
                     active
-                      ? "bg-blue-50 dark:bg-blue-900/30 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 dark:text-blue-400 border-blue-200 dark:border-blue-700"
-                      : "border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/50 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 dark:text-slate-500"
+                      ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-700"
+                      : "border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300"
                   }`}
                 >
                   {qs.label}

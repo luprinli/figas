@@ -2,17 +2,13 @@
  * Phase 6: Lightweight route suggestion engine for draft flights.
  *
  * Runs server-side to query distance, heading, and aircraft data from the DB.
- * Uses the nearest-neighbor heuristic to order stops and recommends
+ * Uses greedy distance-based ordering to sequence stops and recommends
  * the smallest suitable aircraft.
- *
- * Distance cache and core ordering logic are delegated to shared modules
- * (distance-cache.ts and route-builder.ts) to eliminate duplication with
- * nearest-neighbor.ts.
  *
  * Algorithm:
  * 1. Collect unique aerodrome codes from passenger origins/destinations
  * 2. Find the most common origin — that's the starting point
- * 3. Use nearest-neighbor to order remaining stops
+ * 3. Use greedy distance-based ordering for remaining stops
  * 4. Compute total distance from DB-backed distance lookup
  * 5. Find the smallest suitable aircraft from the DB
  * 6. Check weight constraints
@@ -21,8 +17,37 @@
 
 import { db } from "../db.server";
 import type { RouteSuggestion, RouteSuggestionLeg } from "./scheduling-types";
-import { loadDistances, clearDistanceCaches } from "./distance-cache";
-import { nearestNeighborOrder } from "./route-builder";
+import { loadDistances, clearDistanceCaches, getDistanceFast } from "./distance-lookup";
+
+/**
+ * Greedy distance-based stop ordering for route preview.
+ * Visits the nearest unvisited aerodrome at each step.
+ */
+function orderStopsByDistance(start: string, stops: Set<string>): string[] {
+  const unvisited = [...stops].filter((s) => s !== start);
+  const ordered: string[] = [];
+  let current = start;
+
+  while (unvisited.length > 0) {
+    let nearestIdx = 0;
+    let nearestDist = Infinity;
+
+    for (let i = 0; i < unvisited.length; i++) {
+      const dist = getDistanceFast(current, unvisited[i]);
+      if (dist > 0 && dist < nearestDist) {
+        nearestDist = dist;
+        nearestIdx = i;
+      }
+    }
+
+    const next = nearestDist === Infinity ? unvisited[0] : unvisited[nearestIdx];
+    ordered.push(next);
+    current = next;
+    unvisited.splice(unvisited.indexOf(next), 1);
+  }
+
+  return ordered;
+}
 
 interface PassengerInput {
     origin_code: string;
@@ -105,7 +130,7 @@ export async function getDistance(a: string, b: string): Promise<number> {
  * This is a server-side function that:
  * 1. Collects unique aerodromes from passenger origins/destinations
  * 2. Finds the most common origin as the starting point
- * 3. Uses nearest-neighbor to order remaining stops
+ * 3. Uses greedy distance-based ordering for remaining stops
  * 4. Computes total distance from DB
  * 5. Recommends the smallest suitable aircraft from DB
  * 6. Checks weight constraints
@@ -141,8 +166,8 @@ export async function suggestRoute(
     // Ensure STY is in the aerodromes set so the route includes it
     aerodromes.add("STY");
 
-    // ── Step 3: Build nearest-neighbor route ─────────────────────────────────
-    const orderedStops = nearestNeighborOrder(startPoint, aerodromes, distances);
+    // ── Step 3: Build greedy distance-based route ─────────────────────────
+    const orderedStops = orderStopsByDistance(startPoint, aerodromes);
 
     // ── Step 4: Build legs and compute total distance ────────────────────────
     const suggestedLegs: RouteSuggestionLeg[] = [];
@@ -185,7 +210,21 @@ export async function suggestRoute(
     }
 
     // ── Step 5: Find smallest suitable aircraft ──────────────────────────────
-    const passengerCount = passengers.length;
+    // Compute per-leg passenger max (not just total unique passengers)
+    const stopOrderMap = new Map<string, number>();
+    orderedStops.forEach((code, idx) => stopOrderMap.set(code, idx));
+    const legCount = orderedStops.length - 1;
+    const legPassengerCounts = new Array(legCount).fill(0);
+    for (const p of passengers) {
+      const boardIdx = stopOrderMap.get(p.origin_code.toUpperCase());
+      const alightIdx = stopOrderMap.get(p.destination_code.toUpperCase());
+      if (boardIdx != null && alightIdx != null && boardIdx < alightIdx) {
+        for (let i = boardIdx; i < alightIdx; i++) {
+          legPassengerCounts[i]++;
+        }
+      }
+    }
+    const passengerCount = Math.max(...legPassengerCounts, 0);
     const totalPassengerWeight = passengers.reduce(
         (sum, p) => sum + p.clothed_weight_kg + p.baggage_weight_kg,
         0

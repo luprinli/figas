@@ -25,6 +25,7 @@ export default function ScheduleStatusBar({
   return (
     <div
       data-testid="schedule-status-bar"
+      data-tour="schedule-status"
       className={[
         "flex flex-wrap items-center gap-4 rounded-lg bg-white dark:bg-slate-800 px-4 py-3 shadow-sm dark:shadow-slate-900/20 ring-1 ring-slate-200 dark:ring-slate-700",
         className,

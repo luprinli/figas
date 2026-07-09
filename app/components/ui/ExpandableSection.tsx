@@ -1,4 +1,5 @@
 ﻿import { useState, useRef, useEffect, type ReactNode } from "react";
+import { ChevronDown } from "lucide-react";
 
 interface ExpandableSectionProps {
   title: string;
@@ -64,21 +65,13 @@ function ExpandableSection({
           {actions && <span className="ml-auto">{actions}</span>}
 
           {/* Chevron icon */}
-          <svg
-            className={`h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400 transition-transform duration-200 ${
+          <ChevronDown
+            size={16}
+            className={`shrink-0 text-slate-500 dark:text-slate-400 transition-transform duration-200 ${
               expanded ? "rotate-180" : ""
             }`}
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 20 20"
-            fill="currentColor"
             aria-hidden="true"
-          >
-            <path
-              fillRule="evenodd"
-              d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-              clipRule="evenodd"
-            />
-          </svg>
+          />
         </span>
       </button>
 

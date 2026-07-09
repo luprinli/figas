@@ -1,0 +1,41 @@
+name: Targeted Tests
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  detect-and-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: figas_test
+          POSTGRES_PASSWORD: figas_test
+          POSTGRES_DB: figas_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+      - run: npm ci
+      - name: Run migrations
+        run: npx tsx app/utils/migrate.ts
+        env:
+          DATABASE_URL: postgresql://figas_test:figas_test@localhost:5432/figas_test
+      - name: Detect changed files and run targeted tests
+        run: npm run test:related
+        env:
+          DATABASE_URL: postgresql://figas_test:figas_test@localhost:5432/figas_test

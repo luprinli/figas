@@ -3,11 +3,11 @@
   MetaFunction,
 } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Form, useActionData, useNavigation } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { Form, useActionData, useNavigation , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 
 import { db } from "../utils/db.server";
-import { hashPassword } from "../utils/password.server";
+
 
 import Button from "../components/Button";
 import TextField from "../components/TextField";

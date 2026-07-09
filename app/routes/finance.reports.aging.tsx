@@ -1,7 +1,7 @@
 ﻿import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { useLoaderData , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
 import { db } from "../utils/db.server";

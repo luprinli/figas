@@ -1,0 +1,63 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "tests/e2e/**"
+      - "playwright.config.ts"
+  schedule:
+    - cron: "0 6 * * 1-5"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: figas_test
+          POSTGRES_PASSWORD: figas_test
+          POSTGRES_DB: figas_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+      - run: npm ci
+      - name: Setup database
+        run: |
+          npx tsx app/utils/migrate.ts
+          npm run seed:full
+          npm run seed:pbac
+          npm run seed:pbac:assign
+        env:
+          DATABASE_URL: postgresql://figas_test:figas_test@localhost:5432/figas_test
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Run E2E tests
+        run: npm run test:e2e
+        env:
+          DATABASE_URL: postgresql://figas_test:figas_test@localhost:5432/figas_test
+          SESSION_SECRET: ci-test-secret-do-not-use-in-prod
+          CSRF_SECRET: ci-test-csrf-secret
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

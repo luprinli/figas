@@ -129,7 +129,7 @@
 
 ## 2. Core Tables
 
-### [`users`](migrations/001_create_tables.sql:16)
+### [`users`](migrations/archive/001_create_tables.sql:16)
 
 The user accounts table stores all system users — passengers, staff, pilots, and administrators.
 
@@ -153,7 +153,7 @@ The user accounts table stores all system users — passengers, staff, pilots, a
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
 
-### [`bookings`](migrations/001_create_tables.sql:161)
+### [`bookings`](migrations/archive/001_create_tables.sql:161)
 
 The central booking record. Each booking represents a travel request from a user.
 
@@ -181,7 +181,7 @@ PENDING ──► CONFIRMED ──► PILOT_REVIEW ──► APPROVED ──► 
     └──► CANCELLED ◄─────────────────────────────────────┘
 ```
 
-### [`booking_legs`](migrations/001_create_tables.sql:181)
+### [`booking_legs`](migrations/archive/001_create_tables.sql:181)
 
 Individual legs of a booking's itinerary. A booking can have multiple legs (e.g., Stanley → Mount Pleasant → Stanley).
 
@@ -202,7 +202,7 @@ Individual legs of a booking's itinerary. A booking can have multiple legs (e.g.
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
 
-### [`booking_passengers`](migrations/016_create_booking_leg_passengers.sql:8)
+### [`booking_passengers`](migrations/archive/016_create_booking_leg_passengers.sql:8)
 
 Passenger personal data. Renamed from `passengers` in migration 016. Each passenger belongs to a booking.
 
@@ -222,7 +222,7 @@ Passenger personal data. Renamed from `passengers` in migration 016. Each passen
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
 
-### [`booking_leg_passengers`](migrations/016_create_booking_leg_passengers.sql:17)
+### [`booking_leg_passengers`](migrations/archive/016_create_booking_leg_passengers.sql:17)
 
 The junction table that creates a many-to-many relationship between booking legs and passengers. This is the linchpin of the data model, enabling per-leg baggage, check-in, boarding, and seat assignment.
 
@@ -247,7 +247,7 @@ The junction table that creates a many-to-many relationship between booking legs
 
 **Unique constraint:** `(booking_leg_id, booking_passenger_id)` — a passenger can only be linked to a specific leg once.
 
-### [`flights`](migrations/001_create_tables.sql:129)
+### [`flights`](migrations/archive/001_create_tables.sql:129)
 
 Scheduled sortie flights. A flight represents one aircraft's journey through multiple legs (stops).
 
@@ -274,7 +274,7 @@ Scheduled sortie flights. A flight represents one aircraft's journey through mul
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
 
-### [`organizations`](migrations/001_create_tables.sql:80)
+### [`organizations`](migrations/archive/001_create_tables.sql:80)
 
 Corporate and group booking entities.
 
@@ -320,7 +320,7 @@ Daily schedule grouping with pipeline status tracking. The `status` column uses 
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
 
-### [`flight_legs`](migrations/014_create_scheduling_tables.sql:49)
+### [`flight_legs`](migrations/archive/014_create_scheduling_tables.sql:49)
 
 Sequenced stops for a sortie flight. Replaces the `intermediate_stops` JSONB column on the `flights` table.
 
@@ -339,7 +339,7 @@ Sequenced stops for a sortie flight. Replaces the `intermediate_stops` JSONB col
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
 
-### [`weight_balance_snapshots`](migrations/014_create_scheduling_tables.sql:81)
+### [`weight_balance_snapshots`](migrations/archive/014_create_scheduling_tables.sql:81)
 
 Per-leg weight and balance calculations computed during the scheduling pipeline. Stores effective limits (MIN of aircraft + aerodrome constraints) so recomputation is not needed at loadsheet time.
 
@@ -373,7 +373,7 @@ Per-leg weight and balance calculations computed during the scheduling pipeline.
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
 
-### [`pilot_assignments`](migrations/014_create_scheduling_tables.sql:135)
+### [`pilot_assignments`](migrations/archive/014_create_scheduling_tables.sql:135)
 
 Pilot-to-flight assignments with status tracking.
 
@@ -393,7 +393,7 @@ Pilot-to-flight assignments with status tracking.
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
 
-### Aircraft Scheduling Extensions (added in [`migrations/014_create_scheduling_tables.sql:169`](migrations/014_create_scheduling_tables.sql:169))
+### Aircraft Scheduling Extensions (added in [`migrations/014_create_scheduling_tables.sql:169`](migrations/archive/014_create_scheduling_tables.sql:169))
 
 | Column | Table | Description |
 |--------|-------|-------------|
@@ -403,7 +403,7 @@ Pilot-to-flight assignments with status tracking.
 | `fuel_flow_kg_per_hour` | `aircraft` | Fuel consumption rate |
 | `cruise_speed_ktas` | `aircraft` | Cruise speed in knots TAS |
 
-### Pilot Scheduling Extensions (added in [`migrations/014_create_scheduling_tables.sql:187`](migrations/014_create_scheduling_tables.sql:187))
+### Pilot Scheduling Extensions (added in [`migrations/014_create_scheduling_tables.sql:187`](migrations/archive/014_create_scheduling_tables.sql:187))
 
 | Column | Table | Description |
 |--------|-------|-------------|
@@ -414,7 +414,7 @@ Pilot-to-flight assignments with status tracking.
 | `last_medical_date` | `pilots` | Last medical examination |
 | `next_medical_due` | `pilots` | Next medical due date |
 
-### Aerodrome Scheduling Extensions (added in [`migrations/014_create_scheduling_tables.sql:208`](migrations/014_create_scheduling_tables.sql:208))
+### Aerodrome Scheduling Extensions (added in [`migrations/014_create_scheduling_tables.sql:208`](migrations/archive/014_create_scheduling_tables.sql:208))
 
 | Column | Table | Description |
 |--------|-------|-------------|
@@ -428,7 +428,7 @@ Pilot-to-flight assignments with status tracking.
 
 ## 4. Payment & Accounting Tables
 
-### [`payment_methods`](migrations/006_create_payment_methods.sql:9)
+### [`payment_methods`](migrations/archive/006_create_payment_methods.sql:9)
 
 Reference table for available payment methods.
 
@@ -445,7 +445,7 @@ Reference table for available payment methods.
 
 **Seeded methods:** `stripe`, `pay_on_departure`, `pay_on_arrival`, `invoice`, `bank_transfer`
 
-### [`payments`](migrations/001_create_tables.sql:319)
+### [`payments`](migrations/archive/001_create_tables.sql:319)
 
 Payment records linked to bookings.
 
@@ -464,7 +464,7 @@ Payment records linked to bookings.
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
 
-### [`stripe_payments`](migrations/010_create_stripe_payments.sql:10)
+### [`stripe_payments`](migrations/archive/010_create_stripe_payments.sql:10)
 
 Stripe-specific payment tracking.
 
@@ -487,7 +487,7 @@ Stripe-specific payment tracking.
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
 
-### [`invoices`](migrations/007_create_invoices.sql:10)
+### [`invoices`](migrations/archive/007_create_invoices.sql:10)
 
 Invoice records for credit-based payments.
 
@@ -514,7 +514,7 @@ Invoice records for credit-based payments.
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
 
-### [`invoice_items`](migrations/007_create_invoices.sql:37)
+### [`invoice_items`](migrations/archive/007_create_invoices.sql:37)
 
 Line items within an invoice.
 
@@ -532,7 +532,7 @@ Line items within an invoice.
 | `sort_order` | `INTEGER` | Display order |
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
 
-### [`chart_of_accounts`](migrations/008_create_accounting_journal.sql:11)
+### [`chart_of_accounts`](migrations/archive/008_create_accounting_journal.sql:11)
 
 Chart of accounts for double-entry bookkeeping.
 
@@ -571,7 +571,7 @@ Chart of accounts for double-entry bookkeeping.
 | `5050` | Insurance Expense | Expense |
 | `5060` | Bank Charges & Processing Fees | Expense |
 
-### [`accounting_journal_entries`](migrations/008_create_accounting_journal.sql:59)
+### [`accounting_journal_entries`](migrations/archive/008_create_accounting_journal.sql:59)
 
 Journal entry headers for double-entry accounting.
 
@@ -591,7 +591,7 @@ Journal entry headers for double-entry accounting.
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
 
-### [`accounting_journal_lines`](migrations/008_create_accounting_journal.sql:78)
+### [`accounting_journal_lines`](migrations/archive/008_create_accounting_journal.sql:78)
 
 Individual debit/credit lines within a journal entry.
 
@@ -610,7 +610,7 @@ Individual debit/credit lines within a journal entry.
 - Each line must have at least one side: `NOT (debit = 0 AND credit = 0)`
 - A line cannot be both debit AND credit: `NOT (debit > 0 AND credit > 0)`
 
-### [`checkin_reminders`](migrations/001_create_tables.sql:247)
+### [`checkin_reminders`](migrations/archive/001_create_tables.sql:247)
 
 Check-in reminder scheduling and tracking.
 
@@ -625,7 +625,7 @@ Check-in reminder scheduling and tracking.
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
 
-### [`notifications`](migrations/001_create_tables.sql:261)
+### [`notifications`](migrations/archive/001_create_tables.sql:261)
 
 Notification log for all system notifications.
 
@@ -645,7 +645,7 @@ Notification log for all system notifications.
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
 
-### [`flight_manifests`](migrations/001_create_tables.sql:281)
+### [`flight_manifests`](migrations/archive/001_create_tables.sql:281)
 
 Flight manifest records with weight summary and pilot sign-off.
 
@@ -668,7 +668,7 @@ Flight manifest records with weight summary and pilot sign-off.
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
 
-### [`seat_assignments`](migrations/001_create_tables.sql:230)
+### [`seat_assignments`](migrations/archive/001_create_tables.sql:230)
 
 Seat assignments per flight.
 
@@ -686,7 +686,7 @@ Seat assignments per flight.
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
 
-### [`system_settings`](migrations/001_create_tables.sql:307)
+### [`system_settings`](migrations/archive/001_create_tables.sql:307)
 
 Key-value settings store for system configuration.
 
@@ -703,7 +703,7 @@ Key-value settings store for system configuration.
 
 ## 5. Reference Tables
 
-### [`aerodromes`](migrations/001_create_tables.sql:40)
+### [`aerodromes`](migrations/archive/001_create_tables.sql:40)
 
 Airports and airstrips across the Falkland Islands.
 
@@ -727,7 +727,7 @@ Airports and airstrips across the Falkland Islands.
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
 
-### [`aircraft`](migrations/001_create_tables.sql:58)
+### [`aircraft`](migrations/archive/001_create_tables.sql:58)
 
 Aircraft fleet registry.
 
@@ -754,7 +754,7 @@ Aircraft fleet registry.
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
 
-### [`pilots`](migrations/001_create_tables.sql:97)
+### [`pilots`](migrations/archive/001_create_tables.sql:97)
 
 Pilot records with licensing and scheduling data.
 
@@ -778,7 +778,7 @@ Pilot records with licensing and scheduling data.
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
 
-### [`fare_routes`](migrations/001_create_tables.sql:114)
+### [`fare_routes`](migrations/archive/001_create_tables.sql:114)
 
 Fare pricing between aerodrome pairs.
 
@@ -798,7 +798,7 @@ Fare pricing between aerodrome pairs.
 
 ## 6. Auth & RBAC Tables
 
-### [`roles`](migrations/015_create_rbac_tables.sql:8)
+### [`roles`](migrations/archive/015_create_rbac_tables.sql:8)
 
 Role containers for grouping permissions.
 
@@ -825,7 +825,7 @@ Role containers for grouping permissions.
 | `engineer` | Engineer | 40 |
 | `passenger` | Passenger | 10 |
 
-### [`permissions`](migrations/015_create_rbac_tables.sql:20)
+### [`permissions`](migrations/archive/015_create_rbac_tables.sql:20)
 
 Granular permissions in `resource:action` format.
 
@@ -839,7 +839,7 @@ Granular permissions in `resource:action` format.
 
 **Unique constraint:** `(resource, action)`
 
-### [`role_permissions`](migrations/015_create_rbac_tables.sql:30)
+### [`role_permissions`](migrations/archive/015_create_rbac_tables.sql:30)
 
 Junction table linking roles to permissions.
 
@@ -852,7 +852,7 @@ Junction table linking roles to permissions.
 
 **Unique constraint:** `(role_id, permission_id)`
 
-### [`user_roles`](migrations/015_create_rbac_tables.sql:39)
+### [`user_roles`](migrations/archive/015_create_rbac_tables.sql:39)
 
 Junction table assigning roles to users.
 
@@ -866,7 +866,7 @@ Junction table assigning roles to users.
 
 **Unique constraint:** `(user_id, role_id)`
 
-### [`audit_log`](migrations/015_create_rbac_tables.sql:49)
+### [`audit_log`](migrations/archive/015_create_rbac_tables.sql:49)
 
 Audit trail for permission changes and system actions.
 
@@ -887,24 +887,26 @@ Audit trail for permission changes and system actions.
 
 ## 7. Migration History
 
+> The numbered migrations below (`001`–`016`) are the original per-feature migrations, now preserved under [`migrations/archive/`](../migrations/archive/) (links point there for line-level reference). They have been consolidated into seven files under [`migrations/consolidated/`](../migrations/consolidated/), which is what the runner (`npm run migrate`) applies. Later feature migrations (`008-system-settings.sql`–`018-freight.sql`) and `fix-*.sql` scripts live at the top of [`migrations/`](../migrations/).
+
 | # | File | Purpose |
 |---|------|---------|
-| 001 | [`001_create_tables.sql`](migrations/001_create_tables.sql) | Core schema: users, aerodromes, aircraft, organizations, pilots, fare_routes, flights, bookings, booking_legs, passengers, seat_assignments, checkin_reminders, notifications, flight_manifests, system_settings, payments |
-| 002 | [`002_add_missing_columns.sql`](migrations/002_add_missing_columns.sql) | Missing columns and constraints |
-| 003 | [`003_create_reference_tables.sql`](migrations/003_create_reference_tables.sql) | Reference data tables |
-| 004 | [`004_add_timestamps_to_reference_tables.sql`](migrations/004_add_timestamps_to_reference_tables.sql) | Timestamps on reference tables |
-| 005 | [`005_add_booking_source_and_cancellation.sql`](migrations/005_add_booking_source_and_cancellation.sql) | Booking source and cancellation fields |
-| 006 | [`006_create_payment_methods.sql`](migrations/006_create_payment_methods.sql) | Payment methods reference table, `set_updated_at()` function |
-| 007 | [`007_create_invoices.sql`](migrations/007_create_invoices.sql) | Invoices and invoice_items tables |
-| 008 | [`008_create_accounting_journal.sql`](migrations/008_create_accounting_journal.sql) | Chart of accounts, journal entries, journal lines |
-| 009 | [`009_create_payment_reminders.sql`](migrations/009_create_payment_reminders.sql) | Payment reminder scheduling |
-| 010 | [`010_create_stripe_payments.sql`](migrations/010_create_stripe_payments.sql) | Stripe payment tracking |
-| 011 | [`011_create_bank_transactions.sql`](migrations/011_create_bank_transactions.sql) | Bank transaction reconciliation |
-| 012 | [`012_create_export_log.sql`](migrations/012_create_export_log.sql) | Export logging |
-| 013 | [`013_enhance_existing_tables.sql`](migrations/013_enhance_existing_tables.sql) | Table enhancements |
-| 014 | [`014_create_scheduling_tables.sql`](migrations/014_create_scheduling_tables.sql) | Schedules, flight_legs, weight_balance_snapshots, pilot_assignments; extend aircraft/pilots/aerodromes |
-| 015 | [`015_create_rbac_tables.sql`](migrations/015_create_rbac_tables.sql) | PBAC: roles, permissions, role_permissions, user_roles, audit_log |
-| 016 | [`016_create_booking_leg_passengers.sql`](migrations/016_create_booking_leg_passengers.sql) | Rename passengers → booking_passengers, create booking_leg_passengers junction table, migrate data |
+| 001 | [`001_create_tables.sql`](migrations/archive/001_create_tables.sql) | Core schema: users, aerodromes, aircraft, organizations, pilots, fare_routes, flights, bookings, booking_legs, passengers, seat_assignments, checkin_reminders, notifications, flight_manifests, system_settings, payments |
+| 002 | [`002_add_missing_columns.sql`](migrations/archive/002_add_missing_columns.sql) | Missing columns and constraints |
+| 003 | [`003_create_reference_tables.sql`](migrations/archive/003_create_reference_tables.sql) | Reference data tables |
+| 004 | [`004_add_timestamps_to_reference_tables.sql`](migrations/archive/004_add_timestamps_to_reference_tables.sql) | Timestamps on reference tables |
+| 005 | [`005_add_booking_source_and_cancellation.sql`](migrations/archive/005_add_booking_source_and_cancellation.sql) | Booking source and cancellation fields |
+| 006 | [`006_create_payment_methods.sql`](migrations/archive/006_create_payment_methods.sql) | Payment methods reference table, `set_updated_at()` function |
+| 007 | [`007_create_invoices.sql`](migrations/archive/007_create_invoices.sql) | Invoices and invoice_items tables |
+| 008 | [`008_create_accounting_journal.sql`](migrations/archive/008_create_accounting_journal.sql) | Chart of accounts, journal entries, journal lines |
+| 009 | [`009_create_payment_reminders.sql`](migrations/archive/009_create_payment_reminders.sql) | Payment reminder scheduling |
+| 010 | [`010_create_stripe_payments.sql`](migrations/archive/010_create_stripe_payments.sql) | Stripe payment tracking |
+| 011 | [`011_create_bank_transactions.sql`](migrations/archive/011_create_bank_transactions.sql) | Bank transaction reconciliation |
+| 012 | [`012_create_export_log.sql`](migrations/archive/012_create_export_log.sql) | Export logging |
+| 013 | [`013_enhance_existing_tables.sql`](migrations/archive/013_enhance_existing_tables.sql) | Table enhancements |
+| 014 | [`014_create_scheduling_tables.sql`](migrations/archive/014_create_scheduling_tables.sql) | Schedules, flight_legs, weight_balance_snapshots, pilot_assignments; extend aircraft/pilots/aerodromes |
+| 015 | [`015_create_rbac_tables.sql`](migrations/archive/015_create_rbac_tables.sql) | PBAC: roles, permissions, role_permissions, user_roles, audit_log |
+| 016 | [`016_create_booking_leg_passengers.sql`](migrations/archive/016_create_booking_leg_passengers.sql) | Rename passengers → booking_passengers, create booking_leg_passengers junction table, migrate data |
 
 ---
 

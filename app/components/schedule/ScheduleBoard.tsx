@@ -33,7 +33,7 @@ export default function ScheduleBoard({
   onOpenLoadsheet,
 }: ScheduleBoardProps) {
   return (
-    <div className={className} data-testid="schedule-board">
+    <div className={className} data-testid="schedule-board" data-tour="schedule-board">
       <SortableContext
         items={flights.map((f) => f.id)}
         strategy={verticalListSortingStrategy}
@@ -95,7 +95,7 @@ function SortableFlightCard({
       <div
         ref={setNodeRef}
         style={style}
-        className="border-2 border-dashed border-blue-400 dark:border-blue-600 rounded-lg bg-blue-50 dark:bg-blue-900/30 dark:bg-blue-900/30/30 min-h-[100px]"
+        className="border-2 border-dashed border-blue-400 dark:border-blue-600 rounded-lg bg-blue-50 dark:bg-blue-900/30 min-h-[100px]"
         role="button"
         aria-grabbed={true}
         aria-label={`Dragging flight ${flight.flight_number}`}
@@ -153,7 +153,7 @@ function SortableFlightCardWrapper({
       <div
         ref={setNodeRef}
         style={style}
-        className="border-2 border-dashed border-blue-400 dark:border-blue-600 rounded-lg bg-blue-50 dark:bg-blue-900/30 dark:bg-blue-900/30/30 min-h-[100px]"
+        className="border-2 border-dashed border-blue-400 dark:border-blue-600 rounded-lg bg-blue-50 dark:bg-blue-900/30 min-h-[100px]"
         role="button"
         aria-grabbed={true}
         aria-label="Dragging flight"

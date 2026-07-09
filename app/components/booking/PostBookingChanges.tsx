@@ -71,7 +71,7 @@ function ChangeHistory({ changes }: { changes: PostBookingChange[] }) {
       {changes.map((change, idx) => (
         <div
           key={idx}
-          className="flex items-center justify-between rounded-lg border border-slate-100 bg-white dark:bg-slate-800 p-3 text-sm"
+          className="flex items-center justify-between rounded-lg border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 text-sm"
         >
           <div className="flex items-center gap-3">
             <ChangeTypeBadge type={change.type} />
@@ -106,10 +106,6 @@ export default function PostBookingChanges({
   bookingId,
   bookingReference,
   paymentStatus,
-  legs,
-  passengers,
-  legPassengers,
-  storedTotal,
   canManagePayment,
   className = "",
 }: PostBookingChangesProps) {
@@ -181,7 +177,7 @@ export default function PostBookingChanges({
                   className={`flex-1 flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                     changeType === "refund"
                       ? "border-amber-300 bg-amber-50 dark:bg-amber-900/30 text-amber-800"
-                      : "border-slate-200 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:bg-slate-700"
+                      : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50"
                   }`}
                 >
                   <RefundIcon className="w-4 h-4" />
@@ -193,7 +189,7 @@ export default function PostBookingChanges({
                   className={`flex-1 flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                     changeType === "top_up"
                       ? "border-sky-300 bg-sky-50 text-sky-800"
-                      : "border-slate-200 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:bg-slate-700"
+                      : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50"
                   }`}
                 >
                   <TopUpIcon className="w-4 h-4" />
@@ -250,7 +246,7 @@ export default function PostBookingChanges({
                   type="button"
                   onClick={handleSubmit}
                   disabled={isSubmitting || !changeAmount || !changeReason.trim()}
-                  className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 transition-colors disabled:opacity-50"
+                  className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 transition-colors disabled:opacity-50 dark:opacity-60"
                 >
                   {isSubmitting ? "Recording..." : "Record Change"}
                 </button>

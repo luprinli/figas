@@ -51,9 +51,9 @@ async function main() {
       for (const stmt of statements) {
         try {
           await db.$executeRawUnsafe(stmt + ";");
-        } catch (err: any) {
-          // Ignore "already exists" errors for safe operations
-          const msg = err?.message || "";
+        } catch (err: unknown) {
+      // Ignore "already exists" errors for safe operations
+      const msg = (err as { message?: string })?.message || "";
           if (
             msg.includes("already exists") ||
             msg.includes("duplicate key") ||
@@ -66,8 +66,8 @@ async function main() {
         }
       }
       console.log(`  ✔ ${file}`);
-    } catch (err: any) {
-      console.error(`  ✘ ${file} – FAILED: ${err.message}`);
+    } catch (err: unknown) {
+      console.error(`  ✘ ${file} – FAILED: ${(err as Error).message}`);
       // Don't exit — try the next one
     }
   }

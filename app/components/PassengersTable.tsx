@@ -347,7 +347,7 @@ export default function PassengersTable({
   return (
     <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm dark:shadow-slate-900/20">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 px-6 py-4">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Passengers</h2>
         <div className="flex items-center gap-2">
           {headerActions}
@@ -356,7 +356,7 @@ export default function PassengersTable({
 
       {/* Table */}
       <div className="overflow-x-visible">
-        <table className="min-w-full divide-y divide-slate-200">
+        <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
           <thead className="bg-slate-50 dark:bg-slate-700">
             <tr>
               <th className="w-12 px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
@@ -391,7 +391,7 @@ export default function PassengersTable({
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
             {passengerCount === 0 ? (
               <tr>
                 <td
@@ -410,7 +410,7 @@ export default function PassengersTable({
 
       {/* Max limit warning */}
       {atMax && (
-        <div className="border-t border-slate-100 px-6 py-3 text-xs text-amber-600">
+        <div className="border-t border-slate-100 dark:border-slate-700 px-6 py-3 text-xs text-amber-600">
           Maximum of {maxPassengers} passengers reached.
         </div>
       )}

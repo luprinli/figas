@@ -1,5 +1,6 @@
 ﻿import type { BookingPassengerRow } from "../../utils/repositories/booking-passenger";
 import type { BookingLegPassengerWithDetails } from "../../utils/repositories/booking-leg-passenger";
+import { Users, AlertCircle } from "lucide-react";
 import Skeleton from "../Skeleton";
 import { Link } from "@remix-run/react";
 
@@ -121,7 +122,7 @@ function BoardingPassCard({
 
         {/* Actions */}
         {canManagePassengers && (
-          <div className="mt-3 pt-2 border-t border-slate-100 flex items-center gap-3">
+          <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-700 flex items-center gap-3">
             <Link
               to={`/operations/bookings/${bookingId}/passengers`}
               className="text-xs text-sky-600 hover:text-sky-800"
@@ -149,9 +150,7 @@ function BoardingPassCard({
 function EmptyState() {
   return (
     <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 p-6 text-center">
-      <svg className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-      </svg>
+      <Users size={40} className="mx-auto text-slate-300 dark:text-slate-500 mb-2" absoluteStrokeWidth />
       <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No passengers added yet.</p>
     </div>
   );
@@ -193,9 +192,7 @@ export default function PassengerManifest({
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/30 p-4">
         <div className="flex items-start gap-3">
-          <svg className="w-5 h-5 text-red-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-          </svg>
+          <AlertCircle size={20} className="text-red-500 mt-0.5 shrink-0" absoluteStrokeWidth />
           <div>
             <p className="text-sm font-medium text-red-800">Unable to load passenger details</p>
             <p className="text-xs text-red-600 mt-1">Some passenger information may be incomplete.</p>

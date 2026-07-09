@@ -1,13 +1,22 @@
 ﻿import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from "@remix-run/node";
-import { useLoaderData, useFetcher, Link, useNavigate } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { useLoaderData, useFetcher, Link, useNavigate , useRouteError, isRouteErrorResponse, type ShouldRevalidateFunctionArgs } from "@remix-run/react";
+
 import { useEffect, useCallback } from "react";
+import { X } from "lucide-react";
 import { loadsheetRepository, canEditLoadsheet, canEnterActualData, isImmutable } from "../utils/loadsheet/loadsheet-repository.server";
+import { db } from "../utils/db.server";
+import { updateAirframeHoursFromActual, computeActualMinutes } from "../utils/airframe-hours.server";
 import { createLoadsheetFromFlight } from "../utils/loadsheet/create-loadsheet.server";
+import { countAssignedByFlightId } from "../utils/repositories/booking-leg-passenger";
 import { requireUser } from "../utils/layout.server";
 import { hasPermission, requirePermission } from "../utils/permissions.server";
-import { db } from "../utils/db.server";
+
 import SeatMap from "../components/seat-map/SeatMap";
+
+export function shouldRevalidate({ formAction }: ShouldRevalidateFunctionArgs) {
+  if (!formAction) return true;
+  return formAction.includes("/loadsheet");
+}
 
 function formatTime(val: unknown): string | null {
   if (!val) return null;
@@ -28,10 +37,23 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   const flightId = Number(params.flightId);
   if (!flightId) throw new Response("Flight ID required", { status: 400 });
 
+  console.log("[LoadsheetLoader] REQUEST — flightId:", flightId, "userId:", userId);
+
   let loadsheet = await loadsheetRepository.findByFlightId(flightId);
   if (!loadsheet) {
+    console.log("[LoadsheetLoader] PATH: no existing loadsheet, creating from flight");
     const createdId = await createLoadsheetFromFlight(flightId);
     loadsheet = createdId ? await loadsheetRepository.findById(createdId) : null;
+  } else {
+    const currentCount = await countAssignedByFlightId(flightId);
+    if (currentCount !== loadsheet.total_pax) {
+      console.log("[LoadsheetLoader] PATH: pax count mismatch — loadsheet:", loadsheet.total_pax, "actual:", currentCount, "— regenerating");
+      await loadsheetRepository.deleteByFlightId(flightId);
+      const createdId = await createLoadsheetFromFlight(flightId);
+      loadsheet = createdId ? await loadsheetRepository.findById(createdId) : null;
+    } else {
+      console.log("[LoadsheetLoader] PATH: existing loadsheet found, pax count OK —", loadsheet.total_pax, "pax");
+    }
   }
 
   if (!loadsheet) throw new Response("Loadsheet not found", { status: 404 });
@@ -39,9 +61,8 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   const passengers = await loadsheetRepository.findPassengers(loadsheet.id);
   let sectors = await loadsheetRepository.findSectors(loadsheet.id);
 
-  // If sectors are empty (e.g. loadsheet was created before migration was applied),
-  // regenerate the loadsheet data.
   if (sectors.length === 0) {
+    console.log("[LoadsheetLoader] PATH: sectors empty, regenerating loadsheet");
     await loadsheetRepository.deleteByFlightId(flightId);
     const createdId = await createLoadsheetFromFlight(flightId);
     const regenerated = createdId ? await loadsheetRepository.findById(createdId) : null;
@@ -51,6 +72,8 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     loadsheet = regenerated;
     sectors = await loadsheetRepository.findSectors(loadsheet.id);
   }
+
+  console.log("[LoadsheetLoader] RESPONSE — loadsheet.id:", loadsheet.id, "status:", loadsheet.status, "pax:", loadsheet.total_pax, "sectors:", sectors.length, "passengers:", passengers.length);
 
   // ── Flight metadata (number, pilot, aircraft) ───────────────────────────
   const flight = await db.flights.findUnique({
@@ -66,8 +89,8 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 
   // ── Passenger names + origin/destination ────────────────────────────────
   const passengerIds = passengers.map((p) => p.booking_passenger_id);
-  let passengerNames: Record<number, string> = {};
-  let passengerLegData: Record<number, { origin: string; destination: string }> = {};
+  const passengerNames: Record<number, string> = {};
+  const passengerLegData: Record<number, { origin: string; destination: string }> = {};
   if (passengerIds.length > 0) {
     const nameRows = await db.$queryRawUnsafe<Record<string, unknown>[]>(
       `SELECT bp.id, CONCAT(bp.first_name, ' ', bp.last_name) AS name
@@ -146,15 +169,20 @@ export async function action({ request, params }: ActionFunctionArgs) {
   const intent = formData.get("intent")?.toString();
   const flightId = Number(params.flightId);
 
+  console.log("[LoadsheetAction] intent:", intent, "flightId:", flightId, "userId:", userId);
+
   await requirePermission(request, "loadsheet:edit");
 
-  let loadsheet = await loadsheetRepository.findByFlightId(flightId);
+  const loadsheet = await loadsheetRepository.findByFlightId(flightId);
   if (!loadsheet) return json({ error: "Not found" }, { status: 404 });
 
   switch (intent) {
     case "regenerate": {
       await loadsheetRepository.deleteByFlightId(flightId);
-      await createLoadsheetFromFlight(flightId);
+      const newId = await createLoadsheetFromFlight(flightId);
+      if (!newId) {
+        return json({ error: "Failed to regenerate loadsheet" }, { status: 500 });
+      }
       return json({ success: true });
     }
     case "toggle-boarding": {
@@ -181,6 +209,36 @@ export async function action({ request, params }: ActionFunctionArgs) {
         if (actualTimeMin < 0) actualTimeMin += 24 * 60;
       }
       await loadsheetRepository.updateSectorATD(sectorId, atd, ata, actualTimeMin);
+
+      // Also update flight_legs.atd/ata for persistence
+      const sector = await db.loadsheet_sectors.findUnique({
+        where: { id: sectorId },
+        select: { flight_leg_id: true },
+      });
+      if (sector?.flight_leg_id) {
+        await db.flight_legs.update({
+          where: { id: sector.flight_leg_id },
+          data: {
+            atd: atd ? new Date(`1970-01-01T${atd}:00Z`) : null,
+            ata: ata ? new Date(`1970-01-01T${ata}:00Z`) : null,
+          },
+        });
+
+        // Update aircraft hours using actual flight time
+        if (atd && ata) {
+          const actualMin = computeActualMinutes(atd, ata);
+          if (actualMin > 0) {
+            const leg = await db.flight_legs.findUnique({
+              where: { id: sector.flight_leg_id },
+              select: { flight: { select: { aircraft_id: true } } },
+            });
+            if (leg?.flight?.aircraft_id) {
+              await updateAirframeHoursFromActual(leg.flight.aircraft_id, actualMin);
+            }
+          }
+        }
+      }
+
       return json({ success: true });
     }
     case "finalize": {
@@ -188,9 +246,44 @@ export async function action({ request, params }: ActionFunctionArgs) {
         return json({ error: "Can only finalize active loadsheets" }, { status: 400 });
       }
       const checksum = "";
-      await loadsheetRepository.finalize(loadsheet.id, 1, checksum);
-      await loadsheetRepository.logAudit({ loadsheet_id: loadsheet.id, action: "finalized" });
+      await loadsheetRepository.finalize(loadsheet.id, Number(userId), checksum);
+      await loadsheetRepository.logAudit({ loadsheet_id: loadsheet.id, action: "finalized", actor_id: Number(userId) });
       return json({ success: true });
+    }
+    case "sign-off": {
+      if (!canEditLoadsheet(loadsheet.status) && loadsheet.status !== "active") {
+        return json({ error: "Can only sign off active or editable loadsheets" }, { status: 400 });
+      }
+      const hasManifestPerm = await hasPermission(Number(userId), "flight:manage-manifest");
+      if (!hasManifestPerm) {
+        return json({ error: "Missing required permission: flight:manage-manifest" }, { status: 403 });
+      }
+      const sectors = await loadsheetRepository.findSectors(loadsheet.id);
+      const violations = sectors.filter(
+        (s) => s.tow_status === "violation" || s.cog_status === "violation"
+      );
+      if (violations.length > 0) {
+        return json({
+          error: `Cannot sign off: ${violations.length} sector(s) have W&B violations. Resolve violations before sign-off.`,
+          violations: violations.map((v) => ({
+            legSequence: v.leg_sequence,
+            origin: v.origin_code,
+            destination: v.destination_code,
+            towStatus: v.tow_status,
+            cogStatus: v.cog_status,
+          })),
+        }, { status: 400 });
+      }
+      const checksum = sectors
+        .map((s) => `${s.leg_sequence}:${s.takeoff_weight_kg}:${s.cog_position_mm}`)
+        .join("|");
+      await loadsheetRepository.finalize(loadsheet.id, Number(userId), checksum);
+      await loadsheetRepository.logAudit({
+        loadsheet_id: loadsheet.id,
+        action: "signed_off",
+        actor_id: Number(userId),
+      });
+      return json({ success: true, signedOffBy: Number(userId) });
     }
     default:
       return json({ error: "Unknown intent" }, { status: 400 });
@@ -219,11 +312,11 @@ export default function LoadsheetPage() {
   }, [handleClose]);
 
   const statusColors: Record<string, string> = {
-    draft: "bg-amber-100 text-amber-700",
-    review: "bg-blue-100 text-blue-700",
-    active: "bg-emerald-100 text-emerald-700",
-    finalized: "bg-slate-200 text-slate-600 dark:text-slate-300 dark:text-slate-500",
-    archived: "bg-slate-300 text-slate-500 dark:text-slate-400 dark:text-slate-500",
+    draft: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
+    review: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
+    active: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300",
+    finalized: "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300",
+    archived: "bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-400",
   };
 
   const depDate = departureTime ? new Date(departureTime).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" }) : "";
@@ -245,9 +338,7 @@ export default function LoadsheetPage() {
           className="fixed top-4 right-4 z-20 rounded-full bg-white dark:bg-slate-800 p-2 shadow-lg dark:shadow-slate-900/50 ring-1 ring-slate-200 dark:ring-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
           aria-label="Close loadsheet"
         >
-          <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-          </svg>
+          <X size={20} />
         </button>
         {/* Main content */}
         <div className="bg-slate-50 dark:bg-slate-900">
@@ -362,18 +453,18 @@ export default function LoadsheetPage() {
                     const destIdx = stopCodes.indexOf(p.destination);
                     return (
                       <tr key={p.id} className="hover:bg-slate-50 dark:bg-slate-700">
-                        <td className="py-1.5 pr-2 border-b border-slate-100 sticky left-0 bg-white dark:bg-slate-800">
+                        <td className="py-1.5 pr-2 border-b border-slate-100 dark:border-slate-700 sticky left-0 bg-white dark:bg-slate-800">
                           <span className="rounded bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-300 dark:text-slate-500">
                             {p.seat}
                           </span>
                         </td>
-                        <td className="py-1.5 pr-2 border-b border-slate-100 font-medium text-slate-700 dark:text-slate-200 truncate max-w-[140px] sticky left-[56px] bg-white dark:bg-slate-800">
+                        <td className="py-1.5 pr-2 border-b border-slate-100 dark:border-slate-700 font-medium text-slate-700 dark:text-slate-200 truncate max-w-[140px] sticky left-[56px] bg-white dark:bg-slate-800">
                           {p.name}
                         </td>
-                        <td className="py-1.5 pr-2 border-b border-slate-100 font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                        <td className="py-1.5 pr-2 border-b border-slate-100 dark:border-slate-700 font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500">
                           {p.clothedWeightKg}kg
                         </td>
-                        <td className="py-1.5 pr-2 border-b border-slate-100 font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                        <td className="py-1.5 pr-2 border-b border-slate-100 dark:border-slate-700 font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500">
                           {p.baggageWeightKg > 0 ? `${p.baggageWeightKg}kg` : "—"}
                         </td>
                         {stopCodes.map((code, i) => {
@@ -381,7 +472,7 @@ export default function LoadsheetPage() {
                           const isDestination = p.destination === code;
                           const isBetween = originIdx >= 0 && destIdx >= 0 && i > originIdx && i < destIdx;
                           return (
-                            <td key={`${p.id}-${i}`} className="py-1.5 px-0.5 border-b border-slate-100 text-center">
+                            <td key={`${p.id}-${i}`} className="py-1.5 px-0.5 border-b border-slate-100 dark:border-slate-700 text-center">
                               {isOrigin ? (
                                 <span className="inline-flex items-center gap-0">
                                   <span className="h-0.5 flex-1 bg-cyan-400 rounded-l" />
@@ -474,7 +565,7 @@ export default function LoadsheetPage() {
                     const hasViolation = s.tow_status === "violation" || s.cog_status === "violation";
                     const hasWarning = s.tow_status === "warning" || s.cog_status === "warning";
                     return (
-                    <tr key={s.leg_sequence} className="border-b border-slate-100">
+                    <tr key={s.leg_sequence} className="border-b border-slate-100 dark:border-slate-700">
                       <td className="py-1.5 pr-2 font-mono text-slate-600 dark:text-slate-300 dark:text-slate-500">{s.leg_sequence}</td>
                       <td className="py-1.5 pr-2 font-medium text-slate-700 dark:text-slate-200">{s.origin_code}→{s.destination_code}</td>
                       <td className="py-1.5 pr-2 font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500">{Number(s.distance_nm)}</td>

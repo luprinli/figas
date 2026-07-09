@@ -10,9 +10,11 @@ import {
   useLoaderData,
   useFetcher,
   useRevalidator,
+  useRouteError,
+  isRouteErrorResponse,
 } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import { useEffect, useState } from "react";
+import { RefreshCw, User } from "lucide-react";
 import { bookingRepository } from "../utils/repositories/booking";
 import { bookingLegRepository } from "../utils/repositories/booking-leg";
 import { bookingPassengerRepository } from "../utils/repositories/booking-passenger";
@@ -248,7 +250,6 @@ export async function action({ request, params }: ActionFunctionArgs) {
     });
 
     // Build line items matching the same logic as generateInvoice
-    const DEFAULT_FARE_PER_PASSENGER = 50;
     const lineItems: Array<{
       description: string;
       quantity: number;
@@ -257,7 +258,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
     }> = [];
 
     for (const passenger of passengers) {
-      let farePerPassenger = DEFAULT_FARE_PER_PASSENGER;
+      let farePerPassenger = 50;
       if (legs.length > 0) {
         const { fareRouteRepository } = await import("../utils/repositories/fare-route");
         const baseFare = await fareRouteRepository.getBaseFare(
@@ -552,9 +553,7 @@ export default function OperationsBookingDetail() {
                   columns={([
                     { key: "name", header: "Name", sortable: true, render: (p: Record<string, unknown>) => (
                       <span className="flex items-center gap-2">
-                        <svg className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
+                        <User size={16} className="text-slate-500 dark:text-slate-400 shrink-0" absoluteStrokeWidth />
                         {p.first_name as string} {p.last_name as string}
                       </span>
                     )},
@@ -638,7 +637,7 @@ export default function OperationsBookingDetail() {
 
             {/* Inline PaymentMethodSelector (useState toggle) */}
             {showPaymentPanel && (
-              <div className="mb-4 rounded-lg border border-slate-100 bg-slate-50 dark:bg-slate-700 p-4">
+              <div className="mb-4 rounded-lg border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-700 p-4">
                 <PaymentMethodSelector
                   bookingId={bookingId}
                   totalAmount={totalCost}
@@ -678,7 +677,7 @@ export default function OperationsBookingDetail() {
             )}
 
             {/* Action bar: Back to Bookings (left) | Payment Options + Cancel Booking (right) */}
-            <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
               <Link
                 to="/operations/bookings"
                 className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 transition-colors"
@@ -697,7 +696,7 @@ export default function OperationsBookingDetail() {
                 {cancelFetcher.state === "submitting" ? (
                   <button
                     disabled
-                    className="bg-red-50 dark:bg-red-900/30 text-red-300 font-medium py-2 px-6 rounded-lg text-sm cursor-not-allowed"
+                    className="bg-red-50 dark:bg-red-900/30 text-red-300 dark:text-red-500 font-medium py-2 px-6 rounded-lg text-sm cursor-not-allowed"
                   >
                     Cancelling...
                   </button>
@@ -735,9 +734,7 @@ export default function OperationsBookingDetail() {
               </>
             ) : (
               <>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
+                <RefreshCw size={16} absoluteStrokeWidth />
                 Refresh
               </>
             )}

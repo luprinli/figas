@@ -1,5 +1,7 @@
 import { db } from "../db.server";
 import { paymentReminderRepository } from "../repositories/payment-reminder";
+import { sendEmailQuiet } from "../email.server";
+import { paymentReminderEmail } from "../../emails/notifications";
 
 export interface ScheduleReminderParams {
   bookingId: string;
@@ -71,15 +73,43 @@ export async function processPendingReminders(): Promise<ProcessPendingReminders
 
     for (const reminder of pending) {
       try {
-        // In a real system, this would send an email/SMS notification.
-        // For now, log the reminder action and mark as sent.
-        console.log(
-          `[Reminder] Processing reminder ${reminder.id} — type: ${reminder.reminder_type}, booking: ${reminder.booking_id}`
+        const booking = await db.bookings.findUnique({
+          where: { id: Number(reminder.booking_id) },
+          select: { booking_reference: true },
+        });
+
+        const passenger = await db.$queryRawUnsafe<Array<{ name: string; email: string }>>(
+          `SELECT CONCAT(bp.first_name, ' ', bp.last_name) AS name, bp.email
+           FROM booking_passengers bp
+           JOIN booking_leg_passengers blp ON blp.booking_passenger_id = bp.id
+           JOIN booking_legs bl ON bl.id = blp.booking_leg_id
+           WHERE bl.booking_id = $1
+           LIMIT 1`,
+          [Number(reminder.booking_id)]
         );
+
+        const passengerEmail = passenger[0]?.email;
+        const passengerName = passenger[0]?.name ?? "Passenger";
+
+        if (passengerEmail) {
+          const email = paymentReminderEmail({
+            passengerName,
+            passengerEmail,
+            bookingReference: booking?.booking_reference ?? `#${reminder.booking_id}`,
+            amountDue: "See invoice",
+            dueDate: reminder.scheduled_at?.toString() ?? "Due",
+            reminderType: reminder.reminder_type,
+          });
+
+          await sendEmailQuiet({
+            ...email,
+            bookingId: Number(reminder.booking_id),
+          });
+        }
 
         await paymentReminderRepository.markSent(
           reminder.id,
-          process.env.SYSTEM_EMAIL || "system@figas.gov.fk"
+          passengerEmail || process.env.SYSTEM_EMAIL || "system@figas.gov.fk"
         );
 
         processed++;

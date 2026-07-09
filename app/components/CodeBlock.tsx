@@ -34,7 +34,7 @@ const CodeBlock = ({ code, language }: CodeBlockProps) => {
   return (
     <pre
       ref={codeRef}
-      className="p-4 overflow-auto text-sm border rounded-md border-slate-200 not-prose"
+      className="p-4 overflow-auto text-sm border rounded-md border-slate-200 dark:border-slate-700 not-prose"
     />
   );
 };

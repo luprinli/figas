@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @plugin '@tailwindcss/typography';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-primary: #2563eb;
   --color-primary-hover: #1d4ed8;
@@ -30,7 +32,7 @@
 
 @layer components {
   .prose img {
-    @apply border rounded-md border-slate-200;
+    @apply border rounded-md border-slate-200 dark:border-slate-700;
   }
 }
 

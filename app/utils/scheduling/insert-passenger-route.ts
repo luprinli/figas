@@ -30,7 +30,7 @@ export interface InsertionResult {
 
 /**
  * Compute the ordered list of unique stops from a set of route legs.
- * e.g., [{PSY→MPA}, {MPA→PSY}] → ["PSY", "MPA", "PSY"]
+ * e.g., [{STY→MPA}, {MPA→STY}] → ["STY", "MPA", "STY"]
  */
 function getStopSequence(legs: RouteLeg[]): string[] {
   if (legs.length === 0) return [];
@@ -43,7 +43,7 @@ function getStopSequence(legs: RouteLeg[]): string[] {
 
 /**
  * Rebuild route legs from an ordered list of stops.
- * e.g., ["PSY", "MPA", "PSY"] → [{PSY→MPA}, {MPA→PSY}]
+ * e.g., ["STY", "MPA", "STY"] → [{STY→MPA}, {MPA→STY}]
  */
 function stopsToLegs(stops: string[]): RouteLeg[] {
   const legs: RouteLeg[] = [];

@@ -129,16 +129,14 @@ export default function DataTable<T>({
 
   // Cleanup debounce timers on unmount
   useEffect(() => {
+    const timers = debounceTimers.current;
     return () => {
-      Object.values(debounceTimers.current).forEach(clearTimeout);
+      Object.values(timers).forEach(clearTimeout);
     };
   }, []);
 
-  if (data.length === 0 && emptyState) {
-    return <>{emptyState}</>;
-  }
-
   const hasActions = !!actions;
+  const isEmpty = data.length === 0;
 
   return (
     <div className={["overflow-x-auto", className].filter(Boolean).join(" ")}>
@@ -190,7 +188,7 @@ export default function DataTable<T>({
                   <span className="inline-flex items-center gap-1">
                     {column.header}
                   </span>
-                )}
+          )}
               </th>
             ))}
             {hasActions && (
@@ -221,7 +219,14 @@ export default function DataTable<T>({
           )}
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-          {data.map((item) => (
+          {isEmpty && emptyState ? (
+            <tr>
+              <td colSpan={columns.length + (hasActions ? 1 : 0)} className="px-4 py-12 text-center">
+                {emptyState}
+              </td>
+            </tr>
+          ) : (
+            data.map((item) => (
             <tr
               key={keyExtractor(item)}
               onClick={onRowClick ? () => onRowClick(item) : undefined}
@@ -256,7 +261,7 @@ export default function DataTable<T>({
                 </td>
               )}
             </tr>
-          ))}
+          )))}
         </tbody>
       </table>
     </div>

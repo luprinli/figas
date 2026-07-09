@@ -81,7 +81,7 @@
 │  │                   REPOSITORY LAYER                               │    │
 │  │                                                                  │    │
 │  │  Each repository is a plain object with methods that encapsulate │    │
-│  │  SQL queries against the `db` pool:                              │    │
+│  │  SQL queries against the `db` client:                            │    │
 │  │                                                                  │    │
 │  │  export const bookingRepository = {                              │    │
 │  │    async findById(id) { ... },                                   │    │
@@ -106,8 +106,8 @@
 │  │                                                                  │    │
 │  │  app/utils/db.server.ts                                          │    │
 │  │  ┌─────────────────────────────────────────────────────────────┐ │    │
-│  │  │ const pool = new Pool({ connectionString: DATABASE_URL })   │ │    │
-│  │  │ export const db = {                                         │ │    │
+│  │  │ const prisma = new PrismaClient({ adapter: PrismaPg(URL) }) │ │    │
+│  │  │ export const db = prisma & {                                │ │    │
 │  │  │   query(text, params) → Promise<QueryResult>                │ │    │
 │  │  │   queryOne(text, params) → Promise<row | null>              │ │    │
 │  │  │ }                                                            │ │    │
@@ -129,24 +129,24 @@
 | **SSR Framework** | Remix v2 | Full-stack web framework with nested routing, server-side rendering, and progressive enhancement |
 | **Language** | TypeScript 5.1 | Type safety across server and client, catches errors at compile time |
 | **Database** | PostgreSQL 16 | Relational integrity, JSONB for flexible data, window functions for analytics |
-| **Database Driver** | `pg` (node-postgres) | Native PostgreSQL protocol, minimal abstraction, full SQL control |
+| **ORM / Driver** | Prisma v7 + `@prisma/adapter-pg` | PrismaClient singleton over a PostgreSQL adapter, exposing raw-SQL query shims |
 | **CSS** | Tailwind CSS v4 | Utility-first, CSS-first config via `@import "tailwindcss"`, no runtime |
 | **Payments** | Stripe v22 | PCI-compliant payment processing, Checkout Sessions, webhook events |
 | **Auth** | Session cookies + PBAC | Server-side sessions with granular permission checks |
-| **Deployment** | Netlify (serverless) | Edge functions, CDN, automatic HTTPS, preview deployments |
+| **Deployment** | Render (persistent Node service) | Long-running `remix-serve` process, suited to SSE + pooled DB; configured via `render.yaml` |
 
 ### Key Design Decisions
 
-#### 1. Repository Pattern over ORM
+#### 1. Repository Pattern with Raw SQL over Prisma ORM
 
-The system uses a custom repository pattern with raw SQL queries rather than an ORM like Prisma or Drizzle. This decision was made because:
+The system uses a custom repository pattern with hand-written SQL queries rather than Prisma's query builder. This decision was made because:
 
 - **Complex queries**: The booking/leg/passenger junction queries involve multiple JOINs, LATERAL subqueries, and window functions that ORMs struggle to express efficiently
 - **Performance**: Raw SQL gives full control over query plans, indexing, and execution
 - **Migration control**: SQL migrations are hand-written for precise schema evolution
 - **Type safety**: TypeScript interfaces on repository methods provide compile-time safety without ORM overhead
 
-The only exception is the PBAC seed script in [`prisma/seed-pbac.ts`](prisma/seed-pbac.ts), which uses Prisma for initial role/permission seeding.
+Since the Prisma migration (Phase 4b), the underlying connection is a `PrismaClient` singleton wired to PostgreSQL via `@prisma/adapter-pg`. The `db` export augments this client with backward-compatible `.query()` / `.queryOne()` raw-SQL helpers (delegating to `$queryRawUnsafe`), so repositories continue to issue raw SQL unchanged. Prisma is also used directly by the PBAC seed script in [`prisma/seed-pbac.ts`](prisma/seed-pbac.ts) and other data utilities under [`prisma/`](prisma/), which rely on the generated client in [`generated/prisma/`](generated/prisma/).
 
 #### 2. Server-Side Rendering with Progressive Enhancement
 
@@ -169,7 +169,7 @@ The system implements Permission-Based Access Control (PBAC) where:
 
 #### 4. Junction Table for Passenger-Leg Relationship
 
-The [`booking_leg_passengers`](migrations/016_create_booking_leg_passengers.sql) table is the linchpin of the data model. It enables:
+The [`booking_leg_passengers`](migrations/archive/016_create_booking_leg_passengers.sql) table is the linchpin of the data model. It enables:
 
 - Per-leg baggage weight and description
 - Per-leg freight weight and description
@@ -653,7 +653,7 @@ Each step is a form section that validates before proceeding to the next.
 
 ### Overview
 
-All database access is encapsulated in repository modules under [`app/utils/repositories/`](app/utils/repositories/). Each repository is a plain JavaScript object with async methods that execute SQL queries against the shared `db` pool.
+All database access is encapsulated in repository modules under [`app/utils/repositories/`](app/utils/repositories/). Each repository is a plain JavaScript object with async methods that execute raw SQL queries against the shared `db` client (a `PrismaClient` singleton exposing `.query()` / `.queryOne()` helpers).
 
 ### Repository Structure
 
@@ -716,24 +716,27 @@ export const bookingRepository = {
 
 ### Database Connection
 
-The [`db`](app/utils/db.server.ts) object provides two methods:
+The [`db`](app/utils/db.server.ts) export is a `PrismaClient` singleton (backed by `@prisma/adapter-pg`) augmented with two raw-SQL helpers:
 
 ```typescript
-export const db = {
+// app/utils/db.server.ts (simplified)
+const prisma = new PrismaClient({ adapter: new PrismaPg(DATABASE_URL) });
+
+export const db = prisma as PrismaClient & {
   async query(text: string, params?: unknown[]) {
-    // Returns full QueryResult with rows, fields, rowCount
-    const result = await pool.query(text, params);
-    return result;
+    // Returns { rows, rowCount } via $queryRawUnsafe
+    const rows = await prisma.$queryRawUnsafe(text, ...(params ?? []));
+    return { rows, rowCount: rows.length };
   },
   async queryOne(text: string, params?: unknown[]) {
     // Returns first row or null
-    const result = await pool.query(text, params);
-    return result.rows[0] ?? null;
+    const rows = await prisma.$queryRawUnsafe(text, ...(params ?? []));
+    return rows[0] ?? null;
   },
 };
 ```
 
-All repositories use these methods directly. There is no query builder or ORM layer.
+All repositories use these helpers directly. There is no query builder layer; the Prisma client is used as a raw-SQL executor (its generated model API is reserved for `prisma/` seed and data-utility scripts).
 
 ---
 
@@ -815,7 +818,7 @@ Builds an optimal sortie route using the nearest-neighbor heuristic. The route a
 1. Determines the set of aerodromes to visit
 2. Starting from PSY, repeatedly visits the nearest unvisited aerodrome
 3. Returns to PSY after all stops are completed
-4. Uses cached [`aerodrome_distances`](migrations/014_create_scheduling_tables.sql) and [`aerodrome_headings`](migrations/014_create_scheduling_tables.sql) tables for navigation data
+4. Uses cached [`aerodrome_distances`](migrations/archive/014_create_scheduling_tables.sql) and [`aerodrome_headings`](migrations/archive/014_create_scheduling_tables.sql) tables for navigation data
 5. Assumes ~140 knots cruise speed (BN-2 Islander performance)
 
 ```typescript
@@ -849,12 +852,12 @@ Selects the best-fit aircraft per route. Marks assignments as infeasible with a 
 
 Computes detailed weight and balance for each flight leg:
 
-- **Passenger weight** — sum of passenger clothed weights (from [`booking_leg_passengers`](migrations/016_create_booking_leg_passengers.sql) junction records)
+- **Passenger weight** — sum of passenger clothed weights (from [`booking_leg_passengers`](migrations/archive/016_create_booking_leg_passengers.sql) junction records)
 - **Baggage weight** — sum of baggage weights per leg
 - **Freight weight** — sum of freight weights per leg
 - **Fuel weight** — calculated based on leg distance, aircraft fuel consumption, and reserves
 - **Crew weight** — standard crew weight allocation (PIC + SIC)
-- **Empty weight** — aircraft empty weight from [`aircraft`](migrations/001_create_tables.sql) table
+- **Empty weight** — aircraft empty weight from [`aircraft`](migrations/archive/001_create_tables.sql) table
 - **CG position** — center of gravity position as percentage of mean aerodynamic chord
 - **Binding constraints** — identifies the limiting factor (MTOW, MLW, CG envelope, fuel capacity)
 
@@ -924,7 +927,7 @@ export interface ScheduleBuildResult {
 
 ### Database Tables Created
 
-The scheduling pipeline creates records in these tables (defined in [`migrations/014_create_scheduling_tables.sql`](migrations/014_create_scheduling_tables.sql)):
+The scheduling pipeline creates records in these tables (defined in [`migrations/archive/014_create_scheduling_tables.sql`](migrations/archive/014_create_scheduling_tables.sql)):
 
 | Table | Purpose | Key Columns |
 |-------|---------|-------------|
@@ -1021,7 +1024,7 @@ The system implements Permission-Based Access Control (PBAC) with role-based gro
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Database Schema (from [`migrations/015_create_rbac_tables.sql`](migrations/015_create_rbac_tables.sql))
+### Database Schema (from [`migrations/archive/015_create_rbac_tables.sql`](migrations/archive/015_create_rbac_tables.sql))
 
 ```sql
 -- Roles (grouping containers)
@@ -1303,7 +1306,7 @@ DRAFT ──► ISSUED ──► PAID ──► RECONCILED
 
 | File | Purpose |
 |------|---------|
-| [`app/utils/db.server.ts`](app/utils/db.server.ts) | Database connection pool and query helpers |
+| [`app/utils/db.server.ts`](app/utils/db.server.ts) | PrismaClient singleton (adapter-pg) and raw-SQL query helpers |
 | [`app/utils/constants.ts`](app/utils/constants.ts) | All enums, permission constants, limits |
 | [`app/utils/permissions.server.ts`](app/utils/permissions.server.ts) | PBAC authorization system |
 | [`app/utils/stripe.server.ts`](app/utils/stripe.server.ts) | Stripe client singleton |

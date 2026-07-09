@@ -27,7 +27,7 @@ export interface PassengerSearchComboboxProps {
 /* ── Helpers ───────────────────────────────────────────── */
 
 const inputClass =
-  "block w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-2 py-1.5 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500";
+  "block w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500";
 
 /* ── Component ─────────────────────────────────────────── */
 
@@ -95,8 +95,9 @@ export default function PassengerSearchCombobox({
   /* ── Cleanup debounce on unmount ─────────────────────── */
 
   useEffect(() => {
+    const timer = debounceRef.current;
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (timer) clearTimeout(timer);
     };
   }, []);
 

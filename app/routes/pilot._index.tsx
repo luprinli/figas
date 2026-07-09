@@ -7,6 +7,7 @@ import { db } from "../utils/db.server";
 import DashboardCard from "../components/DashboardCard";
 import Skeleton from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
+import { Building2 } from "lucide-react";
 
 export const meta: MetaFunction = () => [{ title: "Pilot Dashboard - FIGAS" }];
 
@@ -98,9 +99,7 @@ export default function PilotDashboard() {
                     value={flights.length}
                     color="blue"
                     icon={
-                        <svg className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-                        </svg>
+                        <Building2 size={24} />
                     }
                 />
                 <DashboardCard
@@ -125,7 +124,7 @@ export default function PilotDashboard() {
             <div className="rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex justify-between items-center">
                     <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
-                        Today's Sorties
+Today&rsquo;s Sorties
                     </h2>
                 </div>
                 {flights.length === 0 ? (

@@ -22,7 +22,7 @@ import { db } from "../db.server";
  * Empty weight: from aircraft record
  */
 
-const STANDARD_CREW_WEIGHT_KG = 80;
+const DEFAULT_CREW_WEIGHT_KG = 80;
 const CREW_COUNT = 1; // single-crew operation (captain only)
 const CRUISE_SPEED_KTAS = 140; // BN-2 Islander typical cruise speed
 const TAXI_MINUTES = 10;
@@ -88,7 +88,7 @@ export async function computeWeightBalance(
   const fuelWeightKg = fuelPlan.fuelOnBoardKg;
 
   // ── Crew weight ───────────────────────────────────────────────────────────
-  const crewWeightKg = CREW_COUNT * STANDARD_CREW_WEIGHT_KG;
+  const crewWeightKg = CREW_COUNT * DEFAULT_CREW_WEIGHT_KG;
 
   // ── Empty weight ──────────────────────────────────────────────────────────
   const emptyWeightKg = aircraft.empty_weight_kg;

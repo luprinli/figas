@@ -76,27 +76,33 @@ export const weightBalanceRepository = {
     computed_by?: string;
     notes?: string | null;
   }): Promise<WeightBalanceSnapshotRow> {
+    const n = (v: number | null | undefined): number | null => {
+      if (v === null || v === undefined) return null;
+      const num = Number(v);
+      if (!isFinite(num)) return null;
+      return Math.round(num * 100) / 100;
+    };
     return db.weight_balance_snapshots.create({
       data: {
         flight_leg_id: data.flight_leg_id,
         schedule_id: data.schedule_id ?? null,
-        passenger_weight_kg: data.passenger_weight_kg,
-        baggage_weight_kg: data.baggage_weight_kg,
-        freight_weight_kg: data.freight_weight_kg,
-        fuel_weight_kg: data.fuel_weight_kg,
-        crew_weight_kg: data.crew_weight_kg,
-        empty_weight_kg: data.empty_weight_kg,
-        total_weight_kg: data.total_weight_kg,
-        required_fuel_kg: data.required_fuel_kg ?? null,
-        minimum_fuel_kg: data.minimum_fuel_kg ?? null,
+        passenger_weight_kg: n(data.passenger_weight_kg) ?? 0,
+        baggage_weight_kg: n(data.baggage_weight_kg) ?? 0,
+        freight_weight_kg: n(data.freight_weight_kg) ?? 0,
+        fuel_weight_kg: n(data.fuel_weight_kg) ?? 0,
+        crew_weight_kg: n(data.crew_weight_kg) ?? 0,
+        empty_weight_kg: n(data.empty_weight_kg) ?? 0,
+        total_weight_kg: n(data.total_weight_kg) ?? 0,
+        required_fuel_kg: n(data.required_fuel_kg),
+        minimum_fuel_kg: n(data.minimum_fuel_kg),
         fuel_state: data.fuel_state ?? null,
         fuel_rule_applied: data.fuel_rule_applied ?? null,
-        total_moment_kgm: data.total_moment_kgm ?? null,
-        cg_position_pct: data.cg_position_pct ?? null,
-        effective_mtow_kg: data.effective_mtow_kg ?? null,
-        effective_mlw_kg: data.effective_mlw_kg ?? null,
-        mtow_used_pct: data.mtow_used_pct ?? null,
-        mlw_used_pct: data.mlw_used_pct ?? null,
+        total_moment_kgm: n(data.total_moment_kgm),
+        cg_position_pct: n(data.cg_position_pct),
+        effective_mtow_kg: n(data.effective_mtow_kg),
+        effective_mlw_kg: n(data.effective_mlw_kg),
+        mtow_used_pct: n(data.mtow_used_pct),
+        mlw_used_pct: n(data.mlw_used_pct),
         binding_constraint: data.binding_constraint ?? null,
         binding_constraint_detail: data.binding_constraint_detail ?? null,
         computed_by: data.computed_by ?? "system",

@@ -1,6 +1,6 @@
 ﻿import { json, type LoaderFunctionArgs } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { useLoaderData , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 import { loadsheetRepository } from "../utils/loadsheet/loadsheet-repository.server";
 import { createLoadsheetFromFlight } from "../utils/loadsheet/create-loadsheet.server";
 import { requireUser } from "../utils/layout.server";
@@ -55,8 +55,8 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     : null;
 
   const passengerIds = passengers.map((p) => p.booking_passenger_id);
-  let passengerNames: Record<number, string> = {};
-  let passengerLegData: Record<number, { origin: string; destination: string }> = {};
+  const passengerNames: Record<number, string> = {};
+  const passengerLegData: Record<number, { origin: string; destination: string }> = {};
   if (passengerIds.length > 0) {
     const nameRows = await db.$queryRawUnsafe<Record<string, unknown>[]>(
       `SELECT bp.id, CONCAT(bp.first_name, ' ', bp.last_name) AS name FROM booking_passengers bp WHERE bp.id = ANY($1::int[])`,
@@ -120,6 +120,8 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     totalBurn: sectors.reduce((s, sec) => s + Number(sec.fuel_burn_kg ?? 0), 0),
     finalRemaining: sectors.length > 0 ? Number(sectors[sectors.length - 1].fuel_remaining_kg) : 0,
     now: new Date().toISOString(),
+    contactEmail: process.env.CONTACT_EMAIL || "ops@figas.gov.fk",
+    contactPhone: process.env.CONTACT_PHONE || "+500 27219",
   });
 }
 
@@ -143,7 +145,7 @@ export default function PrintLoadsheet() {
 
       {/* ── Page 1: Passenger Manifest ── */}
       <div className="print-page mx-auto mb-4 max-w-[277mm] rounded border border-slate-300 dark:border-slate-600 dark:border-slate-600 bg-white dark:bg-slate-800 p-[8mm] shadow-sm dark:shadow-slate-900/20" style={{ width: "277mm", minHeight: "190mm" }}>
-        <PrintHeader flightNumber={data.flightNumber} depDate={data.depDate} aircraftType={data.aircraftType} aircraftReg={data.aircraftRegistration} pilotName={data.pilotName} loadsheetId={`LS-${String(data.loadsheet.id).padStart(4, "0")}`} now={data.now} pageTitle="PASSENGER MANIFEST" />
+        <PrintHeader flightNumber={data.flightNumber} depDate={data.depDate} aircraftType={data.aircraftType} aircraftReg={data.aircraftRegistration} pilotName={data.pilotName} pageTitle="PASSENGER MANIFEST" contactEmail={data.contactEmail} contactPhone={data.contactPhone} />
 
         <table className="my-3 w-full border-collapse text-[8pt]">
           <thead>
@@ -206,7 +208,7 @@ export default function PrintLoadsheet() {
 
       {/* ── Page 2: Sector Calculations & Weight/Fuel ── */}
       <div className="print-page mx-auto max-w-[277mm] rounded border border-slate-300 dark:border-slate-600 dark:border-slate-600 bg-white dark:bg-slate-800 p-[8mm] shadow-sm dark:shadow-slate-900/20" style={{ width: "277mm", minHeight: "190mm" }}>
-        <PrintHeader flightNumber={data.flightNumber} depDate={data.depDate} aircraftType={data.aircraftType} aircraftReg={data.aircraftRegistration} pilotName={data.pilotName} loadsheetId={`LS-${String(data.loadsheet.id).padStart(4, "0")}`} now={data.now} pageTitle="SECTOR CALCULATIONS & WEIGHT / FUEL PLANNING" />
+        <PrintHeader flightNumber={data.flightNumber} depDate={data.depDate} aircraftType={data.aircraftType} aircraftReg={data.aircraftRegistration} pilotName={data.pilotName} pageTitle="SECTOR CALCULATIONS & WEIGHT / FUEL PLANNING" contactEmail={data.contactEmail} contactPhone={data.contactPhone} />
 
         <table className="my-3 w-full border-collapse text-[7.5pt]">
           <thead>
@@ -277,8 +279,8 @@ export default function PrintLoadsheet() {
   );
 }
 
-function PrintHeader({ flightNumber, depDate, aircraftType, aircraftReg, pilotName, loadsheetId, now, pageTitle }: {
-  flightNumber: string; depDate: string; aircraftType: string; aircraftReg: string; pilotName: string; loadsheetId: string; now: string; pageTitle: string;
+function PrintHeader({ flightNumber, depDate, aircraftType, aircraftReg, pilotName, pageTitle, contactEmail, contactPhone }: {
+  flightNumber: string; depDate: string; aircraftType: string; aircraftReg: string; pilotName: string; pageTitle: string; contactEmail: string; contactPhone: string;
 }) {
   return (
     <div>
@@ -288,8 +290,8 @@ function PrintHeader({ flightNumber, depDate, aircraftType, aircraftReg, pilotNa
           <div className="text-[6pt] text-slate-500 dark:text-slate-400 dark:text-slate-500">Falkland Islands Government Air Service</div>
         </div>
         <div className="text-right text-[6pt] text-slate-500 dark:text-slate-400 dark:text-slate-500">
-          <div>{process.env.CONTACT_EMAIL || "ops@figas.gov.fk"}</div>
-          <div>{process.env.CONTACT_PHONE || "+500 27219"}</div>
+          <div>{contactEmail}</div>
+          <div>{contactPhone}</div>
         </div>
       </div>
       <div className="flex items-center justify-between text-[7pt]">

@@ -1,0 +1,9 @@
+node_modules
+build
+public/build
+.netlify
+generated
+test-results
+playwright-report
+*.csv
+*.sql

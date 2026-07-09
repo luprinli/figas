@@ -3,11 +3,15 @@
 interface BriefingSectionProps {
   title: string;
   children: ReactNode;
+  dataTour?: string;
 }
 
-function BriefingSection({ title, children }: BriefingSectionProps) {
+function BriefingSection({ title, children, dataTour }: BriefingSectionProps) {
   return (
-    <div className="rounded-lg bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20 ring-1 ring-slate-200 dark:ring-slate-700 dark:bg-slate-800 dark:ring-slate-700">
+    <div
+      data-tour={dataTour}
+      className="rounded-lg bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20 ring-1 ring-slate-200 dark:ring-slate-700 dark:bg-slate-800 dark:ring-slate-700"
+    >
       <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
         {title}
       </h3>
@@ -75,7 +79,7 @@ export default function PilotBriefing({ data }: { data: PilotBriefingData }) {
         </div>
       </div>
 
-      <BriefingSection title="Route">
+      <BriefingSection title="Route" dataTour="briefing-route">
         <div className="flex items-center gap-4 text-lg font-mono">
           <span className="text-emerald-600 dark:text-emerald-400">{data.origin}</span>
           <span className="text-slate-400 dark:text-slate-500">→</span>
@@ -105,7 +109,7 @@ export default function PilotBriefing({ data }: { data: PilotBriefingData }) {
         </BriefingSection>
       </div>
 
-      <BriefingSection title="Passenger Manifest">
+      <BriefingSection title="Passenger Manifest" dataTour="briefing-passengers">
         {data.passengers.length === 0 ? (
           <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No passengers on this flight</p>
         ) : (
@@ -135,7 +139,7 @@ export default function PilotBriefing({ data }: { data: PilotBriefingData }) {
       </BriefingSection>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <BriefingSection title="Weight & Balance">
+        <BriefingSection title="Weight & Balance" dataTour="briefing-wb">
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
             <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Passenger Wt</span>
             <span className="text-right tabular-nums text-slate-700 dark:text-slate-200">{data.weightBalance.passengerWeightKg} kg</span>
@@ -174,7 +178,7 @@ export default function PilotBriefing({ data }: { data: PilotBriefingData }) {
           </div>
         </BriefingSection>
 
-        <BriefingSection title="Fuel Plan">
+        <BriefingSection title="Fuel Plan" dataTour="briefing-fuel">
           <div className="space-y-1 text-sm">
             <div className="flex justify-between">
               <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Required Fuel</span>

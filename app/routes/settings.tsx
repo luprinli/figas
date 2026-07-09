@@ -1,6 +1,5 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Link } from "@remix-run/react";
 import { requireAuth } from "../utils/auth.server";
 import SidebarLayout from "../components/SidebarLayout";
 

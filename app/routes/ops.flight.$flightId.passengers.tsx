@@ -1,6 +1,6 @@
 ﻿import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from "@remix-run/node";
-import { useLoaderData, useFetcher, Link } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { useLoaderData, useFetcher, Link , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 import { loadsheetRepository, canEnterActualData } from "../utils/loadsheet/loadsheet-repository.server";
 import { requireUser } from "../utils/layout.server";
 import { hasPermission, requirePermission } from "../utils/permissions.server";
@@ -52,7 +52,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 }
 
 export async function action({ request, params }: ActionFunctionArgs) {
-  const { userId } = await requireUser(request);
+  await requireUser(request);
   const formData = await request.formData();
   const intent = formData.get("intent")?.toString();
   const flightId = Number(params.flightId);
@@ -74,7 +74,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 }
 
 export default function PassengerView() {
-  const { loadsheet, passengers, sectors, canEdit, canPerformInFlight } = useLoaderData<typeof loader>();
+  const { loadsheet, passengers, sectors, canEdit } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const boardedCount = passengers.filter((p) => p.boarded).length;
 
@@ -120,7 +120,7 @@ export default function PassengerView() {
             <div
               key={p.id}
               className={`flex items-center gap-3 rounded-lg border p-3 ${
-                p.boarded ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-white dark:bg-slate-800"
+                p.boarded ? "border-emerald-200 bg-emerald-50" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
               }`}
             >
               <button
@@ -135,7 +135,7 @@ export default function PassengerView() {
                 className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors ${
                   p.boarded
                     ? "border-emerald-500 bg-emerald-500 text-white"
-                    : "border-slate-300 text-slate-300 dark:text-slate-500"
+                    : "border-slate-300 dark:border-slate-600 text-slate-300 dark:text-slate-500"
                 } ${canEdit ? "cursor-pointer active:scale-95" : "cursor-default"}`}
               >
                 {p.boarded ? "✓" : ""}

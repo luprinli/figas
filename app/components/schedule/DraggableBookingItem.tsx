@@ -2,6 +2,7 @@
 
 export interface UnassignedBookingRow {
   id: number;
+  booking_leg_id: number;
   booking_reference: string;
   passenger_name: string;
   origin_code: string;
@@ -24,7 +25,7 @@ export function DraggableBookingItem({ booking }: { booking: UnassignedBookingRo
       <div
         ref={setNodeRef}
         style={style}
-        className="border-2 border-dashed border-blue-400 dark:border-blue-600 dark:border-blue-500 rounded-lg bg-blue-50 dark:bg-blue-900/30 dark:bg-blue-900/30/30 dark:bg-blue-900/30 p-3"
+        className="border-2 border-dashed border-blue-400 dark:border-blue-500 rounded-lg bg-blue-50 dark:bg-blue-900/30 p-3"
         role="button"
         aria-grabbed={true}
         aria-label={`Dragging booking ${booking.booking_reference}`}
@@ -43,18 +44,18 @@ export function DraggableBookingItem({ booking }: { booking: UnassignedBookingRo
       tabIndex={0}
       data-testid="booking-item"
       aria-grabbed={false}
-      aria-label={`Booking ${booking.booking_reference}, ${booking.origin_code} to ${booking.destination_code}, ${booking.passenger_count} passenger(s). Press spacebar or enter to start dragging.`}
+      aria-label={`Passenger ${booking.passenger_name}, booking ${booking.booking_reference}, ${booking.origin_code} to ${booking.destination_code}. Press spacebar or enter to start dragging.`}
       aria-describedby={`booking-desc-${booking.id}`}
-      className="group cursor-grab active:cursor-grabbing rounded-md border border-slate-200 dark:border-slate-700 dark:border-slate-700 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-xs shadow-sm dark:shadow-slate-900/20 transition hover:border-blue-300 dark:border-blue-700 dark:hover:border-blue-500 hover:shadow-md"
+      className="group cursor-grab active:cursor-grabbing rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs shadow-sm dark:shadow-slate-900/20 transition hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-md"
     >
-      <div className="flex items-center justify-between">
-        <span className="font-medium text-slate-800 dark:text-slate-100 dark:text-slate-100">{booking.booking_reference}</span>
-        <span className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-400 dark:text-slate-500">{booking.passenger_count} pax</span>
+      <div className="font-medium text-slate-800 dark:text-slate-100 truncate">{booking.passenger_name}</div>
+      <div className="mt-0.5 text-slate-500 dark:text-slate-400">
+        {booking.origin_code} → {booking.destination_code}
       </div>
-      <div className="mt-0.5 text-slate-500 dark:text-slate-400 dark:text-slate-400 dark:text-slate-500">
-        {booking.origin_code} &rarr; {booking.destination_code}
+      <div className="flex items-center justify-between mt-0.5">
+        <span className="text-[10px] text-slate-400 dark:text-slate-500">{booking.booking_reference} (L{booking.booking_leg_id})</span>
+        <span className="text-[10px] text-slate-500 dark:text-slate-400">{booking.passenger_count} pax</span>
       </div>
-      <div className="truncate text-slate-500 dark:text-slate-400 dark:text-slate-400 dark:text-slate-500">{booking.passenger_name}</div>
     </div>
   );
 }

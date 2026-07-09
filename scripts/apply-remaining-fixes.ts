@@ -21,8 +21,8 @@ async function main() {
     try {
       await db.$executeRawUnsafe(stmt);
       console.log(`    ✔ ${stmt.substring(0, 80)}...`);
-    } catch (err: any) {
-      console.log(`    ↪ ${err.message.substring(0, 80)}`);
+    } catch (err: unknown) {
+      console.log(`    ↪ ${(err as Error).message.substring(0, 80)}`);
     }
   }
 
@@ -41,11 +41,11 @@ async function main() {
     try {
       await db.$executeRawUnsafe(`CREATE TYPE flight_leg_status AS ENUM ('scheduled', 'active', 'completed', 'cancelled')`);
       console.log("    ✔ Created flight_leg_status enum type");
-    } catch (err: any) {
-      if (err.message?.includes("already exists")) {
+    } catch (err: unknown) {
+      if ((err as Error).message?.includes("already exists")) {
         console.log("    ↪ Enum type already exists");
       } else {
-        console.error(`    ✘ ${err.message}`);
+        console.error(`    ✘ ${(err as Error).message}`);
       }
     }
   } else {
@@ -73,8 +73,8 @@ async function main() {
         console.log("    ↪ Column already uses enum type");
       }
     }
-  } catch (err: any) {
-    console.log(`    ↪ ${err.message.substring(0, 120)}`);
+  } catch (err: unknown) {
+    console.log(`    ↪ ${(err as Error).message.substring(0, 120)}`);
   }
 
   // 3. Create schedule_audit table (needed by Prisma schema)
@@ -98,8 +98,8 @@ async function main() {
     await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_schedule_audit_schedule_id ON schedule_audit(schedule_id)`);
     await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_schedule_audit_changed_by ON schedule_audit(changed_by)`);
     console.log("    ✔ Created schedule_audit indexes");
-  } catch (err: any) {
-    console.log(`    ↪ ${err.message.substring(0, 120)}`);
+  } catch (err: unknown) {
+    console.log(`    ↪ ${(err as Error).message.substring(0, 120)}`);
   }
 
   console.log("\n✅ Remaining fix migrations applied.\n");

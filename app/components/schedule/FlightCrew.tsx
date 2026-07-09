@@ -1,4 +1,6 @@
-﻿export interface FlightCrewProps {
+﻿import { User } from "lucide-react";
+
+export interface FlightCrewProps {
     pilot_name: string | null;
     pilot_status: string | null;
     /** When true, render minimal: name + status dot only (no badge) */
@@ -30,10 +32,7 @@ export default function FlightCrew({
     if (compact) {
         return (
             <span className="inline-flex items-center gap-1.5 text-[11px]">
-                <svg className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <circle cx="8" cy="5" r="3" />
-                    <path d="M3 14c0-3 2.2-5 5-5s5 2 5 5" />
-                </svg>
+                <User size={14} className="text-slate-500 dark:text-slate-400 shrink-0" strokeWidth={1.5} absoluteStrokeWidth />
                 <span className={pilot_name ? "font-medium text-slate-700 dark:text-slate-200" : "text-slate-500 dark:text-slate-400 dark:text-slate-500"}>
                     {pilot_name ?? "Pilot TBC"}
                 </span>
@@ -44,10 +43,7 @@ export default function FlightCrew({
 
     return (
         <div className="mb-2 flex items-center gap-2">
-            <svg className="h-4 w-4 text-slate-500 dark:text-slate-400 dark:text-slate-500" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <circle cx="8" cy="5" r="3" />
-                <path d="M3 14c0-3 2.2-5 5-5s5 2 5 5" />
-            </svg>
+            <User size={16} className="text-slate-500 dark:text-slate-400 dark:text-slate-500" strokeWidth={1.5} absoluteStrokeWidth />
             {pilot_name ? (
                 <span className="text-xs font-medium text-slate-700 dark:text-slate-200">{pilot_name}</span>
             ) : (

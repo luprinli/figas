@@ -16,7 +16,16 @@ supabase/.temp
 .netlify
 /generated/prisma
 
+# Service worker (not TypeScript)
+public/sw.js
+
 # Playwright
 tests/e2e/auth-state.json
 test-results/
 playwright-report/
+
+# Prettier
+.prettierrc
+
+# Husky
+.husky/_/

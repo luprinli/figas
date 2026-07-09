@@ -240,7 +240,7 @@ export default function DOBPicker({
       if (isSelected) {
         classes += " bg-blue-600 text-white";
       } else if (isDisabled) {
-        classes += " text-slate-300 dark:text-slate-500 cursor-not-allowed";
+        classes += " text-slate-300 dark:text-slate-600 cursor-not-allowed";
       } else {
         classes += " cursor-pointer hover:bg-blue-100";
       }
@@ -285,7 +285,7 @@ export default function DOBPicker({
             "block w-full rounded-lg border px-2 py-1.5 text-sm shadow-sm dark:shadow-slate-900/20 focus:outline-none focus:ring-1 pr-8 " +
             (displayError
               ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-              : "border-slate-300 focus:border-sky-500 focus:ring-sky-500")
+              : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-sky-500 focus:ring-sky-500")
           }
         />
         <button
@@ -329,7 +329,7 @@ export default function DOBPicker({
               value={baseMonth.month}
               onChange={handleMonthChange}
               aria-label="Select month"
-              className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
+              className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
             >
               {MONTH_NAMES.map((name, idx) => (
                 <option key={name} value={idx}>
@@ -341,7 +341,7 @@ export default function DOBPicker({
               value={baseMonth.year}
               onChange={handleYearChange}
               aria-label="Select year"
-              className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
+              className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
             >
               {yearOptions.map((y) => (
                 <option key={y} value={y}>

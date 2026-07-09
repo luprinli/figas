@@ -91,6 +91,22 @@ export const flightLegRepository = {
     });
   },
 
+  async updateActualTimes(
+    id: number,
+    atd?: string | null,
+    ata?: string | null
+  ): Promise<void> {
+    const data: Record<string, unknown> = {};
+    if (atd !== undefined) {
+      data.atd = atd ? new Date(atd) : null;
+    }
+    if (ata !== undefined) {
+      data.ata = ata ? new Date(ata) : null;
+    }
+    if (Object.keys(data).length === 0) return;
+    await db.flight_legs.update({ where: { id }, data });
+  },
+
   async deleteByFlightId(flightId: number): Promise<void> {
     await db.flight_legs.deleteMany({
       where: { flight_id: flightId },

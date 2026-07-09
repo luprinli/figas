@@ -85,7 +85,7 @@ function formatTimeHM(iso: string | null): string | null {
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function StopActivityList({
-    stopManifests, flightLegs, flightStatus, renderPassengerRow, flightId, perStopValidation,
+    stopManifests, flightLegs, renderPassengerRow, flightId, perStopValidation,
 }: StopActivityListProps) {
     const orderedStops = useMemo(() => {
         if (!flightLegs || flightLegs.length === 0) {
@@ -100,22 +100,42 @@ export default function StopActivityList({
         for (const leg of flightLegs) codes.push(leg.destination_code);
 
         const manifestMap = new Map(stopManifests.map(m => [m.aerodrome_code, m]));
-        const depMap = new Map(flightLegs.map(l => [l.origin_code, l.departure_time]));
-        const arrMap = new Map(flightLegs.map(l => [l.destination_code, l.arrival_time]));
+        // Build a list of (leg_index, origin_code, arrival_time) for each stop position.
+        // Use index-aware lookups so duplicate codes (e.g. STY→...→STY) get the
+        // correct times: the first occurrence is the origin (no arrival), the last
+        // is the destination (no departure).
+        const legOrigins = flightLegs.map((l, i) => ({ code: l.origin_code, dep: l.departure_time, idx: i }));
+        const legDests   = flightLegs.map((l, i) => ({ code: l.destination_code, arr: l.arrival_time, idx: i }));
 
-        return codes.map((code) => {
+        return codes.map((code, ci) => {
             const m = manifestMap.get(code);
+            // Find the leg where this code appears as origin or destination.
+            // For the first occurrence of a code, match it as origin; for the
+            // last occurrence of a duplicate, match as destination.
+            const isLastOccurrence = codes.lastIndexOf(code) === ci && codes.indexOf(code) !== ci;
+            const originMatch = legOrigins.find((l) => l.code === code);
+            const destMatch   = legDests.find((l) => l.code === code);
+            const arrival_time   = isLastOccurrence ? (destMatch?.arr ?? null) : ci > 0 ? (destMatch?.arr ?? null) : null;
+            const departure_time = isLastOccurrence ? null : (originMatch?.dep ?? null);
             return {
                 aerodrome_code: code, aerodrome_name: m?.aerodrome_name ?? code,
                 leg_sequence: m?.leg_sequence ?? 0,
                 departing_passengers: m?.departing_passengers ?? [], arriving_passengers: m?.arriving_passengers ?? [],
                 net_body_weight_change: m?.net_body_weight_change ?? 0, net_baggage_weight_change: m?.net_baggage_weight_change ?? 0,
-                arrival_time: arrMap.get(code) ?? null, departure_time: depMap.get(code) ?? null,
+                arrival_time, departure_time,
             };
         });
     }, [stopManifests, flightLegs]);
 
-    if (orderedStops.length === 0) {
+    // Hide intermediate stops that have no passengers — these are route
+    // connectors (e.g., NHA→BVI→WDI when no one boards or alights there).
+    // Always show the first and last stop (origin and destination).
+    const visibleStops = orderedStops.filter((stop, i) =>
+      i === 0 || i === orderedStops.length - 1 ||
+      stop.arriving_passengers.length > 0 || stop.departing_passengers.length > 0
+    );
+
+    if (visibleStops.length === 0) {
         return <div className="rounded-md bg-slate-50 dark:bg-slate-700 p-3 text-center text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">No stop data available</div>;
     }
 
@@ -124,9 +144,9 @@ export default function StopActivityList({
 
     return (
         <div className="space-y-1.5">
-            {orderedStops.map((stop, index) => {
+            {visibleStops.map((stop, index) => {
                 const isFirst = index === 0;
-                const isLast = index === orderedStops.length - 1;
+                const isLast = index === visibleStops.length - 1;
                 const isFinalArrival = isLast && !isFirst;
 
                 const sv = perStopValidation?.[index];
@@ -182,12 +202,13 @@ export default function StopActivityList({
                                         <span className="flex-shrink-0 font-mono tabular-nums text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">{arrWeight}kg</span>
                                     </div>
                                 ) : (
-                                    <span className="text-[11px] text-slate-500 dark:text-slate-400 italic">{isFirst ? "Origin — no arrivals" : "No arrivals"}</span>
+                                    <span className="text-[11px] text-slate-500 dark:text-slate-400 italic">{isFirst ? "" : "No arrivals"}</span>
                                 )}
                             </div>
                         </div>
 
-                        {/* Departures */}
+                        {/* Departures (hidden for final stop — nothing departs from the destination) */}
+                        {!isLast && (
                         <div className="flex items-start gap-2">
                             <div className={`${labelW} flex-shrink-0 flex items-center gap-0.5 pt-0.5`}>
                                 <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">Dep</span>
@@ -206,10 +227,11 @@ export default function StopActivityList({
                                         <span className="flex-shrink-0 font-mono tabular-nums text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">{depWeight}kg</span>
                                     </div>
                                 ) : (
-                                    <span className="text-[11px] text-slate-500 dark:text-slate-400 italic">{isLast ? "Destination — no departures" : "No departures"}</span>
+                                    <span className="text-[11px] text-slate-500 dark:text-slate-400 italic">No departures</span>
                                 )}
                             </div>
                         </div>
+                        )}
                     </div>
                 );
             })}

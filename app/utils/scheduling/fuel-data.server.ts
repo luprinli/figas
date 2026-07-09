@@ -10,6 +10,7 @@
 
 import { db } from "../db.server";
 import { lookupFuelByFlightTime, clearFuelRulesCache } from "./fuel-lookup";
+import { DEFAULT_CRUISE_SPEED_KTAS, DEFAULT_BN2_BURN_RATE_KG_PER_HOUR } from "../constants";
 
 export { clearFuelRulesCache };
 
@@ -43,9 +44,8 @@ export async function getFuelKg(origin: string, dest: string): Promise<number> {
     const distanceNm = Number(distances[0].distance_nm);
     if (distanceNm <= 0) return 0;
 
-    // Compute flight time at 140 kt cruise speed
-    const cruiseSpeedKtas = 140;
-    const flightTimeMinutes = Math.round((distanceNm / cruiseSpeedKtas) * 60);
+    // Compute flight time at cruise speed
+    const flightTimeMinutes = Math.round((distanceNm / DEFAULT_CRUISE_SPEED_KTAS) * 60);
 
     // Look up fuel rule by ceiling-match on flight time (1 sector)
     // using the shared lookup function
@@ -55,6 +55,6 @@ export async function getFuelKg(origin: string, dest: string): Promise<number> {
         return matchingRule.requiredFuelKg;
     }
 
-    // Fallback: compute from distance using BN-2 burn rate (~45 kg/h)
-    return Math.round((distanceNm / cruiseSpeedKtas) * 45);
+    // Fallback: compute from distance using BN-2 burn rate
+    return Math.round((distanceNm / DEFAULT_CRUISE_SPEED_KTAS) * DEFAULT_BN2_BURN_RATE_KG_PER_HOUR);
 }

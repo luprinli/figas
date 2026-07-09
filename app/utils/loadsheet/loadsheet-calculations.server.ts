@@ -1,7 +1,8 @@
-import { loadDistanceCSV } from "./distance-csv";
+import { loadCSVDistanceMap } from "../scheduling/distance-lookup";
 import { computeFlightTime } from "../scheduling/fuel-planning";
 import { computeCG, assignSeatsByCOG } from "./seat-assignment";
 import type { SeatAssignment } from "./seat-assignment";
+import { DEFAULT_BN2_MTOW_KG } from "../constants";
 
 interface FlightLegData {
   id: number;
@@ -14,6 +15,8 @@ interface FlightLegData {
 interface PassengerWeightData {
   id: number;
   bookingLegId: number;
+  origin_code: string;
+  destination_code: string;
   clothedWeightKg: number;
   baggageWeightKg: number;
   freightWeightKg: number;
@@ -49,6 +52,8 @@ export interface SectorCalcResult {
   landingWeightKg: number;
   towStatus: "ok" | "warning" | "violation";
   towReason: string | null;
+  mlwStatus: "ok" | "warning" | "violation";
+  mlwReason: string | null;
   cogMm: number;
   cogStatus: "ok" | "warning" | "violation";
   cogReason: string | null;
@@ -63,7 +68,6 @@ export interface LoadsheetCalcOutput {
 }
 
 const BN2_EMPTY_WEIGHT_KG = 1627;
-const BN2_MTOW_KG = 2994;
 const BN2_CRUISE_KTAS = 140;
 const BN2_BURN_RATE_KG_PER_MIN = 0.4;
 const RESERVE_FUEL_KG = 35;
@@ -80,11 +84,11 @@ function formatTimeHM(date: Date): string {
 
 export async function computeLoadsheetCalculations(params: LoadsheetCalcParams): Promise<LoadsheetCalcOutput> {
   const { legs, passengers, aircraft, pilotWeightKg, date } = params;
-  const distanceMap = await loadDistanceCSV();
+  const distanceMap = await loadCSVDistanceMap();
   const seatAssignments = assignSeatsByCOG(passengers);
 
   const emptyWt = aircraft.empty_weight_kg > 0 ? aircraft.empty_weight_kg : BN2_EMPTY_WEIGHT_KG;
-  const mtow = aircraft.max_takeoff_weight_kg > 0 ? aircraft.max_takeoff_weight_kg : BN2_MTOW_KG;
+  const mtow = aircraft.max_takeoff_weight_kg > 0 ? aircraft.max_takeoff_weight_kg : DEFAULT_BN2_MTOW_KG;
 
   // ── Phase 1: Compute per-leg data ──────────────────────────────────────
   interface LegCalc {
@@ -141,13 +145,23 @@ export async function computeLoadsheetCalculations(params: LoadsheetCalcParams):
   const sectors: SectorCalcResult[] = [];
   let fuelOnBoard = startingFuelKg;
 
-  // Total pax and baggage (constant across all legs for round-trip flights)
-  const paxWeight = passengers.reduce((s, p) => s + p.clothedWeightKg, 0);
-  const baggageTotal = passengers.reduce((s, p) => s + p.baggageWeightKg + p.freightWeightKg, 0);
+  // Track passengers on board per sector
+  const onBoardPassengerIds = new Set<number>();
+  let sectorPaxWeight = 0;
+  let sectorBaggageTotal = 0;
 
   for (const lc of legCalcs) {
+    // Board passengers whose origin matches this sector's origin
+    for (const p of passengers) {
+      if (p.origin_code === lc.originCode && !onBoardPassengerIds.has(p.id)) {
+        onBoardPassengerIds.add(p.id);
+        sectorPaxWeight += p.clothedWeightKg;
+        sectorBaggageTotal += p.baggageWeightKg + p.freightWeightKg;
+      }
+    }
+
     const fuelRemainingKg = fuelOnBoard - lc.fuelBurnKg;
-    const tow = emptyWt + pilotWeightKg + paxWeight + baggageTotal + fuelOnBoard;
+    const tow = emptyWt + pilotWeightKg + sectorPaxWeight + sectorBaggageTotal + fuelOnBoard;
     const lw = tow - lc.fuelBurnKg;
 
     let towStatus: "ok" | "warning" | "violation" = "ok";
@@ -160,8 +174,19 @@ export async function computeLoadsheetCalculations(params: LoadsheetCalcParams):
       towReason = `Within 5% of MTOW (${mtow}kg)`;
     }
 
+    let mlwStatus: "ok" | "warning" | "violation" = "ok";
+    let mlwReason: string | null = null;
+    const mlw = aircraft.max_landing_weight_kg;
+    if (mlw > 0 && lw > mlw) {
+      mlwStatus = "violation";
+      mlwReason = `MLW ${mlw}kg exceeded by ${Math.round(lw - mlw)}kg`;
+    } else if (mlw > 0 && lw > mlw * 0.95) {
+      mlwStatus = "warning";
+      mlwReason = `Within 5% of MLW (${mlw}kg)`;
+    }
+
     const { cogMm, status: cogStatusRaw } = computeCG(
-      seatAssignments, baggageTotal, fuelOnBoard, emptyWt, pilotWeightKg
+      seatAssignments, sectorBaggageTotal, fuelOnBoard, emptyWt, pilotWeightKg
     );
 
     let cogReason: string | null = null;
@@ -188,12 +213,23 @@ export async function computeLoadsheetCalculations(params: LoadsheetCalcParams):
       landingWeightKg: Math.round(lw),
       towStatus,
       towReason,
+      mlwStatus,
+      mlwReason,
       cogMm: Math.round(cogMm * 10) / 10,
       cogStatus: cogStatusRaw,
       cogReason,
     });
 
     fuelOnBoard = fuelRemainingKg;
+
+    // Deplane passengers whose destination matches this sector's destination
+    for (const p of passengers) {
+      if (p.destination_code === lc.destinationCode && onBoardPassengerIds.has(p.id)) {
+        onBoardPassengerIds.delete(p.id);
+        sectorPaxWeight -= p.clothedWeightKg;
+        sectorBaggageTotal -= p.baggageWeightKg + p.freightWeightKg;
+      }
+    }
   }
 
   return { startingFuelKg, totalBurnKg, reserveFuelKg: RESERVE_FUEL_KG, sectors, seatAssignments };

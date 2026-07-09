@@ -1,8 +1,9 @@
 ﻿import { useRef, useState, useMemo } from "react";
+import { ArrowRight, CheckCircle2, Clock, Eye, Pencil, XCircle } from "lucide-react";
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Link, useLoaderData, useNavigation, useSearchParams, useSubmit } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { Link, useLoaderData, useNavigation, useSearchParams, useSubmit , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 import { Permission } from "../utils/constants";
 import { bookingRepository } from "../utils/repositories/booking";
 import type { BookingRow } from "../utils/repositories/booking";
@@ -382,30 +383,15 @@ export default function OperationsBookingsIndex() {
             <span
               className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
                 isFlown
-                  ? "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 dark:text-slate-500"
-                  : "bg-amber-50 dark:bg-amber-900/30 text-amber-600"
+                  ? "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300"
+                  : "bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300"
               }`}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                className="h-3 w-3"
-              >
-                {isFlown ? (
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
-                    clipRule="evenodd"
-                  />
+              {isFlown ? (
+                  <CheckCircle2 size={12} />
                 ) : (
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z"
-                    clipRule="evenodd"
-                  />
+                  <Clock size={12} />
                 )}
-              </svg>
               {isFlown ? "Flown" : "Unflown"}
             </span>
           );
@@ -474,19 +460,7 @@ export default function OperationsBookingsIndex() {
           aria-label={`View booking ${booking.booking_reference}`}
           title={`View booking ${booking.booking_reference}`}
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-4 w-4"
-          >
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-            <circle cx="12" cy="12" r="3" />
-          </svg>
+          <Eye size={16} absoluteStrokeWidth />
         </Link>
 
         {/* Edit — always rendered, grayed out when inactive */}
@@ -497,37 +471,15 @@ export default function OperationsBookingsIndex() {
             aria-label={`Edit booking ${booking.booking_reference}`}
             title={`Edit booking ${booking.booking_reference}`}
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-4 w-4"
-            >
-              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-            </svg>
+            <Pencil size={16} absoluteStrokeWidth />
           </Link>
         ) : (
           <span
-            className="text-slate-300 cursor-not-allowed"
+            className="text-slate-300 dark:text-slate-600 cursor-not-allowed"
             aria-label={`Edit booking ${booking.booking_reference}`}
             title="Cannot edit — departure date has passed"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-4 w-4"
-            >
-              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-            </svg>
+            <Pencil size={16} absoluteStrokeWidth />
           </span>
         )}
 
@@ -539,41 +491,15 @@ export default function OperationsBookingsIndex() {
             aria-label={`Cancel booking ${booking.booking_reference}`}
             title={`Cancel booking ${booking.booking_reference}`}
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-4 w-4"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <line x1="15" y1="9" x2="9" y2="15" />
-              <line x1="9" y1="9" x2="15" y2="15" />
-            </svg>
+            <XCircle size={16} absoluteStrokeWidth />
           </Link>
         ) : (
           <span
-            className="text-slate-300 cursor-not-allowed"
+            className="text-slate-300 dark:text-slate-600 cursor-not-allowed"
             aria-label={`Cancel booking ${booking.booking_reference}`}
             title="Cannot cancel — departure date has passed"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-4 w-4"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <line x1="15" y1="9" x2="9" y2="15" />
-              <line x1="9" y1="9" x2="15" y2="15" />
-            </svg>
+            <XCircle size={16} absoluteStrokeWidth />
           </span>
         )}
       </div>
@@ -585,7 +511,7 @@ export default function OperationsBookingsIndex() {
       {/* Skip to results link (accessibility) */}
       <a
         href="#booking-results"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-blue-600 focus:shadow-lg focus:outline-none"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-white dark:focus:bg-slate-800 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-blue-600 focus:shadow-lg focus:outline-none"
       >
         Skip to results
       </a>
@@ -669,8 +595,8 @@ export default function OperationsBookingsIndex() {
                 {label}
                 {count !== null && (
                   <span className={`inline-flex items-center justify-center min-w-[1.25rem] h-5 rounded-full px-1.5 text-xs font-medium ${isActive
-                    ? "bg-blue-100 text-blue-700"
-                    : "bg-slate-100 text-slate-500 dark:text-slate-400 dark:text-slate-500"
+                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                    : "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
                     }`}>
                     {count}
                   </span>
@@ -690,63 +616,54 @@ export default function OperationsBookingsIndex() {
         aria-label="Booking results"
       >
         {/* Desktop DataTable (hidden on mobile) */}
-        <div className="hidden md:block bg-white dark:bg-slate-800 rounded-lg shadow border border-slate-200 dark:border-slate-700 dark:border-slate-700 overflow-hidden">
-          {isLoading ? (
-            <div className="p-6 space-y-4">
-              <Skeleton variant="rectangular" className="h-10 w-full" />
-              <Skeleton variant="rectangular" className="h-10 w-full" />
-              <Skeleton variant="rectangular" className="h-10 w-full" />
-              <Skeleton variant="rectangular" className="h-10 w-full" />
-              <Skeleton variant="rectangular" className="h-10 w-full" />
-            </div>
-          ) : processedBookings.length === 0 ? (
-            <EmptyState
-              title={
-                q
-                  ? "No bookings match your search."
-                  : dateFrom && dateTo
-                    ? "No bookings in this date range."
-                    : status
-                      ? `No bookings with status "${status.replace(/_/g, " ")}".`
-                      : "No bookings found."
-              }
-              description={hasActiveFilters ? "Try adjusting your filters to see more results." : undefined}
-              {...(hasActiveFilters
-                ? {
-                    action: {
-                      label: "View all bookings",
-                      to: "/operations/bookings",
-                    },
-                  }
-                : {})}
-            />
-          ) : (
-            <DataTable
-              columns={columns}
-              data={processedBookings}
-              keyExtractor={(item) => item.booking.id}
-              sortable
-              showFilters
-              filters={columnFilters}
-              onFilterChange={(column, value) =>
-                setColumnFilters((prev) => ({ ...prev, [column]: value }))
-              }
-              onSort={(column, direction) => {
-                setSortColumn(column);
-                setSortDirection(direction);
-              }}
-              actions={renderActions}
-              rowClassName={(item) => {
-                const { booking } = item;
-                const isPendingStuck =
-                  booking.status === "pending" &&
-                  (new Date().getTime() - new Date(booking.updated_at).getTime()) >
-                    24 * 60 * 60 * 1000;
-                if (isPendingStuck) return "bg-amber-50";
-                return "";
-              }}
-            />
-          )}
+        <div className="hidden md:block bg-white dark:bg-slate-800 rounded-lg shadow border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <DataTable
+            columns={columns}
+            data={processedBookings}
+            keyExtractor={(item) => item.booking.id}
+            sortable
+            showFilters
+            filters={columnFilters}
+            onFilterChange={(column, value) =>
+              setColumnFilters((prev) => ({ ...prev, [column]: value }))
+            }
+            onSort={(column, direction) => {
+              setSortColumn(column);
+              setSortDirection(direction);
+            }}
+            actions={renderActions}
+            rowClassName={(item) => {
+              const { booking } = item;
+              const isPendingStuck =
+                booking.status === "pending" &&
+                (new Date().getTime() - new Date(booking.updated_at).getTime()) >
+                  24 * 60 * 60 * 1000;
+              if (isPendingStuck) return "bg-amber-50 dark:bg-amber-900/20";
+              return "";
+            }}
+            emptyState={
+              <EmptyState
+                title={
+                  q
+                    ? "No bookings match your search."
+                    : dateFrom && dateTo
+                      ? "No bookings in this date range."
+                      : status
+                        ? `No bookings with status "${status.replace(/_/g, " ")}".`
+                        : "No bookings found."
+                }
+                description={hasActiveFilters ? "Try adjusting your filters to see more results." : undefined}
+                {...(hasActiveFilters
+                  ? {
+                      action: {
+                        label: "View all bookings",
+                        to: "/operations/bookings",
+                      },
+                    }
+                  : {})}
+              />
+            }
+          />
         </div>
 
         {/* Mobile Card View (hidden on md and above) */}
@@ -786,7 +703,7 @@ export default function OperationsBookingsIndex() {
             processedBookings.map(({ booking, firstLeg, passenger }) => {
               const isPendingStuck = booking.status === "pending" &&
                 (new Date().getTime() - new Date(booking.updated_at).getTime()) > 24 * 60 * 60 * 1000;
-              const cardBorder = isPendingStuck ? "border-amber-300" : "border-slate-200 dark:border-slate-700";
+              const cardBorder = isPendingStuck ? "border-amber-300 dark:border-amber-700" : "border-slate-200 dark:border-slate-700";
 
               return (
                 <Link
@@ -814,9 +731,7 @@ export default function OperationsBookingsIndex() {
                     {firstLeg ? (
                       <>
                         <span className="font-medium text-slate-800 dark:text-slate-200">{firstLeg.origin_code}</span>
-                        <svg className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 8.25L21 12m0 0l-3.75 3.75M21 12H3" />
-                        </svg>
+                        <ArrowRight size={14} className="text-slate-500 dark:text-slate-400" absoluteStrokeWidth />
                         <span className="font-medium text-slate-800 dark:text-slate-200">{firstLeg.destination_code}</span>
                       </>
                     ) : (

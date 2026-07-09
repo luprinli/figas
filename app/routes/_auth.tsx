@@ -1,6 +1,6 @@
 ﻿import { json } from "@remix-run/node";
-import { Outlet } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { Outlet , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 
 import Logo from "../components/Logo";
 

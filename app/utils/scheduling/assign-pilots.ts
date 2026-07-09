@@ -189,24 +189,35 @@ export async function assignPilotsToRoutes(
  * Matches on license_type (e.g., "ATPL", "CPL") and rating (e.g., "BN-2", "DA-42").
  */
 function hasRequiredRating(pilot: PilotAvailability, aircraftType: string): boolean {
-  // If we have rating info on the availability, check it
   if ("rating" in pilot && pilot.rating) {
     const pilotRating = (pilot as unknown as { rating: string }).rating;
-    // Normalize and compare: check if the aircraft type is contained in the pilot's rating
-    // or if the pilot's rating is contained in the aircraft type
     const normalizedAircraftType = aircraftType.toLowerCase().replace(/[^a-z0-9]/g, "");
     const normalizedRating = pilotRating.toLowerCase().replace(/[^a-z0-9]/g, "");
     if (
       normalizedRating.includes(normalizedAircraftType) ||
-      normalizedAircraftType.includes(normalizedRating)
+      normalizedAircraftType.includes(normalizedRating) ||
+      extractTokens(normalizedAircraftType).some((t) => t.length >= 2 && normalizedRating.includes(t)) ||
+      extractTokens(normalizedRating).some((t) => t.length >= 2 && normalizedAircraftType.includes(t))
     ) {
       return true;
     }
   }
+  return true; // graceful fallback
+}
 
-  // If no rating info is available, assume qualified (graceful fallback)
-  // This matches the existing behavior where the scheduling columns may not have data yet
-  return true;
+function extractTokens(normalized: string): string[] {
+  const tokens: string[] = [];
+  let current = "";
+  for (let i = 0; i < normalized.length; i++) {
+    if (/[a-z]/.test(normalized[i])) {
+      current += normalized[i];
+    } else {
+      if (current.length >= 2) tokens.push(current);
+      current = "";
+    }
+  }
+  if (current.length >= 2) tokens.push(current);
+  return tokens;
 }
 
 /**

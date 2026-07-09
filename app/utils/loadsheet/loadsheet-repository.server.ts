@@ -1,5 +1,4 @@
 import { db } from "../db.server";
-import type { Prisma } from "../../../generated/prisma/client";
 
 export interface LoadsheetRow {
   id: number;
@@ -142,8 +141,8 @@ export const loadsheetRepository = {
     loadsheet_id: number;
     booking_passenger_id: number;
     booking_leg_id: number;
-    seat_row: number;
-    seat_side: string;
+    seat_row: number | null;
+    seat_side: string | null;
     clothed_weight_kg: number;
     baggage_weight_kg: number;
     freight_weight_kg?: number;

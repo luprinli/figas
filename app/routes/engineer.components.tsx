@@ -29,7 +29,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export async function action({ request }: ActionFunctionArgs) {
-  const { userId } = await requireUser(request);
+  await requireUser(request);
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
 

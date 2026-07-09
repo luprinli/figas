@@ -24,7 +24,7 @@ async function main() {
 
   // ── 1. Aerodromes ──────────────────────────────────────────────────────────
   const aerodromes = [
-    { code: "PSY", name: "Stanley Airport (Port Stanley)", city: "Stanley", runway_length: 1200.0, timezone: "Atlantic/Stanley", is_active: true, fuel_available: true },
+    { code: "STY", name: "Stanley Airport", city: "Stanley", runway_length: 1200.0, timezone: "Atlantic/Stanley", is_active: true, fuel_available: true },
     { code: "MPA", name: "Mpa Airport", city: "Mpa", runway_length: 900.0, timezone: "Atlantic/Stanley", is_active: true, fuel_available: false },
     { code: "SHR", name: "Shirley Airport", city: "Shirley", runway_length: 800.0, timezone: "Atlantic/Stanley", is_active: true, fuel_available: false },
     { code: "PPS", name: "Pebble Island Settlement", city: "Pebble Island", runway_length: 750.0, timezone: "Atlantic/Stanley", is_active: true, fuel_available: false },

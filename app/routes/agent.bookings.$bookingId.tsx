@@ -9,6 +9,7 @@ import type { BookingPassengerRow } from "../utils/repositories/booking-passenge
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
 import { getSession } from "../session.server";
+import { ArrowLeft, ArrowRight, CreditCard, Pencil, Plane, Send, XCircle } from "lucide-react";
 import { db } from "../utils/db.server";
 import PageLayout from "../components/PageLayout";
 import StatusBadge from "../components/StatusBadge";
@@ -340,9 +341,7 @@ export default function AgentBookingDetail() {
             to="/agent/bookings"
             className="inline-flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 transition-colors"
           >
-            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" />
-            </svg>
+            <ArrowLeft size={16} />
             Back to My Portfolio
           </Link>
 
@@ -430,9 +429,7 @@ export default function AgentBookingDetail() {
                   <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700 px-3 py-2 min-w-[180px]">
                     <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                       <span>{leg.origin_code}</span>
-                      <svg className="h-4 w-4 text-slate-500 dark:text-slate-400 dark:text-slate-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path d="M3.75 3a.75.75 0 00-.75.75v.5c0 .414.336.75.75.75H4c6.28 0 11.584-1.33 14.416-3.828a.75.75 0 00.012-1.05A.75.75 0 0017.25.25H3.75zM2.25 7.5a.75.75 0 00-.75.75v.5c0 .414.336.75.75.75H4c3.751 0 7.082-.48 10.042-1.353a.75.75 0 00-.084-1.488A28.557 28.557 0 004 7.5H2.25zM2.25 12a.75.75 0 00-.75.75v.5c0 .414.336.75.75.75H4c2.214 0 4.363-.186 6.375-.524a.75.75 0 00-.124-1.488A27.903 27.903 0 004 12H2.25z" />
-                      </svg>
+                      <Plane size={16} className="text-slate-500 dark:text-slate-400" />
                       <span>{leg.destination_code}</span>
                     </div>
                     <div className="mt-1 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
@@ -451,9 +448,7 @@ export default function AgentBookingDetail() {
                   {/* Connector arrow between legs */}
                   {index < legs.length - 1 && (
                     <div className="flex items-center pt-4">
-                      <svg className="h-5 w-5 text-slate-300 dark:text-slate-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
+                      <ArrowRight size={20} className="text-slate-300 dark:text-slate-500" />
                     </div>
                   )}
                 </div>
@@ -633,9 +628,7 @@ export default function AgentBookingDetail() {
                 </>
               ) : (
                 <>
-                  <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path d="M3.478 2.404a.75.75 0 00-.926.941l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.404z" />
-                  </svg>
+                  <Send size={16} />
                   Send Notification
                 </>
               )}
@@ -653,9 +646,7 @@ export default function AgentBookingDetail() {
                   to={`/bookings/${booking.id}/payment`}
                   className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm dark:shadow-slate-900/20 hover:bg-emerald-700 transition-colors"
                 >
-                  <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path d="M1 4a1 1 0 011-1h16a1 1 0 011 1v8a1 1 0 01-1 1H2a1 1 0 01-1-1V4zm10 6a1 1 0 01-1 1H6a1 1 0 01-1-1v-1a1 1 0 011-1h4a1 1 0 011 1v1z" />
-                  </svg>
+                  <CreditCard size={16} />
                   Make Payment
                 </Link>
               )}
@@ -672,9 +663,7 @@ export default function AgentBookingDetail() {
                   }}
                   className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm dark:shadow-slate-900/20 hover:bg-red-700 transition-colors"
                 >
-                  <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
-                  </svg>
+                  <XCircle size={16} />
                   Cancel Booking
                 </button>
               )}
@@ -683,10 +672,7 @@ export default function AgentBookingDetail() {
                   to={`/bookings/${booking.id}`}
                   className="inline-flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 shadow-sm dark:shadow-slate-900/20 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
                 >
-                  <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path d="M5.433 13.917l1.262-3.155A4 4 0 017.58 9.42l6.92-6.918a2.121 2.121 0 013 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 01-.65-.65z" />
-                    <path d="M3.83 16.17a.75.75 0 01.75-.75h10.5a.75.75 0 010 1.5H4.58a.75.75 0 01-.75-.75z" />
-                  </svg>
+                  <Pencil size={16} />
                   Edit Booking
                 </Link>
               )}

@@ -1,5 +1,6 @@
 ﻿import type { BookingLegRow } from "../../utils/repositories/booking-leg";
 import type { BookingLegPassengerWithDetails } from "../../utils/repositories/booking-leg-passenger";
+import { Calendar, Clock, Check, Package, AlertCircle } from "lucide-react";
 import AirportCodeBadge from "./AirportCodeBadge";
 import AircraftIcon from "../icons/AircraftIcon";
 import FlightPathArc from "../icons/FlightPathArc";
@@ -55,9 +56,7 @@ function LegCard({
       <div className="px-4 pb-3">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
           <span className="flex items-center gap-1">
-            <svg className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
+            <Calendar size={14} className="text-slate-500 dark:text-slate-400" absoluteStrokeWidth />
             {new Date(leg.leg_date).toLocaleDateString(undefined, {
               weekday: "short",
               day: "numeric",
@@ -67,9 +66,7 @@ function LegCard({
           </span>
           {leg.preferred_time && (
             <span className="flex items-center gap-1">
-              <svg className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+              <Clock size={14} className="text-slate-500 dark:text-slate-400" absoluteStrokeWidth />
               {leg.preferred_time}
             </span>
           )}
@@ -84,10 +81,10 @@ function LegCard({
               leg.status === "scheduled"
                 ? "bg-sky-100 dark:bg-sky-900/30 text-sky-700"
                 : leg.status === "completed"
-                ? "bg-emerald-100 text-emerald-700"
+                ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
                 : leg.status === "cancelled"
-                ? "bg-red-100 text-red-700"
-                : "bg-slate-100 text-slate-600 dark:text-slate-300 dark:text-slate-500"
+                ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
+                : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
             }`}
           >
             {leg.status}
@@ -97,29 +94,23 @@ function LegCard({
 
       {/* Passenger summary bar */}
       {passengersOnLeg.length > 0 && (
-        <div className="border-t border-slate-100 px-4 py-2">
+        <div className="border-t border-slate-100 dark:border-slate-700 px-4 py-2">
           <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
             <span>
               {passengersOnLeg.length} passenger{passengersOnLeg.length !== 1 ? "s" : ""}
             </span>
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1">
-                <svg className="w-3 h-3 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
+                <Check size={12} className="text-emerald-500" />
                 {checkedInCount} checked in
               </span>
               <span className="flex items-center gap-1">
-                <svg className="w-3 h-3 text-sky-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
+                <Check size={12} className="text-sky-500" />
                 {boardedCount} boarded
               </span>
               {seatAssignment && (
                 <span className="flex items-center gap-1">
-                  <svg className="w-3 h-3 text-slate-500 dark:text-slate-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                  </svg>
+                  <Package size={12} className="text-slate-500 dark:text-slate-400" absoluteStrokeWidth />
                   {seatAssignment.seats.filter((s) => s.seatNumber).length} seats
                 </span>
               )}
@@ -183,9 +174,7 @@ export default function FlightLegTimeline({
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/30 p-4">
         <div className="flex items-start gap-3">
-          <svg className="w-5 h-5 text-red-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-          </svg>
+          <AlertCircle size={20} className="text-red-500 mt-0.5 shrink-0" absoluteStrokeWidth />
           <div>
             <p className="text-sm font-medium text-red-800">Unable to load passenger data</p>
             <p className="text-xs text-red-600 mt-1">Some leg details may be incomplete.</p>

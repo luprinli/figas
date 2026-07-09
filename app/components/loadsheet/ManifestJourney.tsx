@@ -23,9 +23,6 @@ const CIRCLE_R = 4;
 const ARROW_W = 6;
 
 function sortPassengers(passengers: PassengerRow[], stopCodes: string[]): PassengerRow[] {
-  const styFirst = stopCodes.indexOf("STY");
-  const styLast = stopCodes.lastIndexOf("STY");
-
   return [...passengers].sort((a, b) => {
     const aFromIdx = stopCodes.indexOf(a.origin);
     const bFromIdx = stopCodes.indexOf(b.origin);
@@ -59,7 +56,7 @@ export default function ManifestJourney({ passengers, stopCodes, className }: Ma
         {stopCodes.map((code, i) => (
           <div
             key={`${code}-${i}`}
-            className={`shrink-0 border-l border-slate-100 px-1 py-1.5 text-center ${code === "STY" ? "font-bold text-cyan-600" : ""}`}
+            className={`shrink-0 border-l border-slate-100 dark:border-slate-700 px-1 py-1.5 text-center ${code === "STY" ? "font-bold text-cyan-600" : ""}`}
             style={{ width: STOP_W }}
           >
             {code}
@@ -74,7 +71,7 @@ export default function ManifestJourney({ passengers, stopCodes, className }: Ma
         const lineY = ROW_H / 2;
 
         return (
-          <div key={p.id} className="flex border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+          <div key={p.id} className="flex border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
             {/* Label column */}
             <div className="shrink-0 px-2 py-1.5 flex items-center" style={{ width: LABEL_W }}>
               <span className="rounded bg-slate-100 dark:bg-slate-700 px-1 py-0 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-300 leading-tight mr-1.5">
@@ -161,7 +158,7 @@ export default function ManifestJourney({ passengers, stopCodes, className }: Ma
       )}
 
       {/* ── Legend ── */}
-      <div className="flex items-center gap-4 px-4 py-1.5 text-[10px] text-slate-500 dark:text-slate-400 border-t border-slate-100">
+      <div className="flex items-center gap-4 px-4 py-1.5 text-[10px] text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-700">
         <span className="inline-flex items-center gap-1">
           <svg width="10" height="10"><circle cx="5" cy="5" r="3.5" fill={TEAL} /></svg> Board
         </span>

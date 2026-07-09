@@ -1,7 +1,7 @@
 ﻿import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { Form, useLoaderData, useActionData, Link } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { Form, useLoaderData, useActionData, Link , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 import { useState } from "react";
 import { requireAuth } from "../utils/auth.server";
 import { requirePermission } from "../utils/permissions.server";
@@ -230,9 +230,9 @@ export default function ManageAirframeHours() {
           </div>
 
           <div>
-            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
+            <span className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
               Last Reading Date *
-            </label>
+            </span>
             <DatePicker
               value={createLastReadingDate}
               onChange={setCreateLastReadingDate}
@@ -259,9 +259,9 @@ export default function ManageAirframeHours() {
           </div>
 
           <div>
-            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
+            <span className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
               Next Check Date
-            </label>
+            </span>
             <DatePicker
               value={createNextCheckDate}
               onChange={setCreateNextCheckDate}
@@ -518,9 +518,9 @@ export default function ManageAirframeHours() {
                             </select>
                           </div>
                           <div>
-                            <label className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                            <span className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                               Last Reading Date
-                            </label>
+                            </span>
                             <DatePicker
                               value={getEditDate(h.id as number, "last_reading_date") || (h.last_reading_date as string)}
                               onChange={(v) => setEditDate(h.id as number, "last_reading_date", v)}
@@ -549,9 +549,9 @@ export default function ManageAirframeHours() {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                            <span className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                               Next Check Date
-                            </label>
+                            </span>
                             <DatePicker
                               value={getEditDate(h.id as number, "next_check_date") || ((h.next_check_date as string) ?? "")}
                               onChange={(v) => setEditDate(h.id as number, "next_check_date", v)}

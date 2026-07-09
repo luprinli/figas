@@ -41,13 +41,14 @@ export function SortableDroppableFlightCard({
     const issues: ValidationIssue[] = [];
 
     if (flightCardFlight.seat_count != null && flightCardFlight.stop_manifests.length > 0) {
-      const paxIds = new Set<number>();
+      let maxOnBoard = 0;
+      let onBoard = 0;
       for (const sm of flightCardFlight.stop_manifests) {
-        for (const p of sm.departing_passengers) paxIds.add(p.id);
-        for (const p of sm.arriving_passengers) paxIds.add(p.id);
+        onBoard = onBoard - sm.arriving_passengers.length + sm.departing_passengers.length;
+        if (onBoard > maxOnBoard) maxOnBoard = onBoard;
       }
-      if (paxIds.size > flightCardFlight.seat_count) {
-        issues.push({ type: "error", message: `Passenger count (${paxIds.size}) exceeds seat capacity (${flightCardFlight.seat_count})` });
+      if (maxOnBoard > flightCardFlight.seat_count) {
+        issues.push({ type: "error", message: `Passenger count (${maxOnBoard} on busiest leg) exceeds seat capacity (${flightCardFlight.seat_count})` });
       }
     }
 

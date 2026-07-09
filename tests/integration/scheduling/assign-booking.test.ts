@@ -126,9 +126,9 @@ describe("handleAssignBooking()", () => {
       await handleAssignBooking(bookingLeg.id, 99999);
       // If it doesn't throw, the FK constraint would fail on commit
       // (but we rollback anyway)
-    } catch (e: any) {
+    } catch (e: unknown) {
       // Prisma FK error is expected since flight 99999 doesn't exist
-      expect(e.code).toBe("P2003");
+      expect((e as { code: string }).code).toBe("P2003");
     }
   });
 

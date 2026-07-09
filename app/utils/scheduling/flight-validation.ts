@@ -291,7 +291,7 @@ export async function validateFlight(
     }
 ): Promise<FlightValidationResult> {
     const weightWarnings: string[] = [];
-    const pilotWeightKg = options?.pilotWeightKg ?? 160; // 2 pilots × 80 kg
+    const pilotWeightKg = options?.pilotWeightKg ?? 80; // single pilot (FIGAS)
     const freightWeightKg = options?.freightWeightKg ?? 0;
     const aerodromes = options?.aerodromes ?? [];
     const fuelAndDistance = options?.fuelAndDistance ?? new Map();
@@ -387,6 +387,7 @@ export async function validateFlight(
     // Track cumulative passengers and remaining fuel
     let cumulativePassengerWeight = 0;
     let cumulativePassengerCount = 0;
+    let maxCumulativePassengerCount = 0;
     let remainingFuelKg = fuelOnBoardKg;
 
     for (let i = 0; i < sortedLegs.length; i++) {
@@ -403,23 +404,30 @@ export async function validateFlight(
             (p) => p.destination_code.toUpperCase() === stopCode
         );
 
+        // Remove deplaning passengers BEFORE boarding for this stop
+        for (const p of deplaningPassengers) {
+            cumulativePassengerCount--;
+            cumulativePassengerWeight -=
+                p.clothed_weight_kg + p.baggage_weight_kg;
+        }
+
         // Add boarding passengers to cumulative count
         for (const p of boardingPassengers) {
             cumulativePassengerCount++;
             cumulativePassengerWeight +=
                 p.clothed_weight_kg + p.baggage_weight_kg;
         }
+        if (cumulativePassengerCount > maxCumulativePassengerCount) {
+            maxCumulativePassengerCount = cumulativePassengerCount;
+        }
 
         // Fuel on board at takeoff from this stop
         const fuelAtStopKg = remainingFuelKg;
 
         // ── Takeoff weight: empty + crew + passengers + baggage + freight + fuel ──
-        const takeoffWeightKg =
-            aircraft.empty_weight_kg +
-            pilotWeightKg +
-            cumulativePassengerWeight +
-            freightWeightKg +
-            fuelAtStopKg;
+        const takeoffWeightKg = [aircraft.empty_weight_kg, pilotWeightKg, cumulativePassengerWeight, freightWeightKg, fuelAtStopKg].every((v) => !isNaN(v))
+            ? aircraft.empty_weight_kg + pilotWeightKg + cumulativePassengerWeight + freightWeightKg + fuelAtStopKg
+            : 0;
 
         // ── Effective MTOW (per-origin, with runway derating) ─────────────────
         // MTOW limits and runway derating apply at the ORIGIN aerodrome
@@ -462,7 +470,7 @@ export async function validateFlight(
         }
 
         // Landing weight = takeoff weight - fuel burnt
-        const landingWeightKg = takeoffWeightKg - fuelBurntKg;
+        const landingWeightKg = !isNaN(fuelBurntKg) ? takeoffWeightKg - fuelBurntKg : takeoffWeightKg;
 
         // ── Effective MLW (per-destination, with runway derating) ────────────
         const effectiveMlwKg = computeEffectiveMlw(
@@ -506,17 +514,10 @@ export async function validateFlight(
 
         // Subtract fuel burnt for next leg
         remainingFuelKg = Math.max(0, remainingFuelKg - fuelBurntKg);
-
-        // Remove deplaning passengers for next stop
-        for (const p of deplaningPassengers) {
-            cumulativePassengerCount--;
-            cumulativePassengerWeight -=
-                p.clothed_weight_kg + p.baggage_weight_kg;
-        }
     }
 
-    // ── 5. Seat count ────────────────────────────────────────────────────────
-    const passengerCount = passengers.length;
+    // ── 5. Seat count (per-leg maximum) ──────────────────────────────────────
+    const passengerCount = maxCumulativePassengerCount;
     const seatCountExceeded = passengerCount > aircraft.seat_count;
 
     // ── 6. Status determination ──────────────────────────────────────────────
@@ -560,7 +561,7 @@ export async function validateFlight(
         const margin = passengerCount - aircraft.seat_count;
         if (margin < lowestMargin) {
             lowestMargin = margin;
-            bindingConstraint = `Seat count exceeded (${passengerCount} > ${aircraft.seat_count})`;
+            bindingConstraint = `Seat count exceeded (${passengerCount} on busiest leg > ${aircraft.seat_count})`;
         }
     } else {
         const margin = aircraft.seat_count - passengerCount;

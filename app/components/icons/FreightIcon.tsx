@@ -1,15 +1,10 @@
+import { Package } from "lucide-react";
+
 interface Props {
   className?: string;
+  size?: number;
 }
 
-export default function FreightIcon({ className = "w-5 h-5" }: Props) {
-  return (
-    <svg
-      className={`${className} fill-current`}
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-    >
-      <path d="M5 21q-1.25 0-2.125-.875T2 18t.875-2.125T5 15q.825 0 1.525.425T7.55 16.5l2.35-1.35q-.2-.55-.3-1.1t-.1-1.05q0-.5.1-1.05t.3-1.1L7.55 9.5q-.45.65-1.15 1.075T5 11q-1.25 0-2.125-.875T2 8t.875-2.125T5 5t2.125.875T8 8q0 .25-.025.5t-.075.5l2.35 1.35q.7-.9 1.675-1.475T14 7.8V5q-.825 0-1.412-.587T12 3t.588-1.412T14 1t1.413.588T16 3v2.8q1.1.2 2.075.775T19.75 8.05L22.1 6.7q-.05-.25-.075-.5T22 5.7q0-1.25.875-2.125T25 2.7t2.125.875T28 5.7t-.875 2.125T25 8.7q-.825 0-1.525-.425T21.45 7.15l-2.35 1.35q.2.55.3 1.1t.1 1.05q0 .5-.1 1.05t-.3 1.1l2.35 1.35q.45-.65 1.15-1.075T25 12.7q1.25 0 2.125.875T28 15.7t-.875 2.125T25 18.7t-2.125-.875T22 15.7q0-.25.025-.5t.075-.5l-2.35-1.35q-.7.9-1.675 1.475T16 15.8V19q.825 0 1.413.588T18 21t-.587 1.413T16 23t-1.412-.587T14 21v-2.8q-1.1-.2-2.075-.775T10.25 15.55L7.9 16.9q.05.25.075.5T8 17.9q0 1.25-.875 2.125T5 21" />
-    </svg>
-  );
+export default function FreightIcon({ className, size = 20 }: Props) {
+  return <Package size={size} className={className} />;
 }

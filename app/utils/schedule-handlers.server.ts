@@ -1,15 +1,32 @@
 import { db } from "./db.server";
 import { scheduleRepository } from "./repositories/schedule";
-import { flightRepository } from "./repositories/flight";
+import { flightRepository, findSummaryById, findLegsByFlightId } from "./repositories/flight";
 import { flightLegRepository } from "./repositories/flight-leg";
 import { bookingLegRepository } from "./repositories/booking-leg";
-import { pilotAssignmentRepository } from "./repositories/pilot-assignment";
-import { assignToFlightLeg, unassignFromFlightLeg, findByBookingLegId } from "./repositories/booking-leg-passenger";
-import { withTransaction } from "./repositories/transaction";
-import { ScheduleStatus } from "./constants";
-import { ScheduleStatus as PrismaScheduleStatus } from "../../generated/prisma/client";
 import { isNoFlyDay } from "./services/no-fly.service";
+import { generateFlightNumber } from "./flight-number.server";
 import { createAuditLogEntry } from "./permissions.server";
+import { ScheduleStatus } from "./constants";
+import { ScheduleStatus as PrismaScheduleStatus } from "../../generated/prisma/enums";
+import { pilotAssignmentRepository } from "./repositories/pilot-assignment";
+import { withTransaction } from "./repositories/transaction";
+import { bigintRowToNumbers } from "./bigint";
+import { findByBookingLegId, assignToFlightLeg, unassignFromFlightLeg } from "./repositories/booking-leg-passenger";
+
+function extractTokens(normalized: string): string[] {
+  const tokens: string[] = [];
+  let current = "";
+  for (let i = 0; i < normalized.length; i++) {
+    if (/[a-z]/.test(normalized[i])) {
+      current += normalized[i];
+    } else {
+      if (current.length >= 2) tokens.push(current);
+      current = "";
+    }
+  }
+  if (current.length >= 2) tokens.push(current);
+  return tokens;
+}
 
 /**
  * Server-only schedule action handlers.
@@ -64,7 +81,10 @@ export async function handleAutoBuild(date: string, createdBy: number): Promise<
 
 /**
  * Handle the "preview-build" intent.
- * Generates a preview from unassigned passengers grouped into origin→destination clusters.
+ * Generates a preview using multiple optimization strategies (Nearest-Neighbor,
+ * Single-Route, Origin-Grouped) and returns the best-scored configuration.
+ * The scorer optimizes for: minimum flights, shortest total duration,
+ * and full passenger coverage.
  */
 export async function handlePreviewBuild(date: string): Promise<ActionResult> {
   const noFly = await isNoFlyDay(date);
@@ -72,122 +92,40 @@ export async function handlePreviewBuild(date: string): Promise<ActionResult> {
     return { error: `Cannot build schedule for ${date}: it is a no-fly day`, status: 400 };
   }
 
-  const { clusterBookingsByDate } = await import("./scheduling/cluster-bookings");
-  const clusters = await clusterBookingsByDate(date);
-  if (clusters.length === 0) {
-    return { error: "No unassigned booking legs found for this date", status: 400 };
-  }
+  const { generateBestConfig } = await import("./scheduling/config-generator");
+  const { configs, allErrors, allWarnings, unassignedCount } = await generateBestConfig(date);
 
-  const totalPax = clusters.reduce((s, c) => s + c.passengerCount, 0);
-  const flights = clusters.map((c) => ({
-    flightNumber: "",
-    originCode: c.origin,
-    destinationCode: c.destination,
-    stops: c.destination === "STY" ? ["STY", c.origin, "STY"] : ["STY", c.origin, c.destination, "STY"],
-    legs: c.destination === "STY" ? [
-      { leg_sequence: 1, origin_code: "STY", destination_code: c.origin, distance_nm: 0, departure_time: null, arrival_time: null },
-      { leg_sequence: 2, origin_code: c.origin, destination_code: "STY", distance_nm: 0, departure_time: null, arrival_time: null },
-    ] : [
-      { leg_sequence: 1, origin_code: "STY", destination_code: c.origin, distance_nm: 0, departure_time: null, arrival_time: null },
-      { leg_sequence: 2, origin_code: c.origin, destination_code: c.destination, distance_nm: 0, departure_time: null, arrival_time: null },
-      { leg_sequence: 3, origin_code: c.destination, destination_code: "STY", distance_nm: 0, departure_time: null, arrival_time: null },
-    ],
-    passengerManifests: [] as Array<Record<string, unknown>>,
-    bookingLegIds: c.legs.map((l) => l.id),
-    passengerCount: c.passengerCount,
-    totalPassengerWeightKg: c.passengerCount * 70,
-    aircraftRegistration: "",
-    aircraftType: "",
-    seatCount: 9,
-    totalDistanceNm: 0,
-    estimatedFlightTimeHours: 0,
-    pilotName: null,
-    weightWarnings: [] as string[],
-    isFeasible: true,
-  }));
+  if (configs.length === 0 && allErrors.length > 0) {
+    return { error: allErrors.join("; "), status: 400 };
+  }
 
   return {
     success: true,
-    configs: [{ id: `direct-${date}`, strategy: "Direct", scheduleDate: date, flights, score: 90,
-      metrics: { totalDistanceNm: 0, totalPassengers: totalPax, totalFlightTimeHours: 0, flightCount: flights.length,
-        avgPassengersPerFlight: flights.length > 0 ? totalPax / flights.length : 0, aircraftUtilization: 0,
-        hasWarnings: false, hasErrors: false, warningCount: 0 } }],
-    errors: [], warnings: [], unassignedCount: totalPax,
+    configs,
+    errors: allErrors,
+    warnings: allWarnings,
+    unassignedCount,
   };
 }
 
 /**
  * Handle the "accept-build" intent.
- * Creates flights from booking leg clusters. One flight per origin→destination cluster.
+ * Runs the full 5-phase scheduling pipeline (identical to auto-build) to ensure
+ * parity between manual accept and direct auto-build. This produces flights with
+ * proper routing, aircraft assignment, weight & balance, and pilot assignment.
  */
 export async function handleAcceptBuild(date: string, createdBy: number): Promise<ActionResult> {
   const noFly = await isNoFlyDay(date);
   if (noFly) return { error: `Cannot build schedule for ${date}: it is a no-fly day`, status: 400 };
 
-  const { clusterBookingsByDate } = await import("./scheduling/cluster-bookings");
-  const clusters = await clusterBookingsByDate(date);
-  if (clusters.length === 0) return { error: "No unassigned booking legs found", status: 400 };
+  const { buildSchedule } = await import("./scheduling/index");
+  const result = await buildSchedule(date, createdBy);
 
-  return db.$transaction(async (tx) => {
-    let schedule = await tx.schedules.findFirst({
-      where: { schedule_date: new Date(date) }, orderBy: { created_at: "desc" },
-    });
-    if (!schedule) {
-      schedule = await tx.schedules.create({ data: { schedule_date: new Date(date), created_by: createdBy } });
-    }
-    const styAerodrome = await tx.aerodromes.findFirst({ where: { code: "STY" }, select: { id: true } });
-    const styId = styAerodrome?.id ?? 0;
-    const createdFlightIds: number[] = [];
-    const now = new Date();
-    const prefix = `FIG${String(now.getDate()).padStart(2, "0")}${String(now.getMonth() + 1).padStart(2, "0")}`;
-    let flightNumCounter = 0;
-    const lastFlight = await tx.flights.findFirst({
-      where: { flight_number: { startsWith: prefix } }, orderBy: { flight_number: "desc" }, select: { flight_number: true },
-    });
-    if (lastFlight) { const s = parseInt(lastFlight.flight_number.slice(-2), 10); if (!isNaN(s)) flightNumCounter = s; }
+  if (result.errors.length > 0) {
+    return { error: result.errors.join("; "), status: 500 };
+  }
 
-    for (const cluster of clusters) {
-      flightNumCounter++;
-      const fn = `${prefix}${String(flightNumCounter).padStart(2, "0")}`;
-      const flight = await tx.flights.create({
-        data: { schedule_id: schedule.id, flight_number: fn, origin_aerodrome_id: styId, destination_aerodrome_id: styId,
-          origin_code: "STY", destination_code: "STY", departure_time: new Date(`${date}T10:00:00Z`),
-          arrival_time: new Date(`${date}T12:00:00Z`), status: "scheduled", created_by: createdBy },
-        select: { id: true },
-      });
-      createdFlightIds.push(flight.id);
-
-      const legRoutes: Array<{ source: string; target: string }> = [{ source: "STY", target: cluster.origin }];
-      legRoutes.push({ source: cluster.origin, target: cluster.destination });
-      if (cluster.destination !== "STY") legRoutes.push({ source: cluster.destination, target: "STY" });
-
-      let currentTime = new Date(`${date}T08:30:00Z`);
-      for (let i = 0; i < legRoutes.length; i++) {
-        const etd = new Date(currentTime);
-        const eta = new Date(currentTime); eta.setMinutes(eta.getMinutes() + 30);
-        await tx.flight_legs.create({
-          data: { flight_id: flight.id, leg_number: i + 1, origin_code: legRoutes[i].source,
-            destination_code: legRoutes[i].target, etd, eta, status: "scheduled" },
-        });
-        currentTime = new Date(eta); currentTime.setMinutes(currentTime.getMinutes() + 10);
-      }
-
-      const bookingLegIds = cluster.legs.map((l) => l.id);
-      for (const blId of bookingLegIds) {
-        await tx.$executeRawUnsafe(
-          `INSERT INTO booking_leg_passengers (booking_leg_id, booking_passenger_id, clothed_weight_kg, baggage_weight_kg, baggage_description, freight_description, freight_weight_kg)
-           SELECT bl.id, bp.id, bp.clothed_body_weight_kg, 0, NULL, NULL, 0
-           FROM booking_legs bl JOIN booking_passengers bp ON bp.booking_id = bl.booking_id
-           LEFT JOIN booking_leg_passengers blp ON blp.booking_leg_id = bl.id AND blp.booking_passenger_id = bp.id
-           WHERE bl.id = $1 AND blp.id IS NULL ON CONFLICT (booking_leg_id, booking_passenger_id) DO NOTHING`, blId);
-      }
-      for (const blId of bookingLegIds) {
-        await tx.booking_legs.update({ where: { id: blId }, data: { flight_id: flight.id } });
-      }
-    }
-    await tx.schedules.update({ where: { id: schedule.id }, data: { status: "building" } });
-    return { success: true, scheduleId: schedule.id, flightCount: createdFlightIds.length };
-  });
+  return { success: true, scheduleId: result.scheduleId, flightCount: result.routes.length, result };
 }
 
 /**
@@ -233,6 +171,37 @@ export async function handleApprove(scheduleId: number, approvedBy: number): Pro
       error: `Cannot approve: ${emptyFlights.length} flight(s) have no booking legs assigned. All flights must have at least one passenger.`,
       status: 400,
     };
+  }
+
+  const wbViolations = await db.$queryRawUnsafe<Array<{ flight_leg_id: number; mtow_used_pct: number; mlw_used_pct: number; binding_constraint: string | null }>>(
+    `SELECT wbs.flight_leg_id, wbs.mtow_used_pct, wbs.mlw_used_pct, wbs.binding_constraint
+     FROM weight_balance_snapshots wbs
+     JOIN flight_legs fl ON fl.id = wbs.flight_leg_id
+     JOIN flights f ON f.id = fl.flight_id
+     WHERE f.schedule_id = $1
+       AND ((wbs.mtow_used_pct IS NOT NULL AND wbs.mtow_used_pct > 100)
+         OR (wbs.mlw_used_pct IS NOT NULL AND wbs.mlw_used_pct > 100)
+         OR (wbs.binding_constraint IS NOT NULL AND wbs.binding_constraint != 'OK' AND wbs.binding_constraint != 'none'))`,
+    [scheduleId]
+  );
+
+  if (wbViolations.length > 0) {
+    const blockApproval = process.env.WB_VIOLATIONS_BLOCK_APPROVAL === "true";
+    if (blockApproval) {
+      return {
+        error: `Cannot approve: ${wbViolations.length} weight & balance violation(s) found. Resolve violations before approving. Set WB_VIOLATIONS_BLOCK_APPROVAL=false to override.`,
+        status: 400,
+        violations: wbViolations.map((v) => ({
+          flightLegId: v.flight_leg_id,
+          mtowUsedPct: Number(v.mtow_used_pct),
+          mlwUsedPct: Number(v.mlw_used_pct),
+          constraint: v.binding_constraint,
+        })),
+      };
+    }
+    console.warn(
+      `[handleApprove] Warning: ${wbViolations.length} W&B violations exist on schedule #${scheduleId}. Approval allowed (WB_VIOLATIONS_BLOCK_APPROVAL not set to "true").`
+    );
   }
 
   await scheduleRepository.updateStatus(scheduleId, ScheduleStatus.APPROVED, { approved_by: approvedBy });
@@ -484,24 +453,8 @@ export async function handleCreateFlight(
   const destinationCode = aerodromes.find((a) => a.id === destinationAerodromeId)?.code ?? "";
 
   return withTransaction(async (tx) => {
-    // Generate flight number by finding the highest existing number with
-    // today's prefix (e.g. FIG0306) and incrementing. This is more robust
-    // than COUNT(*) because it handles pre-existing flights and deleted rows.
     const now = new Date();
-    const day = String(now.getDate()).padStart(2, "0");
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const prefix = `FIG${day}${month}`;
-    const lastFlight = await tx.flights.findFirst({
-      where: { flight_number: { startsWith: prefix } },
-      orderBy: { flight_number: "desc" },
-      select: { flight_number: true },
-    });
-    let nextNum = 1;
-    if (lastFlight) {
-      const suffix = parseInt(lastFlight.flight_number.slice(-2), 10);
-      if (!isNaN(suffix)) nextNum = suffix + 1;
-    }
-    const flightNumber = `${prefix}${String(nextNum).padStart(2, "0")}`;
+    const flightNumber = await generateFlightNumber(now, tx);
 
     // Create the flight record
     const result = await tx.flights.create({
@@ -535,58 +488,19 @@ export async function handleCreateFlight(
     }
 
     // Create the flight leg (origin → destination)
-    const flightLegs = await flightLegRepository.replaceFlightLegs(
+    await flightLegRepository.replaceFlightLegs(
       flightId,
       [{ leg_sequence: 1, origin_code: originCode, destination_code: destinationCode }],
       tx
     );
 
     // Query the full flight row so the client can add it to state immediately
-    const flightRows = await tx.$queryRawUnsafe<Record<string, unknown>[]>(
-      `SELECT f.id, f.flight_number, f.departure_time, f.arrival_time, f.status,
-              NULL::int AS sort_order,
-              NULL::int AS duration_minutes,
-              NULL::timestamp AS check_in_time,
-              NULL::numeric AS max_takeoff_weight_kg,
-              NULL::numeric AS max_landing_weight_kg,
-              NULL::numeric AS basic_empty_weight_kg,
-              NULL::numeric AS payload_kg,
-              NULL::numeric AS fuel_kg,
-              NULL::numeric AS crew_weight_kg,
-              COALESCE(f.origin_code, ao.code) AS origin_code,
-              COALESCE(f.destination_code, ad.code) AS destination_code,
-              a.registration AS aircraft_registration, a.type AS aircraft_type, a.seat_count,
-              p.name AS pilot_name, pa.status AS pilot_status,
-              0 AS flight_ordinal
-       FROM flights f
-       LEFT JOIN aerodromes ao ON ao.id = f.origin_aerodrome_id
-       LEFT JOIN aerodromes ad ON ad.id = f.destination_aerodrome_id
-       LEFT JOIN aircraft a ON a.id = f.aircraft_id
-       LEFT JOIN pilots p ON p.id = f.pilot_id
-       LEFT JOIN pilot_assignments pa ON pa.flight_id = f.id AND pa.status = 'confirmed'
-       WHERE f.id = $1`,
-      flightId
-    );
-    // Convert BigInt values from $queryRawUnsafe to numbers for JSON serialization.
-    // The route handler for create-flight does NOT use convertBigInts (unlike
-    // create-flight-from-booking), so we must convert here.
-    const flightSummary =
-      flightRows[0] != null
-        ? Object.fromEntries(
-            Object.entries(flightRows[0]).map(([k, v]) => [k, typeof v === "bigint" ? Number(v) : v])
-          )
-        : null;
+    const flightRow = await findSummaryById(flightId, tx);
+    const flightSummary = flightRow ? bigintRowToNumbers(flightRow) : null;
 
     // Query the flight legs (already created above, but re-query for the
     // canonical shape expected by the frontend)
-    const legRows = await tx.$queryRawUnsafe<Record<string, unknown>[]>(
-      `SELECT fl.id, fl.flight_id, fl.leg_number AS leg_sequence, fl.etd AS departure_time, fl.eta AS arrival_time, fl.status,
-              fl.origin_code, fl.destination_code, fl.distance_nm, fl.heading
-       FROM flight_legs fl
-       WHERE fl.flight_id = $1
-       ORDER BY fl.leg_number`,
-      flightId
-    );
+    const legRows = await findLegsByFlightId(flightId, tx);
     const updatedFlightLegs = (legRows as Array<{
       id: number | bigint; flight_id: number | bigint; leg_sequence: number | bigint;
       origin_code: string; destination_code: string;
@@ -616,7 +530,8 @@ export async function handleCreateFlight(
        FROM booking_leg_passengers blp
        JOIN booking_legs bl ON bl.id = blp.booking_leg_id
        JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
-       WHERE bl.flight_id = $1
+       WHERE blp.flight_leg_id IS NOT NULL
+         AND blp.flight_leg_id IN (SELECT id FROM flight_legs WHERE flight_id = $1)
        ORDER BY blp.id`,
       flightId
     );
@@ -651,7 +566,7 @@ export async function handleCreateFlight(
  * assignment via booking_leg_passengers. Uses the route insertion algorithm
  * to compute the optimal leg sequence for the flight.
  */
-export async function handleAssignBooking(bookingLegId: number, flightId: number): Promise<ActionResult> {
+export async function handleAssignBooking(bookingLegId: number, flightId: number, bookingLegPassengerId?: number): Promise<ActionResult> {
   // Load the booking leg to get origin/destination codes
   const bookingLeg = await bookingLegRepository.findById(bookingLegId);
   if (!bookingLeg) {
@@ -666,8 +581,19 @@ export async function handleAssignBooking(bookingLegId: number, flightId: number
     }
   }
 
-  // Get all passengers for this booking leg
-  const passengers = await findByBookingLegId(bookingLegId);
+  // Resolve the flight's schedule ID before entering the transaction
+  const flightSchedule = await db.flights.findUnique({
+    where: { id: flightId },
+    select: { schedule_id: true },
+  });
+  const scheduleId = flightSchedule?.schedule_id ?? null;
+
+  // Get passengers for this booking leg.  When a specific passenger is being
+  // dragged (per-passenger scheduling), only process that one junction record.
+  const allPassengers = await findByBookingLegId(bookingLegId);
+  const passengers = bookingLegPassengerId != null
+    ? allPassengers.filter((p) => p.id === bookingLegPassengerId)
+    : allPassengers;
 
   // Load the flight's current legs
   const currentLegs = await flightLegRepository.findByFlightId(flightId);
@@ -676,94 +602,44 @@ export async function handleAssignBooking(bookingLegId: number, flightId: number
   const warnings: string[] = [];
 
   // If no booking_leg_passengers junction records found for this booking leg,
-  // check whether booking_passengers exist. If they do, auto-create the missing
-  // junction records so passengers appear on the flight card.
+  // assign the booking leg to the flight anyway (will appear as zero pax).
+  // Junction records must be created explicitly during booking creation —
+  // auto-creating them here would assign all booking passengers to every leg,
+  // violating per-passenger, per-leg planning.
   if (passengers.length === 0) {
     return withTransaction(async (tx) => {
-      // Auto-create missing booking_leg_passengers junction records
-      await tx.$executeRawUnsafe(
-        `INSERT INTO booking_leg_passengers (booking_leg_id, booking_passenger_id, clothed_weight_kg, baggage_weight_kg, baggage_description, freight_description, freight_weight_kg)
-         SELECT bl.id, bp.id, bp.clothed_body_weight_kg, 0, NULL, NULL, 0
-         FROM booking_legs bl
-         JOIN booking_passengers bp ON bp.booking_id = bl.booking_id
-         LEFT JOIN booking_leg_passengers blp ON blp.booking_leg_id = bl.id AND blp.booking_passenger_id = bp.id
-         WHERE bl.id = $1 AND blp.id IS NULL
-         ON CONFLICT (booking_leg_id, booking_passenger_id) DO NOTHING`,
-        bookingLegId
-      );
-
-      // Re-check for passengers after auto-repair
-      const repairedPassengers = await findByBookingLegId(bookingLegId);
-      if (repairedPassengers.length === 0) {
-        warnings.push("No passengers found for this booking leg — assigned to flight without passenger records");
-        await tx.booking_legs.update({
-          where: { id: bookingLegId },
-          data: { flight_id: flightId },
+      if (scheduleId) {
+        await tx.schedules.updateMany({
+          where: { id: scheduleId, status: "cancelled" },
+          data: { status: "building" },
         });
-        return {
-          success: true,
-          legsInserted: false,
-          updatedFlightLegs: [],
-          updatedPassengerManifests: [],
-          warnings,
-        };
       }
 
-      // Passengers were repaired — continue with normal assignment flow below
-      // First assign the booking leg to the flight and update flight_leg_id
+      warnings.push("No passenger junction records found for this booking leg — assigned to flight without passenger records");
       await tx.booking_legs.update({
         where: { id: bookingLegId },
         data: { flight_id: flightId },
       });
-
-      // Update all repaired passengers: null out flight_leg_id (no legs to assign to)
-      for (const passenger of repairedPassengers) {
-        await tx.$executeRawUnsafe(
-          `UPDATE booking_leg_passengers SET flight_leg_id = NULL WHERE id = $1`,
-          passenger.id
-        );
-      }
-
-      // Re-query manifests so caller gets them
-      const updatedManifestsRows = await tx.$queryRawUnsafe<Record<string, unknown>[]>(
-        `SELECT blp.id, blp.booking_leg_id,
-                CONCAT(bp.first_name, ' ', bp.last_name) AS passenger_name,
-                blp.clothed_weight_kg AS body_weight_kg,
-                blp.baggage_weight_kg, blp.freight_weight_kg,
-                bl.origin_code, bl.destination_code
-         FROM booking_leg_passengers blp
-         JOIN booking_legs bl ON bl.id = blp.booking_leg_id
-         JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
-         WHERE bl.flight_id = $1
-         ORDER BY blp.id`,
-        flightId
-      );
-      const updatedManifests = (updatedManifestsRows as Array<{
-        id: number; booking_leg_id: number; passenger_name: string;
-        body_weight_kg: number; baggage_weight_kg: number; freight_weight_kg: number;
-        origin_code: string; destination_code: string;
-      }>).map((r) => ({
-        id: Number(r.id),
-        booking_leg_id: Number(r.booking_leg_id),
-        passenger_name: r.passenger_name,
-        body_weight_kg: Number(r.body_weight_kg),
-        baggage_weight_kg: Number(r.baggage_weight_kg),
-        freight_weight_kg: r.freight_weight_kg != null ? Number(r.freight_weight_kg) : 0,
-        origin_code: r.origin_code,
-        destination_code: r.destination_code,
-      }));
-
       return {
         success: true,
         legsInserted: false,
         updatedFlightLegs: [],
-        updatedPassengerManifests: updatedManifests,
-        warnings: warnings.length > 0 ? warnings : undefined,
+        updatedPassengerManifests: [],
+        warnings,
       };
     });
   }
 
   return withTransaction(async (tx) => {
+    // If the flight's schedule was cancelled, reactivate it to building
+    // since the user is assigning passengers again.
+    if (scheduleId) {
+      await tx.schedules.updateMany({
+        where: { id: scheduleId, status: "cancelled" },
+        data: { status: "building" },
+      });
+    }
+
     if (currentLegs.length === 0) {
       // No existing legs — just assign all passengers to the flight.
       // Since there are no legs yet, we cannot assign to a specific flight_leg_id.
@@ -790,7 +666,8 @@ export async function handleAssignBooking(bookingLegId: number, flightId: number
          FROM booking_leg_passengers blp
          JOIN booking_legs bl ON bl.id = blp.booking_leg_id
          JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
-         WHERE bl.flight_id = $1
+         WHERE blp.flight_leg_id IS NOT NULL
+           AND blp.flight_leg_id IN (SELECT id FROM flight_legs WHERE flight_id = $1)
          ORDER BY blp.id`,
         flightId
       );
@@ -845,49 +722,70 @@ export async function handleAssignBooking(bookingLegId: number, flightId: number
       );
 
       if (!result.inserted || !result.legs) {
-        throw new Error(`Route insertion failed: ${result.reason ?? "unknown error"}`);
+        // already_on_route is a valid state — both stops exist on the route
+        // and the passenger can travel via the existing legs.  Fall through
+        // to assign the passenger without modifying the route.
+        if (result.reason !== "already_on_route") {
+          return { error: `Route insertion failed: ${result.reason ?? "unknown error"}`, status: 400 };
+        }
       }
 
       // Replace flight legs (pass tx so it runs inside the outer transaction)
-      const newFlightLegs = await flightLegRepository.replaceFlightLegs(flightId, result.legs, tx);
+      let newFlightLegs: typeof currentLegs | null = null;
+      if (result.inserted && result.legs) {
+        newFlightLegs = await flightLegRepository.replaceFlightLegs(flightId, result.legs, tx);
 
-      // Re-map existing passengers to new legs (their flight_leg_id references
-      // point to deleted legs after replaceFlightLegs).
-      await tx.$executeRawUnsafe(
-        `UPDATE booking_leg_passengers blp
-         SET flight_leg_id = (
-           SELECT fl.id FROM flight_legs fl
-           WHERE fl.flight_id = $1
-           AND fl.origin_code = bl.origin_code
-           ORDER BY fl.leg_number ASC
-           LIMIT 1
-         ), updated_at = NOW()
-         FROM booking_legs bl
-         WHERE blp.booking_leg_id = bl.id
-         AND bl.flight_id = $1
-         AND blp.flight_leg_id IS NOT NULL`,
-        flightId,
-      );
+        // Re-map existing passengers to new flight legs (their flight_leg_id references
+        // point to deleted legs after replaceFlightLegs).
+        await tx.$executeRawUnsafe(
+          `UPDATE booking_leg_passengers blp
+           SET flight_leg_id = (
+             SELECT fl.id FROM flight_legs fl
+             WHERE fl.flight_id = $1
+             AND fl.origin_code = bl.origin_code
+             ORDER BY fl.leg_number ASC
+             LIMIT 1
+           ), updated_at = NOW()
+           FROM booking_legs bl
+           WHERE blp.booking_leg_id = bl.id
+           AND blp.flight_leg_id IS NOT NULL
+           AND blp.flight_leg_id IN (SELECT id FROM flight_legs WHERE flight_id = $1)
+           AND blp.flight_leg_id IS NOT NULL`,
+          flightId,
+        );
+      }
 
-      // Find the new matching leg for this booking leg.
-      // If insertPassengerRoute chose an indirect path (e.g., BKI→ALB→SPI
-      // instead of BKI→SPI), there is no direct leg — but the passenger can
-      // still travel via intermediate stops.  In that case clear flight_leg_id
-      // and rely on booking_legs.flight_id for manifest queries.
-      const newMatchingLeg = newFlightLegs.find(
+      // Assign this passenger to the matching or origin-matching leg.
+      // Use existing legs (already_on_route case) or new legs (just replaced).
+      const activeLegs = ((result.inserted && result.legs)
+        ? newFlightLegs
+        : currentLegs) ?? [];
+      const matchingLeg = activeLegs.find(
         (leg) => leg.origin_code === bookingLeg.origin_code && leg.destination_code === bookingLeg.destination_code
       );
 
-      if (newMatchingLeg) {
+      if (matchingLeg) {
         for (const passenger of passengers) {
-          await assignToFlightLeg(passenger.id, newMatchingLeg.id, tx);
+          await assignToFlightLeg(passenger.id, matchingLeg.id, tx);
         }
       } else {
-        for (const passenger of passengers) {
-          await tx.$executeRawUnsafe(
-            `UPDATE booking_leg_passengers SET flight_leg_id = NULL WHERE id = $1`,
-            passenger.id
-          );
+        // No direct leg — the passenger will travel via intermediate stops.
+        // Assign them to the first leg that starts from their origin so they
+        // appear at the departure stop.
+        const originLeg = activeLegs.find(
+          (leg) => leg.origin_code === bookingLeg.origin_code
+        );
+        if (originLeg) {
+          for (const passenger of passengers) {
+            await assignToFlightLeg(passenger.id, originLeg.id, tx);
+          }
+        } else {
+          for (const passenger of passengers) {
+            await tx.$executeRawUnsafe(
+              `UPDATE booking_leg_passengers SET flight_leg_id = NULL WHERE id = $1`,
+              passenger.id
+            );
+          }
         }
       }
       await tx.booking_legs.update({
@@ -933,7 +831,8 @@ export async function handleAssignBooking(bookingLegId: number, flightId: number
        FROM booking_leg_passengers blp
        JOIN booking_legs bl ON bl.id = blp.booking_leg_id
        JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
-       WHERE bl.flight_id = $1
+       WHERE blp.flight_leg_id IS NOT NULL
+         AND blp.flight_leg_id IN (SELECT id FROM flight_legs WHERE flight_id = $1)
        ORDER BY blp.id`,
       flightId
     );
@@ -951,6 +850,9 @@ export async function handleAssignBooking(bookingLegId: number, flightId: number
       origin_code: r.origin_code,
       destination_code: r.destination_code,
     }));
+
+    // Invalidate any existing loadsheet so it gets regenerated on next visit
+    await tx.loadsheets.deleteMany({ where: { flight_id: flightId } });
 
     return {
       success: true,
@@ -981,7 +883,7 @@ export async function handleAssignBooking(bookingLegId: number, flightId: number
 export async function handleCreateFlightFromBooking(
   scheduleId: number,
   bookingLegIds: number[],
-  options?: { date?: string; createdBy?: number }
+  options?: { date?: string; createdBy?: number; bookingLegPassengerIds?: number[] }
 ): Promise<ActionResult> {
   const date = options?.date;
   const createdBy = options?.createdBy ?? 0;
@@ -1017,6 +919,12 @@ export async function handleCreateFlightFromBooking(
     if (noFly) {
       return { error: `Cannot create flights on a no-fly day (${schedule.schedule_date})`, status: 400 };
     }
+    // If the schedule was previously cancelled, reactivate it to building
+    // since the user is now creating a flight with passengers on it.
+    if (schedule.status === "cancelled") {
+      await scheduleRepository.updateStatus(schedule.id, ScheduleStatus.BUILDING);
+      schedule = { ...schedule, status: ScheduleStatus.BUILDING };
+    }
   }
 
   const bookingLegs = await db.booking_legs.findMany({
@@ -1044,21 +952,17 @@ export async function handleCreateFlightFromBooking(
     // Generate flight number by finding the highest existing number with
     // today's prefix (e.g. FIG0306) and incrementing. This is more robust
     // than COUNT(*) because it handles pre-existing flights and deleted rows.
-    const now = new Date();
-    const day = String(now.getDate()).padStart(2, "0");
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const prefix = `FIG${day}${month}`;
-    const lastFlight = await tx.flights.findFirst({
-      where: { flight_number: { startsWith: prefix } },
-      orderBy: { flight_number: "desc" },
-      select: { flight_number: true },
-    });
-    let nextNum = 1;
-    if (lastFlight) {
-      const suffix = parseInt(lastFlight.flight_number.slice(-2), 10);
-      if (!isNaN(suffix)) nextNum = suffix + 1;
-    }
-    const flightNumber = `${prefix}${String(nextNum).padStart(2, "0")}`;
+    // Use the schedule's date for flight number prefix, not current time.
+    const scheduleDate = schedule?.schedule_date
+      ? new Date(schedule.schedule_date)
+      : bookingLegs[0].leg_date
+        ? new Date(bookingLegs[0].leg_date)
+        : new Date();
+    const flightNumber = await generateFlightNumber(scheduleDate, tx);
+
+    // Compute base departure time: 08:30 on the schedule date
+    const baseDate = new Date(scheduleDate);
+    baseDate.setUTCHours(8, 30, 0, 0);
 
     // Create flight with STY → origin → destination → STY route
     const flightResult = await tx.flights.create({
@@ -1067,8 +971,8 @@ export async function handleCreateFlightFromBooking(
         flight_number: flightNumber,
         origin_aerodrome_id: styId,
         destination_aerodrome_id: styId,
-        departure_time: new Date(),
-        arrival_time: new Date(),
+        departure_time: baseDate,
+        arrival_time: baseDate,
         status: "scheduled",
         sort_order: (await tx.flights.count({ where: { schedule_id: effectiveScheduleId } })),
         created_by: 1,
@@ -1077,17 +981,18 @@ export async function handleCreateFlightFromBooking(
     });
     const flightId = flightResult.id;
 
-    // Compute per-leg ETD/ETA starting from 08:30 as base departure time.
+    // Compute per-leg ETD/ETA starting from baseDate.
     // Each leg: ETA = ETD + 30 min (placeholder), next ETD = prev ETA + 10 min turnaround.
-    const baseDate = new Date();
-    baseDate.setHours(8, 30, 0, 0);
     let currentTime = new Date(baseDate);
 
     // Create flight legs: STY → origin → destination → STY
-    // Skip the final STY leg if destination is already STY
-    const legRoutes: Array<{ origin_code: string; destination_code: string }> = [
-      { origin_code: "STY", destination_code: bookingLegs[0].origin.code },
-    ];
+    // Skip the initial STY→origin leg if origin is already STY (avoids duplicate STY→STY).
+    // Skip the final destination→STY leg if destination is already STY.
+    const firstOrigin = bookingLegs[0].origin.code;
+    const legRoutes: Array<{ origin_code: string; destination_code: string }> = [];
+    if (firstOrigin !== "STY") {
+      legRoutes.push({ origin_code: "STY", destination_code: firstOrigin });
+    }
     for (let i = 0; i < bookingLegs.length; i++) {
       const leg = bookingLegs[i];
       legRoutes.push({ origin_code: leg.origin.code, destination_code: leg.destination.code });
@@ -1117,31 +1022,61 @@ export async function handleCreateFlightFromBooking(
       currentTime.setMinutes(currentTime.getMinutes() + 10); // 10 min turnaround
     }
 
-    // Ensure booking_leg_passengers junction records exist for all assigned legs.
-    // Without these junction records, the loader's passenger manifest query
-    // (which starts FROM booking_leg_passengers) returns empty results,
-    // causing assigned passengers to not appear on the flight card.
-    // Uses per-leg iteration instead of ANY($1::int[]) because the Pg adapter
-    // does not convert JS arrays to PostgreSQL arrays for $executeRawUnsafe.
-    for (const blId of bookingLegIds) {
-      await tx.$executeRawUnsafe(
-        `INSERT INTO booking_leg_passengers (booking_leg_id, booking_passenger_id, clothed_weight_kg, baggage_weight_kg, baggage_description, freight_description, freight_weight_kg)
-         SELECT bl.id, bp.id, bp.clothed_body_weight_kg, 0, NULL, NULL, 0
-         FROM booking_legs bl
-         JOIN booking_passengers bp ON bp.booking_id = bl.booking_id
-         LEFT JOIN booking_leg_passengers blp ON blp.booking_leg_id = bl.id AND blp.booking_passenger_id = bp.id
-         WHERE bl.id = $1 AND blp.id IS NULL
-         ON CONFLICT (booking_leg_id, booking_passenger_id) DO NOTHING`,
-        blId
-      );
-    }
-
     // Assign all booking legs to the flight
     for (const blId of bookingLegIds) {
       await tx.booking_legs.update({
         where: { id: blId },
         data: { flight_id: flightId },
       });
+    }
+
+    // Compute and persist flight duration + check-in time
+    const totalDistanceNm = legRoutes.length > 0 ? legRoutes.length * 30 * (140 / 60) : 0;
+    const durationMinutes = Math.round((totalDistanceNm / 140) * 60);
+    await tx.$executeRawUnsafe(
+      `UPDATE flights SET duration_minutes = $1, check_in_time = $2::time WHERE id = $3`,
+      durationMinutes,
+      "08:30",
+      flightId
+    );
+
+    // Set flight_leg_id on each specific passenger's junction record so they
+    // disappear from the unassigned pool (findUnassignedByDate filters by
+    // blp.flight_leg_id IS NULL).  Match each passenger's booking leg
+    // origin/destination to the newly created flight legs.
+    if (options?.bookingLegPassengerIds?.length) {
+      const passengerRows = await tx.booking_leg_passengers.findMany({
+        where: { id: { in: options.bookingLegPassengerIds } },
+        select: { id: true, booking_leg_id: true },
+      });
+      const blIds = [...new Set(passengerRows.map((p) => p.booking_leg_id))];
+      const blData = await tx.booking_legs.findMany({
+        where: { id: { in: blIds } },
+        select: { id: true, origin_code: true, destination_code: true },
+      });
+      const blMap = new Map(blData.map((b) => [b.id, b]));
+      // Fetch the actual flight leg IDs (not indices) for matching
+      const flRows = await tx.flight_legs.findMany({
+        where: { flight_id: flightId },
+        select: { id: true, leg_number: true, origin_code: true, destination_code: true },
+        orderBy: { leg_number: "asc" },
+      });
+      for (const p of passengerRows) {
+        const bl = blMap.get(p.booking_leg_id);
+        if (!bl) continue;
+        const matchingFl = flRows.find(
+          (fl) => fl.origin_code === bl.origin_code && fl.destination_code === bl.destination_code
+        );
+        if (matchingFl) {
+          await assignToFlightLeg(p.id, matchingFl.id, tx);
+        } else {
+          // No direct leg — find first origin-matching leg for indirect routes
+          const originLeg = flRows.find((fl) => fl.origin_code === bl.origin_code);
+          if (originLeg) {
+            await assignToFlightLeg(p.id, originLeg.id, tx);
+          }
+        }
+      }
     }
 
     // Query the full flight row with aerodrome codes, aircraft, and pilot info
@@ -1162,7 +1097,7 @@ export async function handleCreateFlightFromBooking(
               COALESCE(f.destination_code, ad.code) AS destination_code,
               a.registration AS aircraft_registration, a.type AS aircraft_type, a.seat_count,
               p.name AS pilot_name, pa.status AS pilot_status,
-              0 AS flight_ordinal
+              1 AS flight_ordinal
        FROM flights f
        LEFT JOIN aerodromes ao ON ao.id = f.origin_aerodrome_id
        LEFT JOIN aerodromes ad ON ad.id = f.destination_aerodrome_id
@@ -1184,7 +1119,16 @@ export async function handleCreateFlightFromBooking(
       flightId
     );
 
-    // Query passenger manifests for this flight
+    // Query passenger manifests for this flight.
+    // When per-passenger scheduling is active (bookingLegPassengerIds provided),
+    // only include the specific passenger(s) being dragged — not all passengers
+    // on the booking leg.
+    const passengerIdFilter = options?.bookingLegPassengerIds?.length
+      ? `AND blp.id = ANY($2::int[])`
+      : ``;
+    const passengerIdParam = options?.bookingLegPassengerIds?.length
+      ? options.bookingLegPassengerIds
+      : [];
     const manifestRows = await tx.$queryRawUnsafe<Record<string, unknown>[]>(
       `SELECT blp.id, blp.booking_leg_id,
               CONCAT(bp.first_name, ' ', bp.last_name) AS passenger_name,
@@ -1194,9 +1138,10 @@ export async function handleCreateFlightFromBooking(
        FROM booking_leg_passengers blp
        JOIN booking_legs bl ON bl.id = blp.booking_leg_id
        JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
-       WHERE bl.flight_id = $1
+       WHERE blp.flight_leg_id IS NOT NULL
+         AND blp.flight_leg_id IN (SELECT id FROM flight_legs WHERE flight_id = $1) ${passengerIdFilter}
        ORDER BY blp.id`,
-      flightId
+      flightId, ...(passengerIdParam.length ? [passengerIdParam] : [])
     );
 
     return {
@@ -1275,9 +1220,20 @@ export async function handleResetDraft(scheduleId: number): Promise<ActionResult
  * Unassigns all passengers from a booking leg using per-passenger
  * unassignment via booking_leg_passengers.
  */
-export async function handleUnassignBooking(bookingLegId: number): Promise<ActionResult> {
+export async function handleUnassignBooking(bookingLegId: number, bookingLegPassengerId?: number): Promise<ActionResult> {
+  // When only a passenger ID is provided (per-passenger unassign), resolve the
+  // booking leg from the passenger's junction record.
+  let effectiveLegId = bookingLegId;
+  if (!bookingLegId && bookingLegPassengerId) {
+    const blp = await db.booking_leg_passengers.findUnique({
+      where: { id: bookingLegPassengerId },
+      select: { booking_leg_id: true },
+    });
+    if (blp) effectiveLegId = blp.booking_leg_id;
+  }
+
   // Get the flight_id before unassigning
-  const leg = await bookingLegRepository.findById(bookingLegId);
+  const leg = await bookingLegRepository.findById(effectiveLegId);
   if (!leg) {
     return { error: "Booking leg not found", status: 404 };
   }
@@ -1287,17 +1243,18 @@ export async function handleUnassignBooking(bookingLegId: number): Promise<Actio
     return { error: "Booking is already unassigned", status: 400 };
   }
 
-  // G-03: Check schedule status — only allow unassign from BUILDING or DRAFT schedules
+  // G-03: Check schedule status — allow unassign from BUILDING, DRAFT, or CANCELLED
+  // CANCELLED is allowed so users can resurrect a cancelled schedule by
+  // unassigning and reassigning bookings without starting from a clean slate.
   const flight = await db.flights.findUnique({
     where: { id: leg.flight_id },
     select: { id: true, schedule_id: true },
   });
   if (flight && flight.schedule_id !== null) {
     const schedule = await scheduleRepository.findById(flight.schedule_id);
-    // Use lowercase to match DB values (ScheduleStatus.BUILDING = "building")
-    if (schedule && ![ScheduleStatus.BUILDING, "draft"].includes(schedule.status)) {
+    if (schedule && ![ScheduleStatus.BUILDING, "draft", "cancelled"].includes(schedule.status)) {
       return {
-        error: "Cannot unassign booking from a schedule that is not in BUILDING or DRAFT status",
+        error: "Cannot unassign booking from a schedule that is not in BUILDING, DRAFT, or CANCELLED status",
         status: 400,
       };
     }
@@ -1314,29 +1271,55 @@ export async function handleUnassignBooking(bookingLegId: number): Promise<Actio
   const flightId = leg.flight_id;
 
   return withTransaction(async (tx) => {
-    // Unassign all passengers for this booking leg
-    const passengers = await findByBookingLegId(bookingLegId);
-    for (const passenger of passengers) {
-      await unassignFromFlightLeg(passenger.id, tx);
+    // Unassign the specific passenger (per-passenger) or all passengers on the leg.
+    if (bookingLegPassengerId) {
+      await unassignFromFlightLeg(bookingLegPassengerId, tx);
+    } else {
+      const passengers = await findByBookingLegId(effectiveLegId);
+      for (const passenger of passengers) {
+        await unassignFromFlightLeg(passenger.id, tx);
+      }
     }
 
-    // Also clear booking_leg.flight_id for backward compatibility
-    await tx.booking_legs.update({
-      where: { id: bookingLegId },
-      data: { flight_id: null },
+    // Check if any passengers remain on this booking leg with an active flight_leg_id.
+    // Only clear booking_leg.flight_id when NO passengers remain assigned.
+    const remainingOnLeg = await tx.booking_leg_passengers.count({
+      where: { booking_leg_id: effectiveLegId, flight_leg_id: { not: null } },
     });
+    if (remainingOnLeg === 0) {
+      await tx.booking_legs.update({
+        where: { id: effectiveLegId },
+        data: { flight_id: null },
+      });
+    }
 
-    // If the flight now has no booking legs, delete the empty flight
+    // If the flight now has zero assigned passengers AND zero booking legs, delete the empty flight.
     let deletedFlightId: number | null = null;
     if (flightId) {
-      // Use tx to count within the transaction so we see the uncommitted update
-      const remainingCount = await tx.booking_legs.count({
-        where: { flight_id: flightId },
-      });
-      if (remainingCount === 0) {
+      // Count remaining passengers via per-passenger flight_leg_id assignment
+      const paxRows = await tx.$queryRawUnsafe<Array<{cnt: number}>>(
+        `SELECT COUNT(*)::int AS cnt
+         FROM booking_leg_passengers blp
+         JOIN flight_legs fl ON fl.id = blp.flight_leg_id
+         WHERE fl.flight_id = $1`,
+        flightId
+      );
+      // Also count booking legs still assigned to the flight
+      const legRows = await tx.$queryRawUnsafe<Array<{cnt: number}>>(
+        `SELECT COUNT(*)::int AS cnt FROM booking_legs WHERE flight_id = $1`,
+        flightId
+      );
+      const remainingPaxCount = paxRows[0]?.cnt ?? 0;
+      const remainingLegCount = legRows[0]?.cnt ?? 0;
+      if (remainingPaxCount === 0 && remainingLegCount === 0) {
+        // Delete the loadsheet first (foreign key to flight)
+        await tx.loadsheets.deleteMany({ where: { flight_id: flightId } });
         // Delete directly via tx to avoid nested transaction in deleteFlight
         await tx.flights.delete({ where: { id: flightId } });
         deletedFlightId = flightId;
+      } else {
+        // Invalidate the loadsheet so it gets regenerated on next visit
+        await tx.loadsheets.deleteMany({ where: { flight_id: flightId } });
       }
     }
 
@@ -1481,14 +1464,24 @@ export async function handleTransferBooking(
            FROM booking_leg_passengers blp
            JOIN booking_legs bl ON bl.id = blp.booking_leg_id
            JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
-           WHERE blp.flight_leg_id = ANY($1::int[])
+           WHERE blp.flight_leg_id IS NOT NULL
+           AND blp.flight_leg_id IN (SELECT id FROM flight_legs WHERE flight_id = $1)
            ORDER BY blp.id`,
-          updatedLegRows.map((l) => l.id)
+          targetFlightId
         )
       : [];
 
+    // Invalidate both flights' loadsheets so they get regenerated on next visit
+    await tx.loadsheets.deleteMany({ where: { flight_id: targetFlightId } });
+
+    // Map leg_number → leg_sequence to match frontend FlightLegRow type
+    const mappedLegs = updatedLegRows.map((l) => ({
+      ...l,
+      leg_sequence: l.leg_number,
+    }));
+
     return { success: true, targetFlightId, sourceFlightId, deletedFlightId,
-      updatedFlightLegs: updatedLegRows, updatedPassengerManifests: manifestRows };
+      updatedFlightLegs: mappedLegs, updatedPassengerManifests: manifestRows };
   });
 }
 
@@ -1525,6 +1518,9 @@ export async function handleRemoveFlight(flightId: number): Promise<ActionResult
     await tx.flight_legs.deleteMany({
       where: { flight_id: flightId },
     });
+
+    // 3b. Delete any associated loadsheet (prevents orphaned loadsheet records)
+    await tx.loadsheets.deleteMany({ where: { flight_id: flightId } });
 
     // 4. Delete the flight
     await tx.flights.delete({
@@ -1590,7 +1586,6 @@ export async function handleAssignAircraft(
   });
 
   if (conflictingFlights.length > 0) {
-    const fmtTime = (d: Date) => d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
     const names = conflictingFlights.map((f) => f.flight_number).join(", ");
     console.warn(`[handleAssignAircraft] BLOCKED: Aircraft ${aircraft.registration} conflicts with ${names} on schedule ${scheduleId}`);
     return {
@@ -1624,12 +1619,12 @@ export async function handleAssignAircraft(
   // Re-query the updated flight row so the client can update state directly
   const updatedFlightRows = await db.$queryRawUnsafe<Record<string, unknown>[]>(
     `SELECT f.id, f.flight_number, f.departure_time, f.arrival_time, f.status,
-            NULL::int AS sort_order,
-            NULL::int AS duration_minutes,
-            NULL::timestamp AS check_in_time,
-            NULL::numeric AS max_takeoff_weight_kg,
+            f.sort_order,
+            f.duration_minutes,
+            f.check_in_time,
+            a.max_takeoff_weight_kg,
             NULL::numeric AS max_landing_weight_kg,
-            NULL::numeric AS basic_empty_weight_kg,
+            a.empty_weight_kg AS basic_empty_weight_kg,
             NULL::numeric AS payload_kg,
             NULL::numeric AS fuel_kg,
             NULL::numeric AS crew_weight_kg,
@@ -1745,9 +1740,12 @@ export async function handleAssignPilot(
     if (aircraft) {
       const normalizedAircraftType = aircraft.type.toLowerCase().replace(/[^a-z0-9]/g, "");
       const normalizedRating = pilot.rating.toLowerCase().replace(/[^a-z0-9]/g, "");
+      // Check for shared tokens (e.g., "bn2" in both "bn2islander" and "bn2typerating")
       const hasQualification =
         normalizedRating.includes(normalizedAircraftType) ||
-        normalizedAircraftType.includes(normalizedRating);
+        normalizedAircraftType.includes(normalizedRating) ||
+        extractTokens(normalizedAircraftType).some((t) => t.length >= 2 && normalizedRating.includes(t)) ||
+        extractTokens(normalizedRating).some((t) => t.length >= 2 && normalizedAircraftType.includes(t));
 
       if (!hasQualification) {
         return {
@@ -1818,12 +1816,12 @@ export async function handleAssignPilot(
   // Re-query the updated flight row so the client can update state directly
   const updatedFlightRows = await db.$queryRawUnsafe<Record<string, unknown>[]>(
     `SELECT f.id, f.flight_number, f.departure_time, f.arrival_time, f.status,
-            NULL::int AS sort_order,
-            NULL::int AS duration_minutes,
-            NULL::timestamp AS check_in_time,
-            NULL::numeric AS max_takeoff_weight_kg,
+            f.sort_order,
+            f.duration_minutes,
+            f.check_in_time,
+            a.max_takeoff_weight_kg,
             NULL::numeric AS max_landing_weight_kg,
-            NULL::numeric AS basic_empty_weight_kg,
+            a.empty_weight_kg AS basic_empty_weight_kg,
             NULL::numeric AS payload_kg,
             NULL::numeric AS fuel_kg,
             NULL::numeric AS crew_weight_kg,
@@ -1912,7 +1910,8 @@ export async function routeScheduleAction(
     case "assign-booking": {
       const bookingLegId = Number(formData.get("bookingLegId"));
       const flightId = Number(formData.get("flightId"));
-      return handleAssignBooking(bookingLegId, flightId);
+      const bookingLegPassengerId = formData.get("bookingLegPassengerId") ? Number(formData.get("bookingLegPassengerId")) : undefined;
+      return handleAssignBooking(bookingLegId, flightId, bookingLegPassengerId);
     }
 
     case "create-flight-from-booking": {
@@ -1920,12 +1919,15 @@ export async function routeScheduleAction(
       const bookingLegIdsRaw = formData.get("bookingLegIds")?.toString();
       if (!bookingLegIdsRaw) return { error: "No booking leg IDs provided" };
       const bookingLegIds: number[] = JSON.parse(bookingLegIdsRaw);
-      return handleCreateFlightFromBooking(scheduleId, bookingLegIds);
+      const bookingLegPassengerIdsRaw = formData.get("bookingLegPassengerIds")?.toString();
+      const bookingLegPassengerIds: number[] | undefined = bookingLegPassengerIdsRaw ? JSON.parse(bookingLegPassengerIdsRaw) : undefined;
+      return handleCreateFlightFromBooking(scheduleId, bookingLegIds, { bookingLegPassengerIds });
     }
 
     case "unassign-booking": {
       const bookingLegId = Number(formData.get("bookingLegId"));
-      return handleUnassignBooking(bookingLegId);
+      const bookingLegPassengerId = formData.get("bookingLegPassengerId") ? Number(formData.get("bookingLegPassengerId")) : undefined;
+      return handleUnassignBooking(bookingLegId, bookingLegPassengerId);
     }
 
     case "transfer-booking": {

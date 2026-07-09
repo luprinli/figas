@@ -27,7 +27,7 @@
 | **npm** | `>= 9.x` | Package manager |
 | **PostgreSQL** | `>= 16` | Primary database |
 | **Stripe Account** | — | Payment processing (test mode for development) |
-| **Netlify Account** | — | Hosting & deployment (optional for local dev) |
+| **Render Account** | — | Hosting & deployment (optional for local dev) |
 
 Verify your Node.js version:
 
@@ -52,18 +52,15 @@ npm install
 cp .env.example .env
 
 # 4. Edit .env with your credentials (see §3)
-#    SUPABASE_DATABASE_URL=postgresql://user:password@host:5432/figas
+#    DATABASE_URL=postgresql://user:password@host:5432/figas
 
 # 5. Create the database
 createdb figas
 
-# 6. Run database migrations
-npx tsx app/utils/migrate.ts
+# 6. Run migrations, seed data, and configure PBAC (one command)
+npm run setup
 
-# 7. Seed reference data (optional)
-npx tsx app/utils/seed.ts
-
-# 8. Start the development server
+# 7. Start the development server
 npm run dev
 ```
 
@@ -130,48 +127,47 @@ psql -U postgres -c "CREATE DATABASE figas;"
 
 ### 4.2 Run Migrations
 
-The system uses a custom migration runner at [`app/utils/migrate.ts`](../app/utils/migrate.ts). Migrations are SQL files in the [`migrations/`](../migrations/) directory, tracked via a `_migrations` table.
+The system uses a custom migration runner at [`app/utils/migrate.ts`](../app/utils/migrate.ts). It applies SQL files from [`migrations/consolidated/`](../migrations/consolidated/), tracked via a `_migrations` table.
 
 ```bash
 # Run all pending migrations
-npx tsx app/utils/migrate.ts
+npm run migrate
 ```
 
 **What this does:**
 1. Creates the `_migrations` tracking table (if not exists)
-2. Reads all `.sql` files from `migrations/` directory (sorted by filename)
+2. Reads all `.sql` files from `migrations/consolidated/` (sorted by filename)
 3. Applies only unapplied migrations, each in its own transaction
 4. Records each successful migration in `_migrations`
 
-**Migration order (16 files):**
+**Applied migrations (`migrations/consolidated/`):**
 
 | # | File | Purpose |
 |---|---|---|
-| 001 | [`001_create_tables.sql`](../migrations/001_create_tables.sql) | Core schema: users, aerodromes, aircraft, bookings, passengers, etc. |
-| 002 | [`002_add_missing_columns.sql`](../migrations/002_add_missing_columns.sql) | Missing columns and constraints |
-| 003 | [`003_create_reference_tables.sql`](../migrations/003_create_reference_tables.sql) | Reference data tables |
-| 004 | [`004_add_timestamps_to_reference_tables.sql`](../migrations/004_add_timestamps_to_reference_tables.sql) | Timestamps on reference tables |
-| 005 | [`005_add_booking_source_and_cancellation.sql`](../migrations/005_add_booking_source_and_cancellation.sql) | Booking source, cancellation support |
-| 006 | [`006_create_payment_methods.sql`](../migrations/006_create_payment_methods.sql) | Payment methods reference table |
-| 007 | [`007_create_invoices.sql`](../migrations/007_create_invoices.sql) | Invoices and invoice_items |
-| 008 | [`008_create_accounting_journal.sql`](../migrations/008_create_accounting_journal.sql) | Chart of accounts, journal entries, journal lines |
-| 009 | [`009_create_payment_reminders.sql`](../migrations/009_create_payment_reminders.sql) | Payment reminder scheduling |
-| 010 | [`010_create_stripe_payments.sql`](../migrations/010_create_stripe_payments.sql) | Stripe payment tracking |
-| 011 | [`011_create_bank_transactions.sql`](../migrations/011_create_bank_transactions.sql) | Bank transaction records |
-| 012 | [`012_create_export_log.sql`](../migrations/012_create_export_log.sql) | Export audit log |
-| 013 | [`013_enhance_existing_tables.sql`](../migrations/013_enhance_existing_tables.sql) | Table enhancements |
-| 014 | [`014_create_scheduling_tables.sql`](../migrations/014_create_scheduling_tables.sql) | Schedules, flight_legs, weight_balance, pilot_assignments |
-| 015 | [`015_create_rbac_tables.sql`](../migrations/015_create_rbac_tables.sql) | Roles, permissions, role_permissions, user_roles, audit_log |
-| 016 | [`016_create_booking_leg_passengers.sql`](../migrations/016_create_booking_leg_passengers.sql) | Junction table, schema rename (passengers → booking_passengers) |
+| 001 | [`001-core-schema.sql`](../migrations/consolidated/001-core-schema.sql) | Core schema: users, bookings, booking_legs, booking_passengers, junction table, flights, manifests, payments |
+| 002 | [`002-reference-data.sql`](../migrations/consolidated/002-reference-data.sql) | Reference tables: aerodromes, aircraft, pilots, fare_routes, distances, headings |
+| 003 | [`003-finance.sql`](../migrations/consolidated/003-finance.sql) | Invoices, accounting journal, payment methods, stripe payments, bank transactions, export log |
+| 004 | [`004-scheduling.sql`](../migrations/consolidated/004-scheduling.sql) | Schedules, flight_legs, weight_balance_snapshots, pilot_assignments |
+| 005 | [`005-pbac.sql`](../migrations/consolidated/005-pbac.sql) | PBAC: roles, permissions, role_permissions, user_roles, audit_log |
+| 006 | [`006-no-fly.sql`](../migrations/consolidated/006-no-fly.sql) | No-fly rules and dates |
+| 007 | [`007-triggers-and-functions.sql`](../migrations/consolidated/007-triggers-and-functions.sql) | Triggers and helper functions |
+
+> The original per-feature migrations (`001`–`019`) are preserved for reference under [`migrations/archive/`](../migrations/archive/). Later feature migrations (`008-system-settings.sql` … `018-freight.sql`) and one-off `fix-*.sql` scripts live at the top of [`migrations/`](../migrations/) and are applied by dedicated scripts under [`scripts/`](../scripts/).
 
 ### 4.3 Seed Reference Data
 
 ```bash
-# Load reference data (aerodromes, aircraft, pilots, fare routes, etc.)
-npx tsx app/utils/seed.ts
+# Load reference + demo data (aerodromes, aircraft, pilots, fares, bookings)
+npm run seed:full
+
+# Configure PBAC roles/permissions and assign them to seeded users
+npm run seed:pbac
+npm run seed:pbac:assign
 ```
 
-The seed script loads data from CSV files in the [`data/`](../data/) directory:
+> Tip: `npm run setup` runs migrations plus all of the above in one command.
+
+The seed scripts load data from CSV files in the [`data/`](../data/) directory:
 - [`data/aerodromes.csv`](../data/aerodromes.csv) — Airport/airstrip reference data
 - [`data/aircraft.csv`](../data/aircraft.csv) — Aircraft fleet information
 - [`data/pilots.csv`](../data/pilots.csv) — Pilot records
@@ -190,10 +186,10 @@ psql -U postgres -c "DROP DATABASE figas;"
 psql -U postgres -c "CREATE DATABASE figas;"
 
 # Re-run all migrations
-npx tsx app/utils/migrate.ts
+npm run migrate
 
 # Re-seed data
-npx tsx app/utils/seed.ts
+npm run seed:full
 ```
 
 ---
@@ -215,27 +211,32 @@ This starts the [Vite](https://vitejs.dev/) dev server with HMR (Hot Module Repl
 | `dev` | `npm run dev` | Start Vite dev server with HMR |
 | `build` | `npm run build` | Production build (server + client) |
 | `start` | `npm run start` | Start production server (after build) |
-| `typecheck` | `npx tsc --noEmit` | Run TypeScript type checking |
-| `lint` | `npx eslint .` | Run ESLint (if configured) |
+| `typecheck` | `npm run typecheck` | Run TypeScript type checking (`tsc`) |
+| `lint` | `npm run lint` | Run ESLint |
+| `migrate` | `npm run migrate` | Apply pending migrations |
+| `setup` | `npm run setup` | Migrate + seed:full + seed:pbac + seed:pbac:assign |
+| `test` | `npm test` | Vitest unit + integration tests |
+| `test:e2e` | `npm run test:e2e` | Playwright end-to-end tests |
+| `test:related` | `npm run test:related` | Only suites affected by changed files |
 
 ### 5.3 Development Database Workflow
 
 When making schema changes during development:
 
-1. **Create a new migration file** in [`migrations/`](../migrations/) with the next sequential number (e.g., `017_add_new_feature.sql`)
+1. **Create a new migration file** in [`migrations/`](../migrations/) (a numbered feature migration or a `fix-*.sql` script)
 2. **Write the SQL** for your schema changes
-3. **Run the migration:** `npx tsx app/utils/migrate.ts`
+3. **Apply it** (`npm run migrate` for `consolidated/`, or a dedicated `scripts/apply-*.ts` for top-level feature/fix migrations)
 4. **Update repositories** in [`app/utils/repositories/`](../app/utils/repositories/) if needed
-5. **Update TypeScript interfaces** to match new columns
+5. **Regenerate the Prisma client** if the schema changed (`npx prisma generate`) and update TypeScript interfaces
 
 ### 5.4 Code Quality
 
 ```bash
 # Type checking
-npx tsc --noEmit
+npm run typecheck
 
 # Run linter
-npx eslint app/ --ext .ts,.tsx
+npm run lint
 ```
 
 ### 5.5 Stripe Webhook Testing (Local)
@@ -255,9 +256,26 @@ stripe trigger payment_intent.succeeded
 
 ## 6. Testing
 
-### 6.1 Manual Testing
+### 6.1 Automated Tests
 
-The application can be tested manually by:
+The project uses **Vitest** (unit/integration/smoke) and **Playwright** (end-to-end). Suites live under [`tests/`](../tests/) with shared fixtures in [`tests/fixtures/`](../tests/fixtures/).
+
+```bash
+npm test                  # Vitest unit + integration
+npm run test:unit         # tests/unit
+npm run test:integration  # tests/integration
+npm run test:smoke        # tests/smoke
+npm run test:e2e          # Playwright e2e (tests/e2e)
+npm run test:e2e:ui       # Playwright UI mode
+npm run test:related      # Only suites affected by changed files
+npm run test:all          # Vitest + Playwright
+```
+
+Playwright configuration is in [`playwright.config.ts`](../playwright.config.ts); Vitest configuration is in [`vitest.config.ts`](../vitest.config.ts). CI runs these via the workflows in [`.github/workflows/`](../.github/workflows/).
+
+### 6.2 Manual Testing
+
+The application can also be tested manually by:
 
 1. **Creating a booking** at `/bookings/new` (public) or `/operations/bookings/new` (operations)
 2. **Processing check-in** at `/checkin/counter`
@@ -265,7 +283,7 @@ The application can be tested manually by:
 4. **Processing payments** via Stripe test mode (use card number `4242 4242 4242 4242`)
 5. **Generating invoices** via the finance module at `/finance/invoices`
 
-### 6.2 Test Cards (Stripe)
+### 6.3 Test Cards (Stripe)
 
 | Card Number | Result |
 |---|---|
@@ -304,60 +322,63 @@ Ensure the following are set in your production environment:
 
 ```bash
 # Required
-SUPABASE_DATABASE_URL=postgresql://user:password@host:5432/figas
+DATABASE_URL=postgresql://user:password@host:5432/figas
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 
-# Optional
-SUPABASE_ANON_KEY=eyJ...  # Only if using Supabase Auth
-SESSION_SECRET=your-secret-key  # For session encryption
+# Required in production (see .env.example)
+SESSION_SECRET=your-session-secret   # Session cookie encryption
+CSRF_SECRET=your-csrf-secret          # CSRF token signing
 ```
 
-> **Security Note:** Never commit `.env` files or expose secrets. Use your hosting provider's environment variable management (e.g., Netlify Environment Variables).
+> **Security Note:** Never commit `.env` files or expose secrets. Use your hosting provider's environment variable management (e.g., Render Environment Variables).
 
 ---
 
 ## 8. Deployment
 
-### 8.1 Netlify Deployment
+### 8.1 Render Deployment
 
-The project is configured for Netlify deployment via [`netlify.toml`](../netlify.toml):
+The project is configured for **Render** as a persistent Node web service via [`render.yaml`](../render.yaml). A long-running process is used because the app relies on a Server-Sent Events endpoint (`app/routes/api.schedule-events.ts`) and a per-process Prisma connection pool.
 
-```toml
-[build]
-  command = "npm run build"
-  publish = "build/client"
+The blueprint provisions a managed PostgreSQL 16 database and a web service with:
 
-[dev]
-  command = "npm run dev"
-  port = 5173
+```yaml
+buildCommand: npm ci && npm run build   # postinstall runs `prisma generate`
+preDeployCommand: npm run migrate       # applies migrations before go-live
+startCommand: npm run start             # remix-serve on $PORT
+healthCheckPath: /login
 ```
 
 **Steps:**
 
-1. Push your repository to GitHub/GitLab
-2. In Netlify Dashboard → **Add new site** → **Import from Git**
-3. Select your repository
-4. Netlify auto-detects the build settings from `netlify.toml`
-5. Add environment variables in **Site settings** → **Environment variables**
-6. Deploy
+1. Push your repository to GitHub/GitLab.
+2. In the Render Dashboard → **New** → **Blueprint**, and select your repository.
+3. Render reads `render.yaml`, creating the database and web service.
+4. Set the secret env vars marked `sync: false` (Stripe keys, SMTP credentials, `APP_URL`) in the service's **Environment** tab.
+5. Deploy. `DATABASE_URL` is wired from the managed database automatically; `SESSION_SECRET` / `CSRF_SECRET` are auto-generated.
 
-**Required Netlify Environment Variables:**
+> **Migrations:** `preDeployCommand` requires a paid instance type. On the free tier, run `npm run migrate` from a one-off Render Job or the shell instead.
 
-| Variable | Value |
+**Key env vars (see `render.yaml` for the full list):**
+
+| Variable | Source |
 |---|---|
-| `SUPABASE_DATABASE_URL` | Production PostgreSQL connection string |
-| `STRIPE_SECRET_KEY` | Production Stripe secret key (`sk_live_...`) |
-| `STRIPE_WEBHOOK_SECRET` | Production webhook secret |
+| `DATABASE_URL` | Wired from the managed Render PostgreSQL database |
+| `SESSION_SECRET` / `CSRF_SECRET` | Auto-generated by Render |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Set in dashboard (`sk_live_...`) |
+| `APP_URL` | Deployed service URL (e.g. `https://figas.onrender.com`) |
+| `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | Set in dashboard |
 
-### 8.2 Supabase Integration (Optional)
+> **Portability:** the standard Remix Node build (`build/server/index.js`) runs on any Node host; only `render.yaml` is Render-specific.
 
-If using Supabase for database hosting:
+### 8.2 Managed PostgreSQL
 
-1. Create a [Supabase](https://supabase.com) project
-2. Navigate to **Project Settings** → **Database** → **Connection string**
-3. Copy the URI and set as `SUPABASE_DATABASE_URL`
-4. (Optional) Enable Supabase Auth and set `SUPABASE_ANON_KEY`
+`render.yaml` provisions a Render PostgreSQL database and injects its connection string as `DATABASE_URL`. To use an external database (e.g. Supabase) instead, remove the `databases:` block and set `DATABASE_URL` manually:
+
+1. Create a [Supabase](https://supabase.com) project.
+2. Navigate to **Project Settings** → **Database** → **Connection string**.
+3. Copy the URI and set it as `DATABASE_URL`.
 
 ### 8.3 Stripe Webhook (Production)
 
@@ -378,20 +399,20 @@ If using Supabase for database hosting:
 
 ```bash
 # Test the connection
-psql "$SUPABASE_DATABASE_URL" -c "SELECT 1;"
+psql "$DATABASE_URL" -c "SELECT 1;"
 
 # Check if PostgreSQL is running
 pg_isready
 
 # Verify migration status
-psql "$SUPABASE_DATABASE_URL" -c "SELECT name, applied_at FROM _migrations ORDER BY name;"
+psql "$DATABASE_URL" -c "SELECT filename, applied_at FROM _migrations ORDER BY filename;"
 ```
 
 ### 9.2 Migration Errors
 
 | Symptom | Likely Cause | Solution |
 |---|---|---|
-| `relation "_migrations" does not exist` | First run | Run `npx tsx app/utils/migrate.ts` — the table is auto-created |
+| `relation "_migrations" does not exist` | First run | Run `npm run migrate` — the table is auto-created |
 | `relation "X" already exists` | Partial migration | Check `_migrations` table; manually mark as applied or re-run from clean DB |
 | `column "X" of relation "Y" does not exist` | Outdated migration | Ensure all migrations are applied in order |
 | Migration fails mid-way | SQL error in migration | Fix the SQL, drop and recreate the database, re-run |
@@ -446,7 +467,7 @@ npx vite --port 3000
 |---|---|
 | [`package.json`](../package.json) | Dependencies, scripts, Node version requirements |
 | [`.env.example`](/.env.example) | Environment variable template |
-| [`netlify.toml`](../netlify.toml) | Netlify deployment configuration |
+| [`render.yaml`](../render.yaml) | Render deployment blueprint |
 | [`postcss.config.js`](../postcss.config.js) | PostCSS configuration (Tailwind CSS v4) |
 | [`.nvmrc`](/.nvmrc) | Node version manager config |
 | [`app/utils/migrate.ts`](../app/utils/migrate.ts) | Database migration runner |
@@ -462,13 +483,13 @@ npm run dev          # Start dev server (localhost:5173)
 npx tsc --noEmit     # Type check
 
 # Database
-npx tsx app/utils/migrate.ts   # Run migrations
-npx tsx app/utils/seed.ts      # Seed reference data
+npm run migrate                # Run migrations
+npm run seed:full              # Seed reference + demo data
 
 # Production
 npm run build        # Build for production
 npm run start        # Start production server
 
 # Deployment
-git push             # Auto-deploy via Netlify CI
+git push             # Auto-deploy via Render (autoDeploy)
 ```

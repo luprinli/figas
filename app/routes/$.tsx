@@ -1,6 +1,6 @@
 ﻿import type { MetaFunction } from "@remix-run/node";
-import { Link } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { Link , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 
 export const meta: MetaFunction = () => [{ title: "Page Not Found - FIGAS" }];
 

@@ -2,6 +2,7 @@ import { db } from "../db.server";
 import { aircraftRepository } from "../repositories/aircraft";
 import type { RouteResult, AircraftAssignmentResult } from "./types";
 import { computeFuelPlan, computeFlightTime } from "./fuel-planning";
+import { checkAirframeFeasibility } from "../airframe-hours.server";
 
 /**
  * Phase 3: Assign aircraft to routes based on capacity and availability.
@@ -14,9 +15,11 @@ import { computeFuelPlan, computeFlightTime } from "./fuel-planning";
  */
 export async function assignAircraft(
   route: RouteResult,
-  passengerCount: number
+  passengerCount: number,
+  maxOnBoardCount?: number
 ): Promise<AircraftAssignmentResult> {
   const aircraftList = await aircraftRepository.findAll();
+  const effectivePaxCount = maxOnBoardCount ?? passengerCount;
 
   // Compute fuel for the total route distance
   const totalFlightTimeMinutes = computeFlightTime(route.totalDistanceNm);
@@ -34,7 +37,7 @@ export async function assignAircraft(
 
   for (const aircraft of aircraftList) {
     // Check seat capacity
-    if (aircraft.seat_count < passengerCount) {
+    if (aircraft.seat_count < effectivePaxCount) {
       continue;
     }
 
@@ -45,7 +48,7 @@ export async function assignAircraft(
       fuelWeightKg;
 
     // Check if payload is sufficient (assume ~70kg per passenger minimum)
-    const minPassengerWeight = passengerCount * 70;
+    const minPassengerWeight = effectivePaxCount * 70;
     if (availablePayloadKg < minPassengerWeight) {
       continue;
     }
@@ -82,6 +85,13 @@ export async function assignAircraft(
       continue; // Skip this aircraft — it's already booked for an overlapping slot
     }
 
+    // Check airframe hours before maintenance
+    const plannedDurationHours = totalFlightTimeMinutes / 60;
+    const hoursCheck = await checkAirframeFeasibility(aircraft.id, plannedDurationHours);
+    if (!hoursCheck.feasible) {
+      continue; // Skip — would exceed maintenance window
+    }
+
     // This aircraft is feasible and available
     const assignment: AircraftAssignmentResult = {
       aircraft,
@@ -93,8 +103,8 @@ export async function assignAircraft(
     // Prefer the aircraft with the closest seat count match (not oversized)
     if (
       !bestAssignment ||
-      Math.abs(aircraft.seat_count - passengerCount) <
-      Math.abs(bestAssignment.aircraft.seat_count - passengerCount)
+      Math.abs(aircraft.seat_count - effectivePaxCount) <
+      Math.abs(bestAssignment.aircraft.seat_count - effectivePaxCount)
     ) {
       bestAssignment = assignment;
     }
@@ -115,7 +125,7 @@ export async function assignAircraft(
       route,
       availablePayloadKg,
       feasible: false,
-      infeasibilityReason: `No aircraft with sufficient capacity. Need ${passengerCount} seats, max available is ${fallback.seat_count}.`,
+      infeasibilityReason: `No aircraft with sufficient capacity. Need ${effectivePaxCount} seats, max available is ${fallback.seat_count}.`,
     };
   }
 

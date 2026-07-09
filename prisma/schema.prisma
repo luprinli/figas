@@ -382,6 +382,7 @@ model pilots {
   medical_expiry  DateTime? @db.Date
   rating          String?   @db.VarChar(100)
   is_active       Boolean   @default(true)
+  weight_kg       Decimal?  @default(80.0) @db.Decimal(5,1)
   created_at      DateTime  @default(now()) @db.Timestamptz()
   updated_at      DateTime  @default(now()) @db.Timestamptz()
 
@@ -447,6 +448,8 @@ model flights {
   cargo_weight_kg             Decimal?  @default(0) @db.Decimal(10, 2)
   zero_fuel_weight_kg         Decimal?  @default(0) @db.Decimal(10, 2)
   sort_order                  Int?      @default(0)
+  duration_minutes            Int?
+  check_in_time               DateTime? @db.Time
   created_by                  Int?
   created_at                  DateTime  @default(now()) @db.Timestamptz()
   updated_at                  DateTime  @default(now()) @db.Timestamptz()
@@ -472,6 +475,7 @@ model flights {
   @@index([origin_code])
   @@index([destination_code])
   @@index([schedule_id])
+  @@index([aircraft_id, departure_time])
   @@map("flights")
 }
 
@@ -1245,7 +1249,6 @@ model booking_leg_passengers {
   invoice_line_items  invoice_line_items[]
 
   @@unique([booking_leg_id, booking_passenger_id])
-  @@unique([booking_leg_id, flight_leg_id])
   @@index([booking_leg_id])
   @@index([booking_passenger_id])
   @@index([flight_leg_id])

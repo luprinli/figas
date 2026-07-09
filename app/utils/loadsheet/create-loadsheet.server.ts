@@ -1,9 +1,9 @@
 import { db } from "../db.server";
 import { loadsheetRepository } from "./loadsheet-repository.server";
 import { computeLoadsheetCalculations } from "./loadsheet-calculations.server";
+import { DEFAULT_BN2_MTOW_KG } from "../constants";
 
 const BN2_EMPTY_WT = 1627;
-const BN2_MTOW = 2994;
 
 export async function createLoadsheetFromFlight(flightId: number): Promise<number | null> {
   const existing = await loadsheetRepository.findByFlightId(flightId);
@@ -21,27 +21,55 @@ export async function createLoadsheetFromFlight(flightId: number): Promise<numbe
     select: { id: true, leg_number: true, origin_code: true, destination_code: true, distance_nm: true, etd: true, eta: true },
   });
 
+  // Query passengers that are explicitly assigned to a flight leg of this flight
+  // (per-passenger).  Previously used `WHERE bl.flight_id = $1` which is booking-leg
+  // level and can include passengers who were per-passenger unassigned or never
+  // assigned to a specific leg.
   const passengerRows = await db.$queryRawUnsafe<Record<string, unknown>[]>(
     `SELECT DISTINCT ON (bp.id)
             bp.id,
             blp.booking_leg_id,
+            bl.origin_code,
+            bl.destination_code,
             COALESCE(blp.clothed_weight_kg, 70)::numeric AS clothed_weight_kg,
             COALESCE(blp.baggage_weight_kg, 0)::numeric AS baggage_weight_kg,
             COALESCE(blp.freight_weight_kg, 0)::numeric AS freight_weight_kg
      FROM booking_leg_passengers blp
-     JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
+     JOIN flight_legs fl ON fl.id = blp.flight_leg_id
      JOIN booking_legs bl ON bl.id = blp.booking_leg_id
-     WHERE bl.flight_id = $1
-     ORDER BY bp.id`,
+     JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
+     WHERE fl.flight_id = $1
+     ORDER BY bp.id, blp.id ASC`,
     flightId
   );
 
-  const passengers = (passengerRows as Array<{
+  // Build stop order map from flight legs to validate route order
+  const stopOrderMap = new Map<string, number>();
+  let order = 0;
+  for (const l of legs) {
+    if (l.origin_code && !stopOrderMap.has(l.origin_code)) {
+      stopOrderMap.set(l.origin_code, order++);
+    }
+    if (l.destination_code && !stopOrderMap.has(l.destination_code)) {
+      stopOrderMap.set(l.destination_code, order++);
+    }
+  }
+
+  const routeMatchedRows = (passengerRows as Array<{
     id: number | bigint; booking_leg_id: number | bigint;
+    origin_code: string; destination_code: string;
     clothed_weight_kg: number | bigint; baggage_weight_kg: number | bigint; freight_weight_kg: number | bigint;
-  }>).map((r) => ({
+  }>).filter((r) => {
+    const originIdx = stopOrderMap.get(r.origin_code);
+    const destIdx = stopOrderMap.get(r.destination_code);
+    return originIdx != null && destIdx != null && originIdx < destIdx;
+  });
+
+  const passengers = routeMatchedRows.map((r) => ({
     id: Number(r.id),
     bookingLegId: Number(r.booking_leg_id),
+    origin_code: r.origin_code,
+    destination_code: r.destination_code,
     clothedWeightKg: Number(r.clothed_weight_kg) || 70,
     baggageWeightKg: Number(r.baggage_weight_kg) || 0,
     freightWeightKg: Number(r.freight_weight_kg) || 0,
@@ -53,7 +81,7 @@ export async function createLoadsheetFromFlight(flightId: number): Promise<numbe
   });
 
   const emptyWt = aircraft ? Number(aircraft.empty_weight_kg) || BN2_EMPTY_WT : BN2_EMPTY_WT;
-  const mtow = aircraft ? Number(aircraft.max_takeoff_weight_kg) || BN2_MTOW : BN2_MTOW;
+  const mtow = aircraft ? Number(aircraft.max_takeoff_weight_kg) || DEFAULT_BN2_MTOW_KG : DEFAULT_BN2_MTOW_KG;
 
   const calcResult = await computeLoadsheetCalculations({
     flightId,
@@ -91,8 +119,8 @@ export async function createLoadsheetFromFlight(flightId: number): Promise<numbe
       loadsheet_id: loadsheet.id,
       booking_passenger_id: sa.passengerId,
       booking_leg_id: sa.bookingLegId,
-      seat_row: sa.seatRow,
-      seat_side: sa.seatSide,
+      seat_row: sa.seatRow ?? null,
+      seat_side: sa.seatSide ?? null,
       clothed_weight_kg: sa.clothedWeightKg,
       baggage_weight_kg: sa.baggageWeightKg,
       freight_weight_kg: 0,

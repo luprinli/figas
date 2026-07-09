@@ -23,13 +23,6 @@ import { isNoFlyDay } from "../app/utils/services/no-fly.service";
 // Types
 // ---------------------------------------------------------------------------
 
-interface AerodromeInfo {
-  code: string;
-  name: string;
-  city: string | null;
-  is_active: boolean;
-}
-
 interface FlightInfo {
   id: number;
   flight_number: string;
@@ -44,17 +37,6 @@ interface UserInfo {
   role: string;
   email: string;
   is_active: boolean;
-}
-
-interface OrgInfo {
-  id: number;
-  name: string;
-}
-
-interface FareInfo {
-  origin_code: string;
-  destination_code: string;
-  base_fare_gbp: number | null;
 }
 
 interface GeneratedPassenger {
@@ -160,11 +142,6 @@ function randomPick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function randomPickN<T>(arr: T[], n: number): T[] {
-  const shuffled = [...arr].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, n);
-}
-
 function formatDate(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -216,8 +193,9 @@ type BookingType = "single" | "round_trip" | "multi_leg";
 function generateBookingLegs(
   routePairs: [string, string][],
   bookingDateStr: string,
-  existingFlights: FlightInfo[],
+  _existingFlights: FlightInfo[],
 ): { legs: GeneratedBookingLeg[]; bookingType: BookingType } {
+  void _existingFlights;
   const rand = Math.random();
 
   function pickRoute(): [string, string] {

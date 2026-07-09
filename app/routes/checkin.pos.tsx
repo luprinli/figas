@@ -1,7 +1,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, Form, useFetcher } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { useLoaderData, useFetcher , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { db } from "../utils/db.server";
 import { requireUser } from "../utils/layout.server";
@@ -49,7 +49,7 @@ interface SaleSession {
 }
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  const { userId, userIdentity } = await requireUser(request);
+  const { userIdentity } = await requireUser(request);
   await requirePermission(request, Permission.CHECKIN_PROCESS);
   const url = new URL(request.url);
   const flightId = url.searchParams.get("flightId");
@@ -120,7 +120,6 @@ export async function action({ request }: ActionFunctionArgs) {
     const legPaxId = Number(formData.get("leg_pax_id"));
     const bodyWt = parseFloat(formData.get("body_weight_kg")?.toString() ?? "0");
     const bagWt = parseFloat(formData.get("baggage_weight_kg")?.toString() ?? "0");
-    const flightId = formData.get("flight_id")?.toString();
     const paymentsJson = formData.get("payments")?.toString() ?? "[]";
     const payments: Array<{ method: string; amount: number; reference?: string }> = JSON.parse(paymentsJson);
     const authorizationCode = formData.get("authorization_code")?.toString() || "";
@@ -242,7 +241,7 @@ export default function PosTerminal() {
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
   const [paymentStep, setPaymentStep] = useState<"method" | "cash" | "card" | "invoice" | "deferred">("method");
-  const [activeMethod, setActiveMethod] = useState<string>("");
+  const [, setActiveMethod] = useState<string>("");
   const [authorizationCode, setAuthorizationCode] = useState("");
   const [bodyWeight, setBodyWeight] = useState(session?.bodyWeightKg ?? 70);
   const [baggageWeight, setBaggageWeight] = useState(session?.baggageWeightKg ?? 0);
@@ -345,12 +344,12 @@ export default function PosTerminal() {
           <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3">Passenger Weights</h3>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-slate-500 mb-1">Body Weight (kg)</label>
-              <input type="number" value={bodyWeight} onChange={(e) => setBodyWeight(Number(e.target.value))} step="0.1" min="20" max="200" className="block w-28 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm" />
+              <label htmlFor="pos-body-weight" className="block text-xs text-slate-500 mb-1">Body Weight (kg)</label>
+              <input id="pos-body-weight" type="number" value={bodyWeight} onChange={(e) => setBodyWeight(Number(e.target.value))} step="0.1" min="20" max="200" className="block w-28 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs text-slate-500 mb-1">Baggage (kg)</label>
-              <input type="number" value={baggageWeight} onChange={(e) => setBaggageWeight(Number(e.target.value))} step="0.1" min="0" max="100" className="block w-28 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm" />
+              <label htmlFor="pos-baggage-weight" className="block text-xs text-slate-500 mb-1">Baggage (kg)</label>
+              <input id="pos-baggage-weight" type="number" value={baggageWeight} onChange={(e) => setBaggageWeight(Number(e.target.value))} step="0.1" min="0" max="100" className="block w-28 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm" />
             </div>
           </div>
           {excessCharge > 0 && (
@@ -409,8 +408,9 @@ export default function PosTerminal() {
             </div>
             {/* Weight override justification */}
             <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700">
-              <label className="block text-xs text-slate-500 mb-1">Weight Override Code (if manual entry)</label>
+              <label htmlFor="pos-weight-override-code" className="block text-xs text-slate-500 mb-1">Weight Override Code (if manual entry)</label>
               <input
+                id="pos-weight-override-code"
                 type="text"
                 value={manualOverrideCode}
                 onChange={(e) => setManualOverrideCode(e.target.value)}
@@ -484,14 +484,14 @@ export default function PosTerminal() {
           {paymentStep === "cash" && (
             <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700">
               <CashKeypad onEnter={(v) => addCashPayment(parseFloat(v))} onQuick={(v) => addCashPayment(v)} />
-              <button type="button" onClick={() => setPaymentStep("method")} className="text-xs text-slate-500 hover:text-slate-700 mt-2">Cancel</button>
+              <button type="button" onClick={() => setPaymentStep("method")} className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 mt-2">Cancel</button>
             </div>
           )}
 
           {paymentStep === "card" && (
             <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700">
               <CardProcessor onComplete={(approved, ref) => addCardPayment(approved, ref)} />
-              <button type="button" onClick={() => setPaymentStep("method")} className="text-xs text-slate-500 hover:text-slate-700 mt-2">Cancel</button>
+              <button type="button" onClick={() => setPaymentStep("method")} className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 mt-2">Cancel</button>
             </div>
           )}
 
@@ -499,8 +499,8 @@ export default function PosTerminal() {
             <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 space-y-3">
               <p className="text-sm text-slate-600 dark:text-slate-300">Amount to Invoice: £{remaining.toFixed(2)}</p>
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-200 mb-1">Authorization / PO Reference</label>
-                <input type="text" value={authorizationCode} onChange={(e) => setAuthorizationCode(e.target.value)} placeholder="e.g. PO-2026-001" className="block w-60 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm" />
+                <label htmlFor="pos-auth-code" className="block text-xs font-medium text-slate-700 dark:text-slate-200 mb-1">Authorization / PO Reference</label>
+                <input id="pos-auth-code" type="text" value={authorizationCode} onChange={(e) => setAuthorizationCode(e.target.value)} placeholder="e.g. PO-2026-001" className="block w-60 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm" />
               </div>
               <div className="flex gap-2">
                 <Button color="primary" onClick={addInvoicePayment} disabled={!authorizationCode}>Confirm Invoice</Button>

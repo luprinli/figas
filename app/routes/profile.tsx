@@ -1,7 +1,7 @@
 ﻿import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Form, useActionData, useLoaderData } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { Form, useActionData, useLoaderData , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 import { useState } from "react";
 import { requireAuth } from "../utils/auth.server";
 import { db } from "../utils/db.server";
@@ -207,7 +207,7 @@ export default function Profile() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Date of Birth</label>
+            <span className="block text-sm font-medium text-slate-700 dark:text-slate-200">Date of Birth</span>
             <DOBPicker
               value={dateOfBirth}
               onChange={setDateOfBirth}

@@ -26,17 +26,23 @@ export async function clusterBookings(): Promise<ClusterResult[]> {
     groups.set(key, existing);
   }
 
-  // Batch-fetch passenger counts for ALL legs in a single query (fixes G-10 N+1)
+  // Batch-fetch UNASSIGNED passenger counts for ALL legs in a single query.
+  // Only counts passengers where flight_leg_id IS NULL (unassigned to any flight leg).
+  // This aligns with the per-passenger assignment model and ensures the auto-build
+  // passenger count matches what the UI displays as unassigned.
   const legIds = unassignedLegs.map((l) => l.id);
-  const countRows = await db.$queryRawUnsafe<
-    { booking_leg_id: number; count: number }[]
-  >(
-    `SELECT booking_leg_id, COUNT(*)::int AS count
-     FROM booking_leg_passengers
-     WHERE booking_leg_id = ANY($1)
-     GROUP BY booking_leg_id`,
-    legIds
-  );
+  const countRows = legIds.length > 0
+    ? await db.$queryRawUnsafe<
+        { booking_leg_id: number; count: number }[]
+      >(
+        `SELECT booking_leg_id, COUNT(*)::int AS count
+         FROM booking_leg_passengers
+         WHERE booking_leg_id = ANY($1)
+           AND flight_leg_id IS NULL
+         GROUP BY booking_leg_id`,
+        legIds
+      )
+    : [];
   const passengerCountMap = new Map<number, number>(
     countRows.map((r) => [r.booking_leg_id, r.count])
   );

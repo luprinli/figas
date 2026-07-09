@@ -26,7 +26,7 @@ describe("validateFlight()", () => {
       {
         id: 1,
         name: "Alice Smith",
-        origin_code: "PSY",
+        origin_code: "STY",
         destination_code: "MPA",
         clothed_weight_kg: 70,
         baggage_weight_kg: 15,
@@ -34,7 +34,7 @@ describe("validateFlight()", () => {
       {
         id: 2,
         name: "Bob Jones",
-        origin_code: "PSY",
+        origin_code: "STY",
         destination_code: "MPA",
         clothed_weight_kg: 85,
         baggage_weight_kg: 20,
@@ -42,7 +42,7 @@ describe("validateFlight()", () => {
     ];
 
     const legs: ValidationLeg[] = [
-      { leg_sequence: 1, origin_code: "PSY", destination_code: "MPA", distance_nm: 135 },
+      { leg_sequence: 1, origin_code: "STY", destination_code: "MPA", distance_nm: 135 },
     ];
 
     const result = await validateFlight(passengers, legs, mockAircraft);
@@ -61,14 +61,14 @@ describe("validateFlight()", () => {
     const passengers: ValidationPassenger[] = Array.from({ length: 10 }, (_, i) => ({
       id: i + 1,
       name: `Passenger ${i + 1}`,
-      origin_code: "PSY",
+      origin_code: "STY",
       destination_code: "MPA",
       clothed_weight_kg: 70,
       baggage_weight_kg: 15,
     }));
 
     const legs: ValidationLeg[] = [
-      { leg_sequence: 1, origin_code: "PSY", destination_code: "MPA", distance_nm: 135 },
+      { leg_sequence: 1, origin_code: "STY", destination_code: "MPA", distance_nm: 135 },
     ];
 
     const result = await validateFlight(passengers, legs, mockAircraft);
@@ -84,14 +84,14 @@ describe("validateFlight()", () => {
     const passengers: ValidationPassenger[] = Array.from({ length: 8 }, (_, i) => ({
       id: i + 1,
       name: `Heavy Pax ${i + 1}`,
-      origin_code: "PSY",
+      origin_code: "STY",
       destination_code: "MPA",
       clothed_weight_kg: 120,
       baggage_weight_kg: 30,
     }));
 
     const legs: ValidationLeg[] = [
-      { leg_sequence: 1, origin_code: "PSY", destination_code: "MPA", distance_nm: 135 },
+      { leg_sequence: 1, origin_code: "STY", destination_code: "MPA", distance_nm: 135 },
     ];
 
     const result = await validateFlight(passengers, legs, mockAircraft);
@@ -106,7 +106,7 @@ describe("validateFlight()", () => {
       {
         id: 1,
         name: "Alice",
-        origin_code: "PSY",
+        origin_code: "STY",
         destination_code: "MPA",
         clothed_weight_kg: 70,
         baggage_weight_kg: 15,
@@ -114,7 +114,7 @@ describe("validateFlight()", () => {
     ];
 
     const legs: ValidationLeg[] = [
-      { leg_sequence: 1, origin_code: "PSY", destination_code: "MPA", distance_nm: 800 },
+      { leg_sequence: 1, origin_code: "STY", destination_code: "MPA", distance_nm: 800 },
     ];
 
     const result = await validateFlight(passengers, legs, mockAircraft);
@@ -130,7 +130,7 @@ describe("validateFlight()", () => {
       {
         id: 1,
         name: "Alice",
-        origin_code: "PSY",
+        origin_code: "STY",
         destination_code: "SHR",
         clothed_weight_kg: 70,
         baggage_weight_kg: 15,
@@ -138,12 +138,12 @@ describe("validateFlight()", () => {
     ];
 
     const legs: ValidationLeg[] = [
-      { leg_sequence: 1, origin_code: "PSY", destination_code: "SHR", distance_nm: 80 },
+      { leg_sequence: 1, origin_code: "STY", destination_code: "SHR", distance_nm: 80 },
     ];
 
     const aerodromes: ValidationAerodrome[] = [
       {
-        code: "PSY",
+        code: "STY",
         mtow_limit_kg: null,
         mlw_limit_kg: null,
         runway_length: 350,
@@ -165,7 +165,7 @@ describe("validateFlight()", () => {
       {
         id: 1,
         name: "Alice",
-        origin_code: "PSY",
+        origin_code: "STY",
         destination_code: "MPA",
         clothed_weight_kg: 70,
         baggage_weight_kg: 15,
@@ -174,15 +174,15 @@ describe("validateFlight()", () => {
         id: 2,
         name: "Bob",
         origin_code: "MPA",
-        destination_code: "PSY",
+        destination_code: "STY",
         clothed_weight_kg: 80,
         baggage_weight_kg: 10,
       },
     ];
 
     const legs: ValidationLeg[] = [
-      { leg_sequence: 1, origin_code: "PSY", destination_code: "MPA", distance_nm: 135 },
-      { leg_sequence: 2, origin_code: "MPA", destination_code: "PSY", distance_nm: 135 },
+      { leg_sequence: 1, origin_code: "STY", destination_code: "MPA", distance_nm: 135 },
+      { leg_sequence: 2, origin_code: "MPA", destination_code: "STY", distance_nm: 135 },
     ];
 
     const result = await validateFlight(passengers, legs, mockAircraft);
@@ -200,14 +200,14 @@ describe("validateFlight()", () => {
     const passengers: ValidationPassenger[] = Array.from({ length: 8 }, (_, i) => ({
       id: i + 1,
       name: `Heavy Pax ${i + 1}`,
-      origin_code: "PSY",
+      origin_code: "STY",
       destination_code: "MPA",
       clothed_weight_kg: 100,
       baggage_weight_kg: 25,
     }));
 
     const legs: ValidationLeg[] = [
-      { leg_sequence: 1, origin_code: "PSY", destination_code: "MPA", distance_nm: 135 },
+      { leg_sequence: 1, origin_code: "STY", destination_code: "MPA", distance_nm: 135 },
     ];
 
     const result = await validateFlight(passengers, legs, mockAircraft);
@@ -224,7 +224,7 @@ describe("validateFlight()", () => {
     const passengers: ValidationPassenger[] = [];
 
     const legs: ValidationLeg[] = [
-      { leg_sequence: 1, origin_code: "PSY", destination_code: "MPA", distance_nm: 135 },
+      { leg_sequence: 1, origin_code: "STY", destination_code: "MPA", distance_nm: 135 },
     ];
 
     const result = await validateFlight(passengers, legs, mockAircraft);
@@ -241,14 +241,14 @@ describe("validateFlight()", () => {
     const seatPassengers: ValidationPassenger[] = Array.from({ length: 10 }, (_, i) => ({
       id: i + 1,
       name: `Pax ${i + 1}`,
-      origin_code: "PSY",
+      origin_code: "STY",
       destination_code: "MPA",
       clothed_weight_kg: 70,
       baggage_weight_kg: 15,
     }));
 
     const legs: ValidationLeg[] = [
-      { leg_sequence: 1, origin_code: "PSY", destination_code: "MPA", distance_nm: 135 },
+      { leg_sequence: 1, origin_code: "STY", destination_code: "MPA", distance_nm: 135 },
     ];
 
     const result = await validateFlight(seatPassengers, legs, mockAircraft);

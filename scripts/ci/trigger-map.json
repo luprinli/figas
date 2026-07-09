@@ -1,0 +1,48 @@
+{
+  "app/utils/scheduling/**": ["tests/unit/scheduling", "tests/integration/scheduling"],
+  "app/utils/schedule-handlers.server.ts": ["tests/integration/scheduling"],
+  "app/utils/repositories/schedule.ts": [
+    "tests/integration/scheduling/schedule-status-flow.test.ts",
+    "tests/integration/scheduling/auto-build.test.ts"
+  ],
+  "app/utils/repositories/booking*.ts": ["tests/integration/scheduling"],
+  "app/utils/repositories/flight*.ts": [
+    "tests/integration/scheduling/auto-build.test.ts",
+    "tests/integration/scheduling/assign-booking.test.ts",
+    "tests/integration/scheduling/unassign-booking.test.ts"
+  ],
+  "app/components/schedule/**": ["tests/e2e/scheduling.spec.ts"],
+  "app/utils/repositories/checkin.ts": ["tests/integration/checkin"],
+  "app/utils/repositories/booking-leg-passenger.ts": [
+    "tests/integration/scheduling",
+    "tests/integration/checkin"
+  ],
+  "app/routes/checkin.*": ["tests/integration/checkin", "tests/e2e/checkin.spec.ts"],
+  "app/routes/finance.*": ["tests/e2e/finance.spec.ts"],
+  "app/routes/bookings.*": ["tests/e2e/bookings.spec.ts"],
+  "app/routes/operations.*": [
+    "tests/integration/scheduling",
+    "tests/e2e/scheduling.spec.ts"
+  ],
+  "app/components/checkin/**": ["tests/e2e/checkin.spec.ts"],
+  "app/utils/pricing/**": ["tests/integration/scheduling"],
+  "app/utils/loadsheet/**": ["tests/integration/scheduling"],
+  "app/utils/services/no-fly.service.ts": [
+    "tests/integration/scheduling/auto-build.test.ts",
+    "tests/integration/scheduling/assign-booking.test.ts",
+    "tests/integration/scheduling/unassign-booking.test.ts"
+  ],
+  "app/utils/services/*.service.ts": ["tests/integration/scheduling"],
+  "prisma/schema.prisma": ["__ALL__"],
+  "migrations/**": ["__ALL__"],
+  "tests/fixtures/**": ["__ALL__"],
+  "app/utils/db.server.ts": ["__ALL__"],
+  "app/utils/auth.server.ts": ["tests/e2e/auth.spec.ts"],
+  "app/utils/permissions.server.ts": ["tests/integration/scheduling/permissions.test.ts"],
+  "app/routes/operations.schedule._index/**": [
+    "tests/integration/scheduling",
+    "tests/e2e/scheduling.spec.ts"
+  ],
+  "tests/e2e/helpers/**": ["tests/e2e"],
+  "tests/e2e/pages/**": ["tests/e2e"]
+}

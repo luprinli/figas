@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import type { ReactNode } from "react";
 import DataTable from "./DataTable";
-import type { Column, DataTableProps } from "./DataTable";
+import type { Column } from "./DataTable";
 
 export interface DataGridProps<T> {
   columns: Column<T>[];

@@ -16,6 +16,7 @@ export interface FlightLegRow {
 export interface PassengerManifestRow {
   id: number;
   booking_leg_id: number;
+  flight_leg_id: number;
   passenger_name: string;
   body_weight_kg: number;
   baggage_weight_kg: number;
@@ -55,9 +56,17 @@ export function buildStopActivities(
     flightCodes.add(leg.destination_code);
   }
 
-  // Filter manifests to only those that belong to this flight's route.
+  // Build a set of flight leg IDs that belong to this flight so we can
+  // filter manifests by actual per-passenger assignment, not just route codes.
+  // This prevents cross-flight passenger leakage when the same booking leg
+  // has passengers assigned to different flights.
+  const flightLegIds = new Set(legsForFlight.map((l) => l.id));
+
+  // Filter manifests to only those whose flight_leg_id belongs to this flight.
+  // Falls back to route-code filter for manifests that lack flight_leg_id (legacy).
   const flightManifests = passengerManifests.filter(
-    (p) => flightCodes.has(p.origin_code) && flightCodes.has(p.destination_code)
+    (p) => (p.flight_leg_id != null && flightLegIds.has(p.flight_leg_id))
+        || (p.flight_leg_id == null && flightCodes.has(p.origin_code) && flightCodes.has(p.destination_code))
   );
 
   if (legsForFlight.length === 0) {
@@ -80,7 +89,14 @@ export function buildStopActivities(
     if (!orderedCodes.includes(leg.destination_code)) orderedCodes.push(leg.destination_code);
   });
   return orderedCodes.map((code, index) => {
-    const leg = legsForFlight.find((l) => l.origin_code === code) ?? legsForFlight[index - 1];
+    // For the first occurrence of a code, find the leg where it's the origin.
+    // For the last occurrence (duplicate codes like STY→...→STY), find the leg
+    // where it's the destination — otherwise `find()` always returns the first
+    // leg, giving wrong arrival times for the return stop.
+    const isLast = orderedCodes.lastIndexOf(code) === index && orderedCodes.indexOf(code) !== index;
+    const leg = isLast
+      ? legsForFlight.find((l) => l.destination_code === code)
+      : legsForFlight.find((l) => l.origin_code === code) ?? legsForFlight[index - 1];
     return {
       aerodrome_code: code,
       leg_sequence: leg?.leg_sequence ?? index,

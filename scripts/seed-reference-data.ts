@@ -17,7 +17,7 @@ async function main() {
 
   // ── 1. Aerodromes ────────────────────────────────────────────────────────
   const aerodromes = [
-    { code: "PSY", name: "Stanley Airport (Port Stanley)", city: "Stanley", rw: 1200, tz: "Atlantic/Stanley" },
+    { code: "STY", name: "Stanley Airport", city: "Stanley", rw: 1200, tz: "Atlantic/Stanley" },
     { code: "MPA", name: "Mpa Airport", city: "Mpa", rw: 900, tz: "Atlantic/Stanley" },
     { code: "SHR", name: "Shirley Airport", city: "Shirley", rw: 800, tz: "Atlantic/Stanley" },
     { code: "PPS", name: "Pebble Island Settlement", city: "Pebble Island", rw: 750, tz: "Atlantic/Stanley" },
@@ -48,10 +48,10 @@ async function main() {
 
   // ── 3. Fare routes ──────────────────────────────────────────────────────
   const fareRoutes = [
-    { origin: "PSY", dest: "MPA", fare: 85.00 },
-    { origin: "PSY", dest: "SHR", fare: 75.00 },
-    { origin: "PSY", dest: "PPS", fare: 95.00 },
-    { origin: "PSY", dest: "SAU", fare: 105.00 },
+    { origin: "STY", dest: "MPA", fare: 85.00 },
+    { origin: "STY", dest: "SHR", fare: 75.00 },
+    { origin: "STY", dest: "PPS", fare: 95.00 },
+    { origin: "STY", dest: "SAU", fare: 105.00 },
     { origin: "MPA", dest: "SHR", fare: 45.00 },
     { origin: "MPA", dest: "PPS", fare: 55.00 },
     { origin: "SHR", dest: "PPS", fare: 40.00 },

@@ -343,7 +343,7 @@ async function fetchExportData(
       }
 
       const mapped = Object.entries(buckets)
-        .filter(([_, data]) => data.count > 0)
+        .filter(([, data]) => data.count > 0)
         .map(([bucket, data]) => ({
           bucket,
           count: data.count,

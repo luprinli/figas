@@ -1,8 +1,9 @@
 ﻿import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useActionData, Form, useSubmit, useNavigation } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { useLoaderData, useActionData, Form, useSubmit, useNavigation , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 import { useState, useMemo, useCallback } from "react";
+import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
 import { requirePermission } from "../utils/permissions.server";
 import { requireUser } from "../utils/layout.server";
 import { Permission } from "../utils/constants";
@@ -336,9 +337,7 @@ export default function NoFlyDaysPage() {
           onClick={openCreateModal}
           className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-            <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-          </svg>
+          <Plus size={16} />
           Add Rule
         </button>
       </div>
@@ -354,7 +353,7 @@ export default function NoFlyDaysPage() {
         {/* ── Left column: Effective Calendar ─────────────────────────────── */}
         <div className="lg:col-span-2">
           <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm dark:shadow-slate-900/20">
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 px-6 py-4">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Effective No-Fly Calendar</h2>
               <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                 {noFlyCountInMonth} no-fly day{noFlyCountInMonth !== 1 ? "s" : ""} this month
@@ -370,9 +369,7 @@ export default function NoFlyDaysPage() {
                   className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
                   aria-label="Previous month"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
-                    <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
-                  </svg>
+                  <ChevronLeft size={20} />
                 </button>
                 <span className="text-base font-semibold text-slate-700 dark:text-slate-200">
                   {MONTH_NAMES[calMonth.month - 1]} {calMonth.year}
@@ -383,9 +380,7 @@ export default function NoFlyDaysPage() {
                   className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
                   aria-label="Next month"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
-                    <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
-                  </svg>
+                  <ChevronRight size={20} />
                 </button>
               </div>
 
@@ -449,7 +444,7 @@ export default function NoFlyDaysPage() {
         {/* ── Right column: Rules list ────────────────────────────────────── */}
         <div className="lg:col-span-1">
           <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm dark:shadow-slate-900/20">
-            <div className="border-b border-slate-100 px-6 py-4">
+            <div className="border-b border-slate-100 dark:border-slate-700 px-6 py-4">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
                 Rules ({rules.length})
               </h2>
@@ -462,7 +457,7 @@ export default function NoFlyDaysPage() {
                 </div>
               ) : (
                 rules.map((rule) => (
-                  <div key={rule.id} className={`px-6 py-4 ${!rule.is_active ? "opacity-50" : ""}`}>
+                  <div key={rule.id} className={`px-6 py-4 ${!rule.is_active ? "opacity-50 dark:opacity-60" : ""}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
@@ -487,8 +482,8 @@ export default function NoFlyDaysPage() {
                       <span
                         className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
                           rule.is_active
-                            ? "bg-green-100 text-green-700"
-                            : "bg-slate-100 text-slate-500 dark:text-slate-400 dark:text-slate-500"
+                            ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
+                            : "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
                         }`}
                       >
                         {rule.is_active ? "Active" : "Disabled"}
@@ -541,7 +536,7 @@ export default function NoFlyDaysPage() {
       {/* ── Add/Edit Modal ────────────────────────────────────────────────── */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-lg shadow-xl dark:shadow-slate-900/50 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl dark:shadow-slate-900/50 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
             <Form method="post" onSubmit={closeModal}>
               <input
                 type="hidden"
@@ -562,9 +557,7 @@ export default function NoFlyDaysPage() {
                   onClick={closeModal}
                   className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
-                    <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-                  </svg>
+                  <X size={20} />
                 </button>
               </div>
 
@@ -582,7 +575,7 @@ export default function NoFlyDaysPage() {
                     required
                     defaultValue={editingRule?.label ?? ""}
                     placeholder="e.g., Christmas Day, Winter Wednesdays"
-                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   />
                 </div>
 
@@ -597,7 +590,7 @@ export default function NoFlyDaysPage() {
                     rows={2}
                     defaultValue={editingRule?.description ?? ""}
                     placeholder="Optional description or notes"
-                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   />
                 </div>
 
@@ -613,7 +606,7 @@ export default function NoFlyDaysPage() {
                       className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
                         modalTab === "recurring"
                           ? "bg-blue-600 text-white"
-                          : "bg-white text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:bg-slate-700"
+                          : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
                       }`}
                     >
                       Recurring
@@ -624,7 +617,7 @@ export default function NoFlyDaysPage() {
                       className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
                         modalTab === "one_off"
                           ? "bg-blue-600 text-white"
-                          : "bg-white text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:bg-slate-700"
+                          : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
                       }`}
                     >
                       One-Off
@@ -653,7 +646,7 @@ export default function NoFlyDaysPage() {
                                 name="day_of_week"
                                 value={idx}
                                 defaultChecked={checked}
-                                className="rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500"
+                                className="rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-blue-600 focus:ring-blue-500"
                               />
                               {name.slice(0, 3)}
                             </label>
@@ -664,9 +657,9 @@ export default function NoFlyDaysPage() {
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
+                        <span className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
                           Season Start
-                        </label>
+                        </span>
                         <DatePicker
                           value={seasonStart}
                           onChange={setSeasonStart}
@@ -675,9 +668,9 @@ export default function NoFlyDaysPage() {
                         <input type="hidden" name="season_start" value={seasonStart} />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
+                        <span className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
                           Season End
-                        </label>
+                        </span>
                         <DatePicker
                           value={seasonEnd}
                           onChange={setSeasonEnd}
@@ -686,7 +679,7 @@ export default function NoFlyDaysPage() {
                         <input type="hidden" name="season_end" value={seasonEnd} />
                       </div>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       Leave season dates empty for year-round recurrence.
                     </p>
                   </>
@@ -695,9 +688,9 @@ export default function NoFlyDaysPage() {
                 {/* One-off fields */}
                 {modalTab === "one_off" && (
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
+                    <span className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
                       Date <span className="text-red-500">*</span>
-                    </label>
+                    </span>
                     <DatePicker
                       value={specificDate}
                       onChange={setSpecificDate}
@@ -718,7 +711,7 @@ export default function NoFlyDaysPage() {
                     type="number"
                     min={0}
                     defaultValue={editingRule?.priority ?? 0}
-                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   />
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     Higher priority overrides lower. One-off rules always beat recurring.
@@ -736,7 +729,7 @@ export default function NoFlyDaysPage() {
                     type="text"
                     defaultValue={editingRule?.override_reason ?? ""}
                     placeholder="e.g., Overrides recurring Wednesday rule"
-                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   />
                 </div>
               </div>
@@ -746,14 +739,14 @@ export default function NoFlyDaysPage() {
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="rounded-lg border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                  className="rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:opacity-60 transition-colors"
                 >
                   {isSubmitting ? "Saving..." : editingRule ? "Update Rule" : "Create Rule"}
                 </button>

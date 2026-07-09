@@ -85,7 +85,7 @@ export default function ItineraryGroup({ legs, legPassengers = [] }: ItineraryGr
                 </div>
 
                 {legFreightItems.length > 0 && (
-                  <div className="mt-3 border-t border-slate-100 pt-2 text-sm text-slate-600 dark:text-slate-300 dark:text-slate-500">
+                  <div className="mt-3 border-t border-slate-100 dark:border-slate-700 pt-2 text-sm text-slate-600 dark:text-slate-300 dark:text-slate-500">
                     <span className="font-medium">Freight:</span>
                     {legFreightItems.map((lp, idx) => (
                       <div key={lp.id} className="ml-2">

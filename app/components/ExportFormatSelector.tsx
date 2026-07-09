@@ -88,9 +88,9 @@ export default function ExportFormatSelector({
         {/* Date Range */}
         {onDateChange && (
           <div>
-            <label className="block text-sm/5 font-medium text-slate-700 dark:text-slate-200 mb-1.5">
+            <span className="block text-sm/5 font-medium text-slate-700 dark:text-slate-200 mb-1.5">
               Date Range
-            </label>
+            </span>
             <DateRangePicker
               dateFrom={dateFrom ?? ""}
               dateTo={dateTo ?? ""}

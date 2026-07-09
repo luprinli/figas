@@ -16,8 +16,7 @@ export function useTheme() {
   return useContext(ThemeContext);
 }
 
-function getInitialTheme(): Theme {
-  if (typeof window === "undefined") return "light";
+function resolveTheme(): Theme {
   const stored = localStorage.getItem("figas-theme") as Theme | null;
   if (stored === "dark" || stored === "light") return stored;
   if (window.matchMedia("(prefers-color-scheme: dark)").matches) return "dark";
@@ -25,9 +24,16 @@ function getInitialTheme(): Theme {
 }
 
 export default function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(getInitialTheme);
+  const [theme, setTheme] = useState<Theme>("light");
+  const [initialised, setInitialised] = useState(false);
 
   useEffect(() => {
+    setTheme(resolveTheme());
+    setInitialised(true);
+  }, []);
+
+  useEffect(() => {
+    if (!initialised) return;
     const root = document.documentElement;
     if (theme === "dark") {
       root.classList.add("dark");
@@ -35,7 +41,7 @@ export default function ThemeProvider({ children }: { children: ReactNode }) {
       root.classList.remove("dark");
     }
     localStorage.setItem("figas-theme", theme);
-  }, [theme]);
+  }, [theme, initialised]);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");

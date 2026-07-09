@@ -3,7 +3,6 @@ import { SchedulePage } from "./pages/schedule-page";
 import {
   dragBookingToDraftFlight,
   dragBookingToFlight,
-  simulateDragDrop,
 } from "./helpers/drag-simulator";
 
 // ---------------------------------------------------------------------------
@@ -388,7 +387,7 @@ test.describe("Schedule Builder - Passenger Drag Assignments", () => {
       await expect(card).toBeVisible();
       const text = await card.innerText();
       // Flight cards should contain a flight number, origin/destination codes, or "flight"
-      const hasFlightContent = /FIG|VP|PSY|MPA|flight/i.test(text);
+      const hasFlightContent = /FIG|VP|STY|MPA|flight/i.test(text);
       expect(hasFlightContent).toBeTruthy();
     }
 
@@ -692,12 +691,7 @@ test.describe("Schedule Builder - Passenger Drag Assignments", () => {
     // Assertion 3: No general errors
     await schedulePage.expectNoErrors();
 
-    // Assertion 4: The second booking was assigned (disappeared from pool)
-    const finalBookingCount = await schedulePage.getUnassignedBookingCount();
-    const bookingCountBeforeSecondDrag =
-      await schedulePage.getUnassignedBookingCount();
-    // We can't easily get the count after reload but before the second drag,
-    // so just verify the total flight count is at least 1
+    // Assertion 4: Reload shows at least 1 flight
     const finalFlightCount = await schedulePage.getFlightCardCount();
     expect(finalFlightCount).toBeGreaterThanOrEqual(1);
 

@@ -1,8 +1,10 @@
 ﻿import { Form, Link } from "@remix-run/react";
 import { useRef, useState } from "react";
+import { RotateCcw } from "lucide-react";
 
 import Popup from "./Popup";
 import { useTheme } from "./ThemeProvider";
+import { resetAllTours } from "~/utils/tour/storage.client";
 
 type Props = {
   user?: {
@@ -64,6 +66,17 @@ export default function ProfilePopup({ user }: Props) {
             >
               Profile
             </Link>
+            <button
+              type="button"
+              onClick={() => {
+                resetAllTours();
+                window.location.reload();
+              }}
+              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-left transition rounded-md text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+            >
+              <RotateCcw size={14} aria-hidden />
+              Reset onboarding tours
+            </button>
             <Form action="/logout" method="POST">
               <button
                 type="submit"

@@ -1,6 +1,6 @@
 ﻿import { json, type LoaderFunctionArgs } from "@remix-run/node";
-import { useLoaderData, Link, useSearchParams, useNavigation } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { useLoaderData, Link, useSearchParams, useNavigation , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 import { useState, useMemo } from "react";
 import { db } from "../utils/db.server";
 import { requireUser } from "../utils/layout.server";
@@ -70,10 +70,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
       ls.id AS loadsheet_id,
       COALESCE(ls.total_pax, 0) AS total_pax
     FROM flights f
+    INNER JOIN loadsheets ls ON ls.flight_id = f.id
     LEFT JOIN aircraft a ON a.id = f.aircraft_id
     LEFT JOIN pilots p ON p.id = f.pilot_id
-    LEFT JOIN loadsheets ls ON ls.flight_id = f.id
     WHERE f.departure_time::date = $1
+      AND f.schedule_id IS NOT NULL
     ${pilotFilter}
     ORDER BY f.departure_time ASC
   `;

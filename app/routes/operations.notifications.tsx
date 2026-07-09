@@ -1,7 +1,7 @@
 ﻿import type { ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, Form, Link } from "@remix-run/react";
-import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { useLoaderData, Form, Link , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
 import { db } from "../utils/db.server";
 import { notificationRepository } from "../utils/repositories/notification";
 import DataTable from "../components/DataTable";

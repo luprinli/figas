@@ -28,7 +28,7 @@ describe("clusterBookings()", () => {
       {
         id: 1,
         booking_id: 1,
-        origin_code: "PSY",
+        origin_code: "STY",
         destination_code: "MPA",
         leg_date: "2026-06-15",
         leg_sequence: 1,
@@ -44,7 +44,7 @@ describe("clusterBookings()", () => {
       {
         id: 2,
         booking_id: 2,
-        origin_code: "PSY",
+        origin_code: "STY",
         destination_code: "MPA",
         leg_date: "2026-06-15",
         leg_sequence: 1,
@@ -60,7 +60,7 @@ describe("clusterBookings()", () => {
       {
         id: 3,
         booking_id: 3,
-        origin_code: "PSY",
+        origin_code: "STY",
         destination_code: "SHR",
         leg_date: "2026-06-15",
         leg_sequence: 1,
@@ -81,19 +81,19 @@ describe("clusterBookings()", () => {
 
     const clusters = await clusterBookings();
 
-    // Should group PSY→MPA (2 legs) and PSY→SHR (1 leg)
+    // Should group STY→MPA (2 legs) and STY→SHR (1 leg)
     expect(clusters).toHaveLength(2);
 
     const psyMpa = clusters.find((c) => c.destination === "MPA");
     const psyShr = clusters.find((c) => c.destination === "SHR");
 
     expect(psyMpa).toBeDefined();
-    expect(psyMpa!.origin).toBe("PSY");
+    expect(psyMpa!.origin).toBe("STY");
     expect(psyMpa!.destination).toBe("MPA");
     expect(psyMpa!.legs).toHaveLength(2);
 
     expect(psyShr).toBeDefined();
-    expect(psyShr!.origin).toBe("PSY");
+    expect(psyShr!.origin).toBe("STY");
     expect(psyShr!.destination).toBe("SHR");
     expect(psyShr!.legs).toHaveLength(1);
   });
@@ -111,7 +111,7 @@ describe("clusterBookings()", () => {
       {
         id: 1,
         booking_id: 1,
-        origin_code: "PSY",
+        origin_code: "STY",
         destination_code: "MPA",
         leg_date: "2026-06-15",
         leg_sequence: 1,
@@ -127,7 +127,7 @@ describe("clusterBookings()", () => {
       {
         id: 2,
         booking_id: 2,
-        origin_code: "PSY",
+        origin_code: "STY",
         destination_code: "MPA",
         leg_date: "2026-06-16",
         leg_sequence: 1,
@@ -159,7 +159,7 @@ describe("clusterBookings()", () => {
       {
         id: 1,
         booking_id: 1,
-        origin_code: "PSY",
+        origin_code: "STY",
         destination_code: "MPA",
         leg_date: "2026-06-15",
         leg_sequence: 1,
@@ -175,7 +175,7 @@ describe("clusterBookings()", () => {
       {
         id: 2,
         booking_id: 2,
-        origin_code: "PSY",
+        origin_code: "STY",
         destination_code: "MPA",
         leg_date: "2026-06-15",
         leg_sequence: 1,
@@ -191,7 +191,7 @@ describe("clusterBookings()", () => {
       {
         id: 3,
         booking_id: 3,
-        origin_code: "PSY",
+        origin_code: "STY",
         destination_code: "MPA",
         leg_date: "2026-06-16",
         leg_sequence: 1,
@@ -212,7 +212,7 @@ describe("clusterBookings()", () => {
 
     const clusters = await clusterBookings();
 
-    // Same route PSY→MPA but on different dates → 2 clusters
+    // Same route STY→MPA but on different dates → 2 clusters
     expect(clusters).toHaveLength(2);
 
     const june15 = clusters.find((c) => c.date === "2026-06-15");

@@ -89,7 +89,7 @@ describe("Schedule Error and Edge Cases", () => {
 
   // ── Test: Assign to non-existent flight returns 404 ────────────────────────
   it("assign to non-existent flight returns 404", async () => {
-    await withRollback(async (tx) => {
+    await withRollback(async () => {
       const bookingLeg = await createTestBookingLeg({
         booking_id: 1,
         origin_code: "PSY",
@@ -106,9 +106,9 @@ describe("Schedule Error and Edge Cases", () => {
         await handleAssignBooking(bookingLeg.id, 99999);
         // If it doesn't throw, the FK constraint would fail on commit
         // (but we rollback anyway)
-      } catch (e: any) {
+      } catch (e: unknown) {
         // Prisma FK error is expected since flight 99999 doesn't exist
-        expect(e.code).toBe("P2003");
+        expect((e as { code: string }).code).toBe("P2003");
       }
     });
   });
@@ -135,16 +135,16 @@ describe("Schedule Error and Edge Cases", () => {
         await handleCreateFlight(99999, 1, 2, null, testUserId);
         // If it doesn't throw, the FK constraint would fail on commit
         // (but we rollback anyway)
-      } catch (e: any) {
+      } catch (e: unknown) {
         // Prisma FK error is expected since schedule 99999 doesn't exist
-        expect(e.code).toBe("P2003");
+        expect((e as { code: string }).code).toBe("P2003");
       }
     });
   });
 
   // ── Test: Past date auto-build works ───────────────────────────────────────
   it("past date auto-build works", async () => {
-    await withRollback(async (tx) => {
+    await withRollback(async () => {
       // Create a schedule for a past date
       const schedule = await createTestSchedule({
         schedule_date: dateOnly(2025, 6, 1),
@@ -166,7 +166,7 @@ describe("Schedule Error and Edge Cases", () => {
 
   // ── Test: Far future date auto-build returns 0 bookings ────────────────────
   it("far future date auto-build returns 0 bookings", async () => {
-    await withRollback(async (tx) => {
+    await withRollback(async () => {
       // Create a schedule for a far future date
       const schedule = await createTestSchedule({
         schedule_date: dateOnly(2030, 12, 25),
@@ -178,8 +178,8 @@ describe("Schedule Error and Edge Cases", () => {
       const err = getError(result);
 
       if (err) {
-        // May fail with "no unassigned booking legs" which is expected
-        expect(err.error).toContain("No unassigned booking legs");
+        // May fail with "no unassigned booking legs" or "no-fly day" depending on unique date generation
+        expect(err.error).toMatch(/No unassigned booking legs|no-fly day/);
       } else {
         expect(isSuccess(result)).toBe(true);
       }
@@ -199,16 +199,16 @@ describe("Schedule Error and Edge Cases", () => {
       try {
         await routeScheduleAction("approve", ctx, "2026-07-01");
         // If it doesn't throw, the NaN would cause unexpected behavior
-      } catch (e: any) {
+      } catch (e: unknown) {
         // Prisma validation error is expected for NaN scheduleId
-        expect(e.name).toBe("PrismaClientValidationError");
+        expect((e as { name: string }).name).toBe("PrismaClientValidationError");
       }
     });
   });
 
   // ── Test: Cancel with empty reason still succeeds ──────────────────────────
   it("cancel with empty reason still succeeds", async () => {
-    await withRollback(async (tx) => {
+    await withRollback(async () => {
       const schedule = await createTestSchedule({
         schedule_date: dateOnly(2026, 8, 1),
         created_by: testUserId,

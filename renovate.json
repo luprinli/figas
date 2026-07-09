@@ -1,6 +1,14 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "local>netlify-templates/renovate-config"
+  "extends": ["local>netlify-templates/renovate-config"],
+  "packageRules": [
+    {
+      "matchPackageNames": ["husky", "lint-staged", "@commitlint/cli", "@commitlint/config-conventional", "prettier"],
+      "groupName": "CI guardrails"
+    },
+    {
+      "matchPackageNames": ["vitest", "@playwright/test", "eslint", "typescript", "@typescript-eslint/eslint-plugin", "@typescript-eslint/parser"],
+      "groupName": "Testing & quality"
+    }
   ]
 }

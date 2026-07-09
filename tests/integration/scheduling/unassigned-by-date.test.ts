@@ -66,7 +66,14 @@ describe("bookingLegServerRepository.findUnassignedByDate()", () => {
       expect(foundLeg!.origin_code).toBe("PSY");
       expect(foundLeg!.destination_code).toBe("MPA");
       expect(foundLeg!.flight_id).toBeNull();
-      expect(foundLeg!.booking_reference).toBe("BK-00001");
+      // Resolve expected booking reference from the actual DB record
+      const booking = await db.bookings.findUnique({
+        where: { id: 1 },
+        select: { booking_reference: true },
+      });
+      const expectedRef = booking?.booking_reference ?? "BK-00001";
+
+      expect(foundLeg!.booking_reference).toBe(expectedRef);
     } finally {
       // Cleanup: Remove the passenger we created
       await db.booking_passengers.delete({ where: { id: passenger.id } }).catch(() => {});

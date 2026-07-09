@@ -9,8 +9,11 @@ function getStripe(): Stripe {
     if (!key) {
       throw new Error("STRIPE_SECRET_KEY environment variable is required for Stripe operations");
     }
+    const stripeApiVersion = (process.env.STRIPE_API_VERSION ?? "2026-04-22.dahlia") as NonNullable<
+      ConstructorParameters<typeof Stripe>[1]
+    >["apiVersion"];
     _stripe = new Stripe(key, {
-      apiVersion: (process.env.STRIPE_API_VERSION as any) || "2026-04-22.dahlia",
+      apiVersion: stripeApiVersion,
     });
   }
   return _stripe;

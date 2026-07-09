@@ -88,7 +88,7 @@ function buildOneWay(
   refData: ReferenceData,
   dateStr: string
 ): ItineraryLeg[] {
-  const route = pickRoute(refData, "PSY", 60);
+  const route = pickRoute(refData, "STY", 60);
   return [
     {
       origin: route.origin,
@@ -107,7 +107,7 @@ function buildRoundTrip(
   refData: ReferenceData,
   dateStr: string
 ): ItineraryLeg[] {
-  const route = pickRoute(refData, "PSY", 60);
+  const route = pickRoute(refData, "STY", 60);
   const stayDays = randomInt(1, 14);
   const returnDate = toISODate(addDays(new Date(dateStr + "T00:00:00"), stayDays));
 
@@ -141,7 +141,7 @@ function buildMultiStop(
   const baseDate = new Date(dateStr + "T00:00:00");
 
   // Pick the first route
-  const firstRoute = pickRoute(refData, "PSY", 60);
+  const firstRoute = pickRoute(refData, "STY", 60);
   let currentOrigin = firstRoute.origin;
   let currentDest = firstRoute.destination;
   let offset = 0;
