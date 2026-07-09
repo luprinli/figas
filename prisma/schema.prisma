@@ -205,15 +205,6 @@ enum ExportStatus {
 // CORE TABLES (Migration 001)
 // ============================================================================
 
-/// Migration tracking table
-model migrations {
-  id         Int       @id @default(autoincrement())
-  filename   String    @unique @db.VarChar(255)
-  applied_at DateTime  @default(now()) @db.Timestamptz()
-
-  @@map("_migrations")
-}
-
 /// User accounts
 model users {
   id                      Int       @id @default(autoincrement())
