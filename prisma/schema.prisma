@@ -374,7 +374,7 @@ model organizations {
 /// Pilot records
 model pilots {
   id              Int       @id @default(autoincrement())
-  user_id         Int?
+  user_id         Int?      @unique
   name            String?   @db.VarChar(255)
   email           String?   @db.VarChar(255)
   license_number  String?   @db.VarChar(100)
@@ -1263,7 +1263,7 @@ model booking_leg_passengers {
 /// Rules that designate days on which flight bookings cannot be made
 model no_fly_rules {
   id              Int           @id @default(autoincrement())
-  label           String        @db.VarChar(255)
+  label           String        @unique @db.VarChar(255)
   description     String?       @db.Text
   rule_type       NoFlyRuleType
   is_active       Boolean       @default(true)
