@@ -6,7 +6,9 @@
  * import from here to ensure consistent fuel calculations.
  */
 
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -27,16 +29,11 @@ let fuelRulesCache: FuelCsvRow[] | null = null;
  */
 export async function loadFuelRules(): Promise<FuelCsvRow[]> {
   if (fuelRulesCache) return fuelRulesCache;
-  const rows = await db.fuel_rules.findMany({
-    select: {
-      flight_time_minutes: true,
-      sectors: true,
-      required_fuel_kg: true,
-      minimum_fuel_kg: true,
-      fuel_state: true,
-    },
-    orderBy: [{ flight_time_minutes: "asc" }, { sectors: "asc" }],
-  });
+  const rows = await kdb.selectFrom("fuel_rules")
+    .select(["flight_time_minutes", "sectors", "required_fuel_kg", "minimum_fuel_kg", "fuel_state"])
+    .orderBy("flight_time_minutes asc")
+    .orderBy("sectors asc")
+    .execute();
   fuelRulesCache = rows.map((r) => ({
     ftMins: r.flight_time_minutes,
     sectors: r.sectors,

@@ -1,5 +1,7 @@
 import type { AircraftAssignmentResult, PilotAvailability, PilotAssignmentResult } from "./types";
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 
 /**
  * Phase 5: Assign pilots to flights based on qualifications, duty hours, and availability.
@@ -49,17 +51,10 @@ export async function assignPilots(
   firstOfficer: PilotAssignmentResult | null;
   errors: string[];
 }> {
-  const pilotRows = await db.pilots.findMany({
-    where: { is_active: true },
-    select: {
-      id: true,
-      name: true,
-      is_active: true,
-      license_type: true,
-      rating: true,
-      medical_expiry: true,
-    },
-  });
+  const pilotRows = await kdb.selectFrom("pilots")
+    .select(["id", "name", "is_active", "license_type", "rating", "medical_expiry"])
+    .where("is_active", "=", true)
+    .execute();
   const pilots = pilotRows as PilotRow[];
   const errors: string[] = [];
 
@@ -338,38 +333,51 @@ async function getPilotDutyRecords(
   for (const pilot of pilots) {
     // Find the pilot's most recent assignment before this schedule date
     // to check rest period compliance — include the flight's legs for actual times
-    const recentAssignments = await db.pilot_assignments.findMany({
-      where: {
-        pilot_id: pilot.id,
-        schedule: {
-          schedule_date: {
-            lte: new Date(scheduleDate),
-          },
-        },
-        status: { notIn: ["declined", "cancelled"] },
-      },
-      include: {
-        schedule: {
-          select: { schedule_date: true },
-        },
-        flight: {
-          include: {
-            flight_legs: {
-              orderBy: { leg_number: "asc" },
-            },
-          },
-        },
-      },
-      orderBy: {
-        schedule: { schedule_date: "desc" },
-      },
-      take: 10,
-    });
+    const recentAssignments = await kdb.selectFrom("pilot_assignments as pa")
+      .leftJoin("schedules as s", "s.id", "pa.schedule_id")
+      .leftJoin("flights as f", "f.id", "pa.flight_id")
+      .selectAll("pa")
+      .select(["s.schedule_date", "f.arrival_time", "f.departure_time"])
+      .where("pa.pilot_id", "=", pilot.id)
+      .where("s.schedule_date", "<=", new Date(scheduleDate) as any)
+      .where((eb) => eb.or([
+        eb("pa.status", "not in", ["declined", "cancelled"])
+      ]))
+      .orderBy("s.schedule_date desc")
+      .limit(10)
+      .execute();
+
+    // Batch-fetch flight legs for all assignments
+    const flightIds = recentAssignments.map((a) => a.flight_id).filter((id): id is number => id != null);
+    const allLegs = flightIds.length > 0
+      ? await kdb.selectFrom("flight_legs")
+          .select(["id", "flight_id", "etd", "eta", "leg_number"])
+          .where("flight_id", "in", flightIds)
+          .orderBy("leg_number asc")
+          .execute()
+      : [];
+    const legsByFlight = new Map<number, typeof allLegs>();
+    for (const leg of allLegs) {
+      const arr = legsByFlight.get(leg.flight_id) ?? [];
+      arr.push(leg);
+      legsByFlight.set(leg.flight_id, arr);
+    }
+
+    // Reconstruct nested structure for consuming code
+    const enrichedAssignments = recentAssignments.map((a) => ({
+      ...a,
+      schedule: a.schedule_date != null ? { schedule_date: a.schedule_date } : null,
+      flight: a.flight_id != null ? {
+        arrival_time: a.arrival_time,
+        departure_time: a.departure_time,
+        flight_legs: legsByFlight.get(a.flight_id) ?? [],
+      } : null,
+    }));
 
     // ── Last flight end time (for rest period check) ──────────────────────
     // Find the most recent flight that ended before the schedule date
     let lastFlightEndTime: string | null = null;
-    for (const assignment of recentAssignments) {
+    for (const assignment of enrichedAssignments) {
       const legs = assignment.flight?.flight_legs ?? [];
       // Use the last leg's ETA as the flight end time
       const lastLeg = legs.length > 0 ? legs[legs.length - 1] : null;
@@ -380,19 +388,19 @@ async function getPilotDutyRecords(
         const scheduleStart = new Date(`${scheduleDate}T00:00:00Z`);
         // Only consider flights that ended before the schedule date starts
         if (endDate < scheduleStart) {
-          lastFlightEndTime = flightEnd instanceof Date
-            ? flightEnd.toISOString()
-            : new Date(flightEnd).toISOString();
+          lastFlightEndTime = (flightEnd as any) instanceof Date
+            ? (flightEnd as any as Date).toISOString()
+            : new Date(flightEnd as any).toISOString();
           break;
         }
       }
     }
 
     // ── Today's flights (on the schedule date) ────────────────────────────
-    const todayAssignments = recentAssignments.filter((a) => {
+    const todayAssignments = enrichedAssignments.filter((a) => {
       const assignDate =
-        a.schedule?.schedule_date instanceof Date
-          ? a.schedule.schedule_date.toISOString().split("T")[0]
+        (a.schedule?.schedule_date as any) instanceof Date
+          ? (a.schedule!.schedule_date as unknown as Date).toISOString().split("T")[0]
           : String(a.schedule?.schedule_date).split("T")[0];
       return assignDate === scheduleDate;
     });

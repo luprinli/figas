@@ -1,4 +1,6 @@
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 import type { NoFlyRuleType } from "../../../generated/prisma/client";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -107,9 +109,10 @@ function toDateOrNull(value: string | null | undefined): Date | null {
  * Fetch all no-fly rules, ordered by creation date (newest first).
  */
 export async function findAllRules(): Promise<NoFlyRuleRow[]> {
-  const rows = await db.no_fly_rules.findMany({
-    orderBy: { created_at: "desc" },
-  });
+  const rows = await kdb.selectFrom("no_fly_rules")
+    .selectAll()
+    .orderBy("created_at desc")
+    .execute();
   return rows.map(mapRule);
 }
 
@@ -117,9 +120,7 @@ export async function findAllRules(): Promise<NoFlyRuleRow[]> {
  * Fetch a single rule by ID.
  */
 export async function findRuleById(id: number): Promise<NoFlyRuleRow | null> {
-  const row = await db.no_fly_rules.findUnique({
-    where: { id },
-  });
+  const row = (await kdb.selectFrom("no_fly_rules").selectAll().where("id", "=", id).execute())[0] ?? null;
   return row ? mapRule(row) : null;
 }
 
@@ -127,23 +128,21 @@ export async function findRuleById(id: number): Promise<NoFlyRuleRow | null> {
  * Create a new no-fly rule.
  */
 export async function createRule(params: CreateNoFlyRuleParams): Promise<NoFlyRuleRow> {
-  const row = await db.no_fly_rules.create({
-    data: {
-      label: params.label,
-      description: params.description ?? null,
-      rule_type: params.rule_type as NoFlyRuleType,
-      is_active: params.is_active ?? true,
-      day_of_week: params.day_of_week && params.day_of_week.length > 0
-        ? params.day_of_week
-        : [],
-      season_start: toDateOrNull(params.season_start),
-      season_end: toDateOrNull(params.season_end),
-      specific_date: toDateOrNull(params.specific_date),
-      priority: params.priority ?? 0,
-      override_reason: params.override_reason ?? null,
-      created_by: params.created_by,
-    },
-  });
+  const row = (await kdb.insertInto("no_fly_rules").values({
+    label: params.label,
+    description: params.description ?? null,
+    rule_type: params.rule_type as NoFlyRuleType,
+    is_active: params.is_active ?? true,
+    day_of_week: params.day_of_week && params.day_of_week.length > 0
+      ? params.day_of_week
+      : [],
+    season_start: toDateOrNull(params.season_start),
+    season_end: toDateOrNull(params.season_end),
+    specific_date: toDateOrNull(params.specific_date),
+    priority: params.priority ?? 0,
+    override_reason: params.override_reason ?? null,
+    created_by: params.created_by,
+  } as any).returningAll().execute())[0];
   return mapRule(row);
 }
 
@@ -174,28 +173,22 @@ export async function updateRule(
     return findRuleById(id);
   }
 
-  const row = await db.no_fly_rules.update({
-    where: { id },
-    data,
-  });
-  return mapRule(row);
+  const row = (await kdb.updateTable("no_fly_rules").set(data as any).where("id", "=", id).returningAll().execute())[0] ?? null;
+  return row ? mapRule(row) : null;
 }
 
 /**
  * Toggle a rule's active status.
  */
 export async function toggleRuleActive(id: number): Promise<NoFlyRuleRow | null> {
-  const current = await db.no_fly_rules.findUnique({
-    where: { id },
-    select: { is_active: true },
-  });
+  const current = (await kdb.selectFrom("no_fly_rules")
+    .select("is_active")
+    .where("id", "=", id)
+    .execute())[0] ?? null;
   if (!current) return null;
 
-  const row = await db.no_fly_rules.update({
-    where: { id },
-    data: { is_active: !current.is_active },
-  });
-  return mapRule(row);
+  const row = (await kdb.updateTable("no_fly_rules").set({ is_active: !current.is_active } as any).where("id", "=", id).returningAll().execute())[0] ?? null;
+  return row ? mapRule(row) : null;
 }
 
 /**
@@ -203,9 +196,7 @@ export async function toggleRuleActive(id: number): Promise<NoFlyRuleRow | null>
  */
 export async function deleteRule(id: number): Promise<boolean> {
   try {
-    await db.no_fly_rules.delete({
-      where: { id },
-    });
+    await kdb.deleteFrom("no_fly_rules").where("id", "=", id).execute();
     return true;
   } catch {
     return false;
@@ -232,9 +223,10 @@ export async function isNoFlyDay(date: string): Promise<boolean> {
   const dow = dateObj.getDay(); // 0=Sunday
 
   // Fetch all active rules
-  const rules = await db.no_fly_rules.findMany({
-    where: { is_active: true },
-  });
+  const rules = await kdb.selectFrom("no_fly_rules")
+    .selectAll()
+    .where("is_active", "=", true)
+    .execute();
 
   const matchingOneOffs: typeof rules = [];
   const matchingRecurring: typeof rules = [];
@@ -246,7 +238,7 @@ export async function isNoFlyDay(date: string): Promise<boolean> {
       }
     } else if (rule.rule_type === "recurring") {
       // Check day of week
-      if (!rule.day_of_week?.includes(dow)) continue;
+      if (!(rule as any).day_of_week?.includes(dow)) continue;
 
       // Check seasonal window (year-agnostic — only compare month/day)
       if (rule.season_start && rule.season_end) {
@@ -285,9 +277,10 @@ export async function getNoFlyCalendar(
   const end = new Date(parsedEnd.year, parsedEnd.month - 1, parsedEnd.day);
 
   // Fetch all active rules
-  const rules = await db.no_fly_rules.findMany({
-    where: { is_active: true },
-  });
+  const rules = await kdb.selectFrom("no_fly_rules")
+    .selectAll()
+    .where("is_active", "=", true)
+    .execute();
 
   const calendar: CalendarDay[] = [];
   const current = new Date(start);
@@ -305,7 +298,7 @@ export async function getNoFlyCalendar(
           matchingOneOffs.push(rule);
         }
       } else if (rule.rule_type === "recurring") {
-        if (!rule.day_of_week?.includes(dow)) continue;
+        if (!(rule as any).day_of_week?.includes(dow)) continue;
         if (rule.season_start && rule.season_end) {
           if (!isDateInSeasonWindow(dateStr, toDateString(rule.season_start), toDateString(rule.season_end))) continue;
         }

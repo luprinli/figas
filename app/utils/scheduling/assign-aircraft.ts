@@ -1,4 +1,6 @@
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 import { aircraftRepository } from "../repositories/aircraft";
 import type { RouteResult, AircraftAssignmentResult } from "./types";
 import { computeFuelPlan, computeFlightTime } from "./fuel-planning";
@@ -56,21 +58,13 @@ export async function assignAircraft(
     // ── Aircraft availability check (G-09) ────────────────────────────────
     // Query existing flights on the same date that already have this aircraft assigned,
     // excluding the current flight itself (to handle re-assignment scenarios).
-    const conflictingFlights = await db.flights.findMany({
-      where: {
-        aircraft_id: aircraft.id,
-        id: { not: route.flight.id },
-        departure_time: {
-          gte: new Date(`${proposedDate}T00:00:00.000Z`),
-          lt: new Date(`${proposedDate}T23:59:59.999Z`),
-        },
-      },
-      select: {
-        id: true,
-        departure_time: true,
-        arrival_time: true,
-      },
-    });
+    const conflictingFlights = await kdb.selectFrom("flights")
+      .select(["id", "departure_time", "arrival_time"])
+      .where("aircraft_id", "=", aircraft.id)
+      .where("id", "!=", route.flight.id)
+      .where("departure_time", ">=", new Date(`${proposedDate}T00:00:00.000Z`) as any)
+      .where("departure_time", "<", new Date(`${proposedDate}T23:59:59.999Z`) as any)
+      .execute();
 
     // Check for time overlap with any existing assignment
     const hasOverlap = conflictingFlights.some((existing) => {

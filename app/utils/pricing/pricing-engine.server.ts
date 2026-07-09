@@ -1,4 +1,6 @@
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 
 export type DiscountType = "none" | "child" | "veteran" | "senior" | "student" | "staff";
 
@@ -29,20 +31,18 @@ export async function lookupFare(
   originCode: string,
   destinationCode: string
 ): Promise<number | null> {
-  const row = await db.$queryRawUnsafe<{ fare_amount_gbp: number }[]>(
-    `SELECT fare_amount_gbp FROM fare_matrix
-     WHERE origin_code = $1 AND destination_code = $2`,
-    originCode, destinationCode
-  );
-  if (row.length > 0) return Number(row[0].fare_amount_gbp);
+  const row = await sql<{ fare_amount_gbp: number }>`
+    SELECT fare_amount_gbp FROM fare_matrix
+    WHERE origin_code = ${originCode} AND destination_code = ${destinationCode}
+  `.execute(kdb);
+  if (row.rows.length > 0) return Number(row.rows[0].fare_amount_gbp);
 
   // Try reverse lookup (bidirectional)
-  const rev = await db.$queryRawUnsafe<{ fare_amount_gbp: number }[]>(
-    `SELECT fare_amount_gbp FROM fare_matrix
-     WHERE origin_code = $1 AND destination_code = $2`,
-    destinationCode, originCode
-  );
-  return rev.length > 0 ? Number(rev[0].fare_amount_gbp) : null;
+  const rev = await sql<{ fare_amount_gbp: number }>`
+    SELECT fare_amount_gbp FROM fare_matrix
+    WHERE origin_code = ${destinationCode} AND destination_code = ${originCode}
+  `.execute(kdb);
+  return rev.rows.length > 0 ? Number(rev.rows[0].fare_amount_gbp) : null;
 }
 
 export async function computeLegFare(params: PricingRequest): Promise<{

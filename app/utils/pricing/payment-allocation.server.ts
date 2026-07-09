@@ -1,40 +1,41 @@
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 
 export async function allocatePayment(
   paymentId: number,
   bookingId: number
 ): Promise<{ allocated: number; remaining: number }> {
-  const payment = await db.payments.findUnique({
-    where: { id: paymentId },
-    select: { amount: true, status: true },
-  });
+  const payment = (await kdb.selectFrom("payments")
+    .select(["amount", "status"])
+    .where("id", "=", paymentId)
+    .execute())[0] ?? null;
   if (!payment) throw new Error("Payment not found");
 
-  const alreadyAllocated = await db.payment_allocations.aggregate({
-    where: { payment_id: paymentId },
-    _sum: { allocated_amount: true },
-  });
-  let remaining = Number(payment.amount) - Number(alreadyAllocated._sum.allocated_amount ?? 0);
+  const alreadyAllocated = await kdb.selectFrom("payment_allocations")
+    .select(kdb.fn.sum<number>("allocated_amount").as("sum_allocated_amount"))
+    .where("payment_id", "=", paymentId)
+    .execute();
+  let remaining = Number(payment.amount) - Number((alreadyAllocated[0] as any)?.sum_allocated_amount ?? 0);
   if (remaining <= 0) return { allocated: 0, remaining: 0 };
 
-  const lineItems = await db.$queryRawUnsafe<Record<string, unknown>[]>(
-    `SELECT
-       blp.id,
-       COALESCE(blp.line_fare_amount, 0) AS line_fare,
-       COALESCE(SUM(pa.allocated_amount), 0) AS already_allocated
-     FROM booking_leg_passengers blp
-     JOIN booking_legs bl ON bl.id = blp.booking_leg_id
-     LEFT JOIN payment_allocations pa ON pa.booking_leg_passenger_id = blp.id
-     WHERE bl.booking_id = $1
-     GROUP BY blp.id, blp.line_fare_amount
-     HAVING COALESCE(blp.line_fare_amount, 0) > COALESCE(SUM(pa.allocated_amount), 0)
-     ORDER BY blp.id`,
-    bookingId
-  );
+  const lineItems = await sql<Record<string, unknown>>`
+    SELECT
+      blp.id,
+      COALESCE(blp.line_fare_amount, 0) AS line_fare,
+      COALESCE(SUM(pa.allocated_amount), 0) AS already_allocated
+    FROM booking_leg_passengers blp
+    JOIN booking_legs bl ON bl.id = blp.booking_leg_id
+    LEFT JOIN payment_allocations pa ON pa.booking_leg_passenger_id = blp.id
+    WHERE bl.booking_id = ${bookingId}
+    GROUP BY blp.id, blp.line_fare_amount
+    HAVING COALESCE(blp.line_fare_amount, 0) > COALESCE(SUM(pa.allocated_amount), 0)
+    ORDER BY blp.id
+  `.execute(kdb);
 
   let allocated = 0;
 
-  for (const item of (lineItems as Array<{
+  for (const item of (lineItems.rows as unknown as Array<{
     id: number | bigint;
     line_fare: number | bigint;
     already_allocated: number | bigint;
@@ -45,23 +46,18 @@ export async function allocatePayment(
     const toAllocate = Math.min(owed, remaining);
 
     if (toAllocate > 0) {
-      await db.payment_allocations.create({
-        data: {
-          payment_id: paymentId,
-          booking_leg_passenger_id: Number(item.id),
-          allocated_amount: toAllocate,
-          allocation_type: toAllocate >= owed ? "full" : "partial",
-        },
-      });
+      await kdb.insertInto("payment_allocations").values({
+        payment_id: paymentId,
+        booking_leg_passenger_id: Number(item.id),
+        allocated_amount: toAllocate,
+        allocation_type: toAllocate >= owed ? "full" : "partial",
+      } as any).execute();
       allocated += toAllocate;
       remaining -= toAllocate;
     }
   }
 
-  await db.payments.update({
-    where: { id: paymentId },
-    data: { reconciled_at: new Date() },
-  });
+  await kdb.updateTable("payments").set({ reconciled_at: new Date() } as any).where("id", "=", paymentId).execute();
 
   return { allocated: Math.round(allocated * 100) / 100, remaining: Math.round(remaining * 100) / 100 };
 }

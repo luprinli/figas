@@ -1,4 +1,6 @@
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
@@ -37,12 +39,11 @@ export async function importFareMatrix(): Promise<number> {
       const amount = parseFloat(rawPrice);
       if (!isNaN(amount) && amount > 0 && destIdx < n) {
         const dest = aerodromes[destIdx];
-        await db.$executeRawUnsafe(
-          `INSERT INTO fare_matrix (origin_code, destination_code, fare_amount_gbp)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (origin_code, destination_code) DO UPDATE SET fare_amount_gbp = $3, updated_at = NOW()`,
-          origin, dest, amount
-        );
+        await sql`
+          INSERT INTO fare_matrix (origin_code, destination_code, fare_amount_gbp)
+          VALUES (${origin}, ${dest}, ${amount})
+          ON CONFLICT (origin_code, destination_code) DO UPDATE SET fare_amount_gbp = ${amount}, updated_at = NOW()
+        `.execute(kdb);
         count++;
         destIdx++;
         pricesRead++;

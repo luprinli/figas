@@ -1,4 +1,6 @@
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 import { paymentReminderRepository } from "../repositories/payment-reminder";
 import { sendEmailQuiet } from "../email.server";
 import { paymentReminderEmail } from "../../emails/notifications";
@@ -73,23 +75,23 @@ export async function processPendingReminders(): Promise<ProcessPendingReminders
 
     for (const reminder of pending) {
       try {
-        const booking = await db.bookings.findUnique({
-          where: { id: Number(reminder.booking_id) },
-          select: { booking_reference: true },
-        });
+        const bookingRows = await kdb
+          .selectFrom("bookings")
+          .select("booking_reference")
+          .where("id", "=", Number(reminder.booking_id))
+          .execute();
+        const booking = bookingRows[0];
 
-        const passenger = await db.$queryRawUnsafe<Array<{ name: string; email: string }>>(
-          `SELECT CONCAT(bp.first_name, ' ', bp.last_name) AS name, bp.email
-           FROM booking_passengers bp
-           JOIN booking_leg_passengers blp ON blp.booking_passenger_id = bp.id
-           JOIN booking_legs bl ON bl.id = blp.booking_leg_id
-           WHERE bl.booking_id = $1
-           LIMIT 1`,
-          [Number(reminder.booking_id)]
-        );
-
-        const passengerEmail = passenger[0]?.email;
-        const passengerName = passenger[0]?.name ?? "Passenger";
+        const passenger = await sql<{ name: string; email: string }>`
+          SELECT CONCAT(bp.first_name, ' ', bp.last_name) AS name, bp.email
+          FROM booking_passengers bp
+          JOIN booking_leg_passengers blp ON blp.booking_passenger_id = bp.id
+          JOIN booking_legs bl ON bl.id = blp.booking_leg_id
+          WHERE bl.booking_id = ${Number(reminder.booking_id)}
+          LIMIT 1
+        `.execute(kdb);
+        const passengerEmail = passenger.rows[0]?.email;
+        const passengerName = passenger.rows[0]?.name ?? "Passenger";
 
         if (passengerEmail) {
           const email = paymentReminderEmail({
@@ -164,15 +166,12 @@ export async function cancelRemindersForBooking(
   params: CancelRemindersForBookingParams
 ): Promise<ReminderResult> {
   try {
-    await db.payment_reminders.updateMany({
-      where: {
-        booking_id: Number(params.bookingId),
-        status: "pending",
-      },
-      data: {
-        status: "cancelled",
-      },
-    });
+    await kdb
+      .updateTable("payment_reminders")
+      .set({ status: "cancelled" } as any)
+      .where("booking_id", "=", Number(params.bookingId))
+      .where("status", "=", "pending")
+      .execute();
 
     return { success: true };
   } catch (error) {

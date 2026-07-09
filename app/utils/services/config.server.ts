@@ -1,4 +1,6 @@
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 
 interface SettingRow {
   key: string;
@@ -15,10 +17,10 @@ async function loadCache(): Promise<Map<string, SettingRow>> {
   if (cache && Date.now() - cacheTimestamp < CACHE_TTL_MS) {
     return cache;
   }
-  const rows = await db.$queryRawUnsafe<SettingRow[]>(
-    `SELECT key, value, type, description FROM system_settings`
-  );
-  cache = new Map(rows.map((r: SettingRow) => [r.key, r]));
+  const rows = await sql<SettingRow>`
+    SELECT key, value, type, description FROM system_settings
+  `.execute(kdb);
+  cache = new Map(rows.rows.map((r: SettingRow) => [r.key, r]));
   cacheTimestamp = Date.now();
   return cache;
 }
@@ -46,11 +48,10 @@ export async function getNumberSetting(key: string, fallback?: number): Promise<
 }
 
 export async function setSetting(key: string, value: string, type = "string", description = ""): Promise<void> {
-  await db.$queryRawUnsafe(
-    `INSERT INTO system_settings (key, value, type, description, updated_at)
- VALUES ($1, $2, $3, $4, NOW())
- ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
-    [key, value, type, description]
-  );
+  await sql`
+    INSERT INTO system_settings (key, value, type, description, updated_at)
+    VALUES (${key}, ${value}, ${type}, ${description}, NOW())
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+  `.execute(kdb);
   invalidateCache();
 }

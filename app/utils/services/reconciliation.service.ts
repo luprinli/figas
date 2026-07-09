@@ -1,4 +1,6 @@
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 import { bankTransactionRepository } from "../repositories/bank-transaction";
 import { ReconciliationStatus } from "../constants";
 
@@ -118,14 +120,11 @@ export async function matchTransaction(
       return { success: false, error: "Bank transaction not found" };
     }
 
-    // Update payment record with reconciliation info via Prisma
-    await db.payments.update({
-      where: { id: Number(params.paymentId) },
-      data: {
-        reconciled_at: new Date(),
-        reconciled_by: Number(params.userId),
-      },
-    });
+    // Update payment record with reconciliation info
+    await kdb.updateTable("payments").set({
+      reconciled_at: new Date(),
+      reconciled_by: Number(params.userId),
+    } as any).where("id", "=", Number(params.paymentId)).execute();
 
     return {
       success: true,
@@ -147,26 +146,17 @@ export async function autoMatchTransactions(
     const unmatchedTransactions =
       await bankTransactionRepository.findUnmatched();
 
-    // Fetch payments with status 'paid' in the date range via Prisma
-    const payments = await db.payments.findMany({
-      where: {
-        status: "paid",
-        ...(params.dateFrom || params.dateTo
-          ? {
-              created_at: {
-                ...(params.dateFrom ? { gte: new Date(params.dateFrom) } : {}),
-                ...(params.dateTo
-                  ? { lte: new Date(params.dateTo + "T23:59:59.999Z") }
-                  : {}),
-              },
-            }
-          : {}),
-      },
-      select: {
-        id: true,
-        amount_gbp: true,
-      },
-    });
+    // Fetch payments with status 'paid' in the date range
+    let paymentsQuery = kdb.selectFrom("payments")
+      .select(["id", "amount_gbp"])
+      .where("status", "=", "paid");
+    if (params.dateFrom) {
+      paymentsQuery = paymentsQuery.where("created_at", ">=", new Date(params.dateFrom) as any);
+    }
+    if (params.dateTo) {
+      paymentsQuery = paymentsQuery.where("created_at", "<=", new Date(params.dateTo + "T23:59:59.999Z") as any);
+    }
+    const payments = await paymentsQuery.execute();
 
     let matchedCount = 0;
 
@@ -187,13 +177,9 @@ export async function autoMatchTransactions(
             "system"
           );
 
-          await db.payments.update({
-            where: { id: payment.id },
-            data: {
-              reconciled_at: new Date(),
-              reconciled_by: undefined, // 'system' is not a user ID; set to null
-            },
-          });
+          await kdb.updateTable("payments").set({
+            reconciled_at: new Date(),
+          } as any).where("id", "=", payment.id).execute();
 
           matchedCount++;
           break;
@@ -221,13 +207,10 @@ export async function flagDiscrepancy(
   params: FlagDiscrepancyParams
 ): Promise<ReconciliationResult> {
   try {
-    const updated = await db.bank_transactions.update({
-      where: { id: params.bankTransactionId },
-      data: {
-        reconciliation_status: ReconciliationStatus.DISPUTED,
-        notes: params.notes,
-      },
-    });
+    const updated = (await kdb.updateTable("bank_transactions").set({
+      reconciliation_status: ReconciliationStatus.DISPUTED,
+      notes: params.notes,
+    } as any).where("id", "=", params.bankTransactionId).returningAll().execute())[0] ?? null;
 
     return {
       success: true,
@@ -279,18 +262,11 @@ export async function getReconciliationReport(
 ): Promise<ReconciliationReportResult> {
   try {
     // Fetch bank transactions in the date range and aggregate in-memory
-    const bankTxns = await db.bank_transactions.findMany({
-      where: {
-        transaction_date: {
-          gte: new Date(params.dateFrom),
-          lte: new Date(params.dateTo),
-        },
-      },
-      select: {
-        reconciliation_status: true,
-        amount_gbp: true,
-      },
-    });
+    const bankTxns = await kdb.selectFrom("bank_transactions")
+      .select(["reconciliation_status", "amount_gbp"])
+      .where("transaction_date", ">=", new Date(params.dateFrom) as any)
+      .where("transaction_date", "<=", new Date(params.dateTo) as any)
+      .execute();
 
     // Group and aggregate bank transactions by reconciliation_status
     const bankTxnMap = new Map<string, { count: number; total_amount: number }>();
@@ -311,18 +287,11 @@ export async function getReconciliationReport(
       }));
 
     // Fetch payments in the date range and aggregate in-memory
-    const payments = await db.payments.findMany({
-      where: {
-        created_at: {
-          gte: new Date(params.dateFrom),
-          lte: new Date(params.dateTo + "T23:59:59.999Z"),
-        },
-      },
-      select: {
-        status: true,
-        amount_gbp: true,
-      },
-    });
+    const payments = await kdb.selectFrom("payments")
+      .select(["status", "amount_gbp"])
+      .where("created_at", ">=", new Date(params.dateFrom) as any)
+      .where("created_at", "<=", new Date(params.dateTo + "T23:59:59.999Z") as any)
+      .execute();
 
     // Group and aggregate payments by status
     const paymentMap = new Map<string, { count: number; total_amount: number }>();

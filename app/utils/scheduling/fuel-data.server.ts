@@ -8,7 +8,9 @@
  * Fuel lookup logic is delegated to the shared fuel-lookup module.
  */
 
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 import { lookupFuelByFlightTime, clearFuelRulesCache } from "./fuel-lookup";
 import { DEFAULT_CRUISE_SPEED_KTAS, DEFAULT_BN2_BURN_RATE_KG_PER_HOUR } from "../constants";
 
@@ -30,15 +32,19 @@ export async function getFuelKg(origin: string, dest: string): Promise<number> {
     if (origin === dest) return 0;
 
     // Get distance from the DB
-    const distances = await db.aerodrome_distances.findMany({
-        where: {
-            OR: [
-                { origin_code: origin.toUpperCase(), destination_code: dest.toUpperCase() },
-                { origin_code: dest.toUpperCase(), destination_code: origin.toUpperCase() },
-            ],
-        },
-        select: { distance_nm: true },
-    });
+    const distances = await kdb.selectFrom("aerodrome_distances")
+        .select("distance_nm")
+        .where((eb) => eb.or([
+            eb.and([
+                eb("origin_code", "=", origin.toUpperCase()),
+                eb("destination_code", "=", dest.toUpperCase()),
+            ]),
+            eb.and([
+                eb("origin_code", "=", dest.toUpperCase()),
+                eb("destination_code", "=", origin.toUpperCase()),
+            ]),
+        ]))
+        .execute();
 
     if (distances.length === 0) return 0;
     const distanceNm = Number(distances[0].distance_nm);

@@ -1,6 +1,8 @@
 import { redirect } from "@remix-run/node";
 import { getSession } from "../session.server";
-import { db } from "./db.server";
+import { kdb } from "./db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../generated/kysely/database";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -180,17 +182,16 @@ export async function hasPermission(
     if (!resource || !action) {
       throw new Error(`Invalid permission format: "${permission}". Expected format: "resource:action"`);
     }
-    const result = (await db.queryOne(
-        `SELECT EXISTS (
-      SELECT 1 FROM user_roles ur
-      JOIN role_permissions rp ON rp.role_id = ur.role_id
-      JOIN permissions p ON p.id = rp.permission_id
-      WHERE ur.user_id = $1 AND p.resource = $2 AND p.action = $3
-    ) AS exists`,
-        [userId, resource, action]
-    )) as { exists: boolean } | null;
+    const result = await sql<{ exists: boolean }>`
+      SELECT EXISTS (
+        SELECT 1 FROM user_roles ur
+        JOIN role_permissions rp ON rp.role_id = ur.role_id
+        JOIN permissions p ON p.id = rp.permission_id
+        WHERE ur.user_id = ${userId} AND p.resource = ${resource} AND p.action = ${action}
+      ) AS exists
+    `.execute(kdb);
 
-    return result?.exists ?? false;
+    return result.rows[0]?.exists ?? false;
 }
 
 /**
@@ -202,16 +203,15 @@ export async function getUserPermissions(userId: number): Promise<string[]> {
         return cached;
     }
 
-    const result = await db.query(
-        `SELECT DISTINCT p.resource, p.action
-     FROM user_roles ur
-     JOIN role_permissions rp ON rp.role_id = ur.role_id
-     JOIN permissions p ON p.id = rp.permission_id
-     WHERE ur.user_id = $1`,
-        [userId]
-    );
+    const result = await sql<{ resource: string; action: string }>`
+      SELECT DISTINCT p.resource, p.action
+      FROM user_roles ur
+      JOIN role_permissions rp ON rp.role_id = ur.role_id
+      JOIN permissions p ON p.id = rp.permission_id
+      WHERE ur.user_id = ${userId}
+    `.execute(kdb);
 
-    const permissions = result.rows.map((r) => `${(r as { resource: string; action: string }).resource}:${(r as { resource: string; action: string }).action}`);
+    const permissions = result.rows.map((r) => `${r.resource}:${r.action}`);
     setCachedPermissions(userId, permissions);
     return permissions;
 }
@@ -222,21 +222,19 @@ export async function getUserPermissions(userId: number): Promise<string[]> {
 export async function getUserRoles(
     userId: number
 ): Promise<{ id: number; slug: string; name: string; hierarchyLevel: number }[]> {
-    const result = await db.query(
-        `SELECT r.id, r.slug, r.name, r.hierarchy_level
-     FROM user_roles ur
-     JOIN roles r ON r.id = ur.role_id
-     WHERE ur.user_id = $1`,
-        [userId]
-    );
+    const result = await sql<{ id: number; slug: string; name: string; hierarchy_level: number }>`
+      SELECT r.id, r.slug, r.name, r.hierarchy_level
+      FROM user_roles ur
+      JOIN roles r ON r.id = ur.role_id
+      WHERE ur.user_id = ${userId}
+    `.execute(kdb);
 
     return result.rows.map((r) => {
-        const row = r as { id: number; slug: string; name: string; hierarchy_level: number };
         return {
-            id: row.id,
-            slug: row.slug,
-            name: row.name,
-            hierarchyLevel: row.hierarchy_level,
+            id: r.id,
+            slug: r.slug,
+            name: r.name,
+            hierarchyLevel: r.hierarchy_level,
         };
     });
 }
@@ -246,15 +244,14 @@ export async function getUserRoles(
  * Hierarchy levels are used for DISPLAY/ORDERING only, NOT for permission inheritance.
  */
 export async function getUserHierarchyLevel(userId: number): Promise<number> {
-    const result = (await db.queryOne(
-        `SELECT COALESCE(MAX(r.hierarchy_level), 0) AS max_level
-     FROM user_roles ur
-     JOIN roles r ON r.id = ur.role_id
-     WHERE ur.user_id = $1`,
-        [userId]
-    )) as { max_level: number } | null;
+    const result = await sql<{ max_level: number }>`
+      SELECT COALESCE(MAX(r.hierarchy_level), 0) AS max_level
+      FROM user_roles ur
+      JOIN roles r ON r.id = ur.role_id
+      WHERE ur.user_id = ${userId}
+    `.execute(kdb);
 
-    return result?.max_level ?? 0;
+    return result.rows[0]?.max_level ?? 0;
 }
 
 /**
@@ -262,12 +259,11 @@ export async function getUserHierarchyLevel(userId: number): Promise<number> {
  * Useful for passing to layouts/components via useLoaderData.
  */
 export async function getPermissionUser(userId: number): Promise<PermissionUser> {
-    const userResult = (await db.queryOne(
-        "SELECT id, email, name FROM users WHERE id = $1",
-        [userId]
-    )) as { id: number; email: string; name: string } | null;
+    const userResult = await sql<{ id: number; email: string; name: string }>`
+      SELECT id, email, name FROM users WHERE id = ${userId}
+    `.execute(kdb);
 
-    if (!userResult) {
+    if (!userResult.rows[0]) {
         throw new Error(`User not found: ${userId}`);
     }
 
@@ -278,9 +274,9 @@ export async function getPermissionUser(userId: number): Promise<PermissionUser>
     ]);
 
     return {
-        id: String(userResult.id),
-        email: userResult.email,
-        name: userResult.name,
+        id: String(userResult.rows[0].id),
+        email: userResult.rows[0].email,
+        name: userResult.rows[0].name,
         roles,
         permissions,
         hierarchyLevel,
@@ -304,10 +300,9 @@ export async function assignRole(
     // Check SoD: validate that assigning this role won't create incompatible permission combinations
     await validateSoDForRole(userId, roleId);
 
-    await db.query(
-        "INSERT INTO user_roles (user_id, role_id, assigned_by) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
-        [userId, roleId, actorId]
-    );
+    await sql`
+      INSERT INTO user_roles (user_id, role_id, assigned_by) VALUES (${userId}, ${roleId}, ${actorId}) ON CONFLICT DO NOTHING
+    `.execute(kdb);
 
     await createAuditLogEntry({
         actorId,
@@ -330,10 +325,9 @@ export async function revokeRole(
 ): Promise<void> {
     await validateActorPermission(actorId, "user:assign-role");
 
-    await db.query(
-        "DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2",
-        [userId, roleId]
-    );
+    await sql`
+      DELETE FROM user_roles WHERE user_id = ${userId} AND role_id = ${roleId}
+    `.execute(kdb);
 
     await createAuditLogEntry({
         actorId,
@@ -356,10 +350,9 @@ export async function addPermissionToRole(
 ): Promise<void> {
     await validateActorPermission(actorId, "role:manage-permissions");
 
-    await db.query(
-        "INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-        [roleId, permissionId]
-    );
+    await sql`
+      INSERT INTO role_permissions (role_id, permission_id) VALUES (${roleId}, ${permissionId}) ON CONFLICT DO NOTHING
+    `.execute(kdb);
 
     await createAuditLogEntry({
         actorId,
@@ -380,10 +373,9 @@ export async function removePermissionFromRole(
 ): Promise<void> {
     await validateActorPermission(actorId, "role:manage-permissions");
 
-    await db.query(
-        "DELETE FROM role_permissions WHERE role_id = $1 AND permission_id = $2",
-        [roleId, permissionId]
-    );
+    await sql`
+      DELETE FROM role_permissions WHERE role_id = ${roleId} AND permission_id = ${permissionId}
+    `.execute(kdb);
 
     await createAuditLogEntry({
         actorId,
@@ -409,20 +401,19 @@ export async function createAuditLogEntry(params: {
     ipAddress?: string;
     userAgent?: string;
 }): Promise<void> {
-    await db.query(
-        `INSERT INTO audit_log (actor_id, action, entity_type, entity_id, old_values, new_values, ip_address, user_agent)
-     VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8)`,
-        [
-            params.actorId,
-            params.action,
-            params.entityType,
-            params.entityId ?? null,
-            params.oldValues ? JSON.stringify(params.oldValues) : null,
-            params.newValues ? JSON.stringify(params.newValues) : null,
-            params.ipAddress ?? null,
-            params.userAgent ?? null,
-        ]
-    );
+    await sql`
+      INSERT INTO audit_log (actor_id, action, entity_type, entity_id, old_values, new_values, ip_address, user_agent)
+      VALUES (
+        ${params.actorId},
+        ${params.action},
+        ${params.entityType},
+        ${params.entityId ?? null},
+        ${params.oldValues ? JSON.stringify(params.oldValues) : null}::jsonb,
+        ${params.newValues ? JSON.stringify(params.newValues) : null}::jsonb,
+        ${params.ipAddress ?? null},
+        ${params.userAgent ?? null}
+      )
+    `.execute(kdb);
 }
 
 /**
@@ -438,52 +429,48 @@ export async function queryAuditLog(params: {
     page?: number;
     perPage?: number;
 }): Promise<{ entries: Record<string, unknown>[]; totalCount: number }> {
-    const conditions: string[] = [];
-    const values: unknown[] = [];
-    let paramIndex = 1;
-
-    if (params.actorId !== undefined) {
-        conditions.push(`actor_id = $${paramIndex++}`);
-        values.push(params.actorId);
-    }
-    if (params.action !== undefined) {
-        conditions.push(`action = $${paramIndex++}`);
-        values.push(params.action);
-    }
-    if (params.entityType !== undefined) {
-        conditions.push(`entity_type = $${paramIndex++}`);
-        values.push(params.entityType);
-    }
-    if (params.entityId !== undefined) {
-        conditions.push(`entity_id = $${paramIndex++}`);
-        values.push(params.entityId);
-    }
-    if (params.dateFrom !== undefined) {
-        conditions.push(`created_at >= $${paramIndex++}`);
-        values.push(params.dateFrom);
-    }
-    if (params.dateTo !== undefined) {
-        conditions.push(`created_at <= $${paramIndex++}`);
-        values.push(params.dateTo);
-    }
-
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
     const page = params.page ?? 1;
     const perPage = params.perPage ?? 50;
     const offset = (page - 1) * perPage;
 
-    const countResult = (await db.queryOne(
-        `SELECT COUNT(*) AS count FROM audit_log ${whereClause}`,
-        values
-    )) as { count: number } | null;
+    // Use Kysely query builder for dynamic WHERE clauses
+    let countQuery = kdb.selectFrom("audit_log").select(kdb.fn.countAll<number>().as("count"));
+    let entriesQuery = kdb.selectFrom("audit_log").selectAll();
 
-    const entriesResult = (await db.query(
-        `SELECT * FROM audit_log ${whereClause} ORDER BY created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`,
-        [...values, perPage, offset]
-    )) as { rows: Record<string, unknown>[] };
+    if (params.actorId !== undefined) {
+        countQuery = countQuery.where("actor_id", "=", params.actorId);
+        entriesQuery = entriesQuery.where("actor_id", "=", params.actorId);
+    }
+    if (params.action !== undefined) {
+        countQuery = countQuery.where("action", "=", params.action);
+        entriesQuery = entriesQuery.where("action", "=", params.action);
+    }
+    if (params.entityType !== undefined) {
+        countQuery = countQuery.where("entity_type", "=", params.entityType);
+        entriesQuery = entriesQuery.where("entity_type", "=", params.entityType);
+    }
+    if (params.entityId !== undefined) {
+        countQuery = countQuery.where("entity_id", "=", params.entityId);
+        entriesQuery = entriesQuery.where("entity_id", "=", params.entityId);
+    }
+    if (params.dateFrom !== undefined) {
+        countQuery = countQuery.where("created_at", ">=", params.dateFrom as never);
+        entriesQuery = entriesQuery.where("created_at", ">=", params.dateFrom as never);
+    }
+    if (params.dateTo !== undefined) {
+        countQuery = countQuery.where("created_at", "<=", params.dateTo as never);
+        entriesQuery = entriesQuery.where("created_at", "<=", params.dateTo as never);
+    }
+
+    const countResult = await countQuery.executeTakeFirst();
+    const entriesResult = await entriesQuery
+        .orderBy("created_at", "desc")
+        .limit(perPage)
+        .offset(offset)
+        .execute();
 
     return {
-        entries: entriesResult.rows,
+        entries: entriesResult as unknown as Record<string, unknown>[],
         totalCount: Number(countResult?.count ?? 0),
     };
 }
@@ -495,14 +482,13 @@ export async function queryAuditLog(params: {
  * Throws if users are still assigned.
  */
 export async function validateRoleDeletion(roleId: number): Promise<void> {
-    const result = (await db.queryOne(
-        "SELECT COUNT(*) AS count FROM user_roles WHERE role_id = $1",
-        [roleId]
-    )) as { count: number } | null;
+    const result = await sql<{ count: number }>`
+      SELECT COUNT(*)::int AS count FROM user_roles WHERE role_id = ${roleId}
+    `.execute(kdb);
 
-    if (result && Number(result.count) > 0) {
+    if (result.rows[0] && Number(result.rows[0].count) > 0) {
         throw new Error(
-            `Cannot delete role: ${Number(result.count)} user(s) are still assigned to this role.`
+            `Cannot delete role: ${Number(result.rows[0].count)} user(s) are still assigned to this role.`
         );
     }
 }
@@ -586,16 +572,15 @@ export async function validateSoDForRole(
     roleId: number
 ): Promise<void> {
     // Get the permissions that the role grants
-    const rolePermsResult = await db.query(
-        `SELECT p.resource, p.action
-         FROM role_permissions rp
-         JOIN permissions p ON p.id = rp.permission_id
-         WHERE rp.role_id = $1`,
-        [roleId]
-    );
+    const rolePermsResult = await sql<{ resource: string; action: string }>`
+      SELECT p.resource, p.action
+      FROM role_permissions rp
+      JOIN permissions p ON p.id = rp.permission_id
+      WHERE rp.role_id = ${roleId}
+    `.execute(kdb);
 
     const rolePermissions = rolePermsResult.rows.map(
-        (r) => `${(r as { resource: string; action: string }).resource}:${(r as { resource: string; action: string }).action}`
+        (r) => `${r.resource}:${r.action}`
     );
 
     // Get the user's current permissions

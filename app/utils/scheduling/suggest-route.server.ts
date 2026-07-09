@@ -15,7 +15,9 @@
  * 7. Return the suggestion
  */
 
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 import type { RouteSuggestion, RouteSuggestionLeg } from "./scheduling-types";
 import { loadDistances, clearDistanceCaches, getDistanceFast } from "./distance-lookup";
 
@@ -71,17 +73,10 @@ let aircraftCache: AircraftSuggestion[] | null = null;
 
 async function loadAircraft(): Promise<AircraftSuggestion[]> {
     if (aircraftCache) return aircraftCache;
-    const rows = await db.aircraft.findMany({
-        where: { is_active: true },
-        select: {
-            registration: true,
-            type: true,
-            seat_count: true,
-            empty_weight_kg: true,
-            max_takeoff_weight_kg: true,
-            fuel_capacity_kg: true,
-        },
-    });
+    const rows = await kdb.selectFrom("aircraft")
+        .select(["registration", "type", "seat_count", "empty_weight_kg", "max_takeoff_weight_kg", "fuel_capacity_kg"])
+        .where("is_active", "=", true)
+        .execute();
     aircraftCache = rows.map((r) => ({
         registration: r.registration,
         type: r.type,

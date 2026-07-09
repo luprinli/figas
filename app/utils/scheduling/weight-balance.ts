@@ -4,7 +4,9 @@ import type { AerodromeRow } from "../repositories/aerodrome";
 import { aerodromeRepository } from "../repositories/aerodrome";
 import { computeFuelPlan, computeFlightTime } from "./fuel-planning";
 import { applyRunwayDerating } from "./runway-derating";
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 
 /**
  * Phase 4: Compute weight and balance for each leg of a route.
@@ -208,12 +210,15 @@ export async function loadPassengerWeightsForFlight(
   legs: FlightLegRow[]
 ): Promise<Map<number, LegPassengerWeights>> {
   // Find all booking_legs assigned to this flight
-  const bookingLegsResult = await db.query(
-    `SELECT bl.id, bl.origin_code, bl.destination_code
-     FROM booking_legs bl
-     WHERE bl.flight_id = $1`,
-    [flightId]
-  );
+  const bookingLegsResult = await sql<{
+    id: number;
+    origin_code: string;
+    destination_code: string;
+  }>`
+    SELECT bl.id, bl.origin_code, bl.destination_code
+    FROM booking_legs bl
+    WHERE bl.flight_id = ${flightId}
+  `.execute(kdb);
   const bookingLegs = bookingLegsResult.rows as Array<{
     id: number;
     origin_code: string;
@@ -224,12 +229,15 @@ export async function loadPassengerWeightsForFlight(
   const legWeightsMap = new Map<number, LegPassengerWeights>();
 
   for (const bookingLeg of bookingLegs) {
-    const legPassengers = await db.query(
-      `SELECT blp.clothed_weight_kg, blp.baggage_weight_kg, blp.freight_weight_kg
-       FROM booking_leg_passengers blp
-       WHERE blp.booking_leg_id = $1`,
-      [bookingLeg.id]
-    );
+    const legPassengers = await sql<{
+      clothed_weight_kg: number | null;
+      baggage_weight_kg: number;
+      freight_weight_kg: number;
+    }>`
+      SELECT blp.clothed_weight_kg, blp.baggage_weight_kg, blp.freight_weight_kg
+      FROM booking_leg_passengers blp
+      WHERE blp.booking_leg_id = ${bookingLeg.id}
+    `.execute(kdb);
 
     const rows = legPassengers.rows as Array<{
       clothed_weight_kg: number | null;

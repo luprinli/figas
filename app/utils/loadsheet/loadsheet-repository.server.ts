@@ -1,4 +1,6 @@
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 
 export interface LoadsheetRow {
   id: number;
@@ -86,12 +88,12 @@ export function isImmutable(status: string): boolean {
 
 export const loadsheetRepository = {
   async findByFlightId(flightId: number): Promise<LoadsheetRow | null> {
-    const row = await db.loadsheets.findUnique({ where: { flight_id: flightId } });
+    const row = (await kdb.selectFrom("loadsheets").selectAll().where("flight_id", "=", flightId).execute())[0] ?? null;
     return (row as unknown as LoadsheetRow) ?? null;
   },
 
   async findById(id: number): Promise<LoadsheetRow | null> {
-    const row = await db.loadsheets.findUnique({ where: { id } });
+    const row = (await kdb.selectFrom("loadsheets").selectAll().where("id", "=", id).execute())[0] ?? null;
     return (row as unknown as LoadsheetRow) ?? null;
   },
 
@@ -104,37 +106,29 @@ export const loadsheetRepository = {
     pilot_weight_kg?: number | null;
     total_pax?: number;
   }): Promise<LoadsheetRow> {
-    const row = await db.loadsheets.create({
-      data: {
-        flight_id: data.flight_id,
-        schedule_id: data.schedule_id ?? null,
-        pilot_id: data.pilot_id ?? null,
-        aircraft_id: data.aircraft_id ?? null,
-        empty_weight_kg: data.empty_weight_kg ?? null,
-        pilot_weight_kg: data.pilot_weight_kg ?? 80,
-        total_pax: data.total_pax ?? 0,
-      },
-    });
+    const row = (await kdb.insertInto("loadsheets").values({
+      flight_id: data.flight_id,
+      schedule_id: data.schedule_id ?? null,
+      pilot_id: data.pilot_id ?? null,
+      aircraft_id: data.aircraft_id ?? null,
+      empty_weight_kg: data.empty_weight_kg ?? null,
+      pilot_weight_kg: data.pilot_weight_kg ?? 80,
+      total_pax: data.total_pax ?? 0,
+    } as any).returningAll().execute())[0];
     return row as unknown as LoadsheetRow;
   },
 
   async updateStatus(id: number, status: string): Promise<void> {
-    await db.loadsheets.update({
-      where: { id },
-      data: { status },
-    });
+    await kdb.updateTable("loadsheets").set({ status } as any).where("id", "=", id).execute();
   },
 
   async finalize(id: number, finalizedBy: number, checksum: string): Promise<void> {
-    await db.loadsheets.update({
-      where: { id },
-      data: {
-        status: "finalized",
-        finalized_at: new Date(),
-        finalized_by: finalizedBy,
-        checksum,
-      },
-    });
+    await kdb.updateTable("loadsheets").set({
+      status: "finalized",
+      finalized_at: new Date(),
+      finalized_by: finalizedBy,
+      checksum,
+    } as any).where("id", "=", id).execute();
   },
 
   async addPassenger(data: {
@@ -147,33 +141,28 @@ export const loadsheetRepository = {
     baggage_weight_kg: number;
     freight_weight_kg?: number;
   }): Promise<LoadsheetPassengerRow> {
-    const row = await db.loadsheet_passengers.create({
-      data: {
-        loadsheet_id: data.loadsheet_id,
-        booking_passenger_id: data.booking_passenger_id,
-        booking_leg_id: data.booking_leg_id,
-        seat_row: data.seat_row,
-        seat_side: data.seat_side,
-        clothed_weight_kg: data.clothed_weight_kg,
-        baggage_weight_kg: data.baggage_weight_kg,
-        freight_weight_kg: data.freight_weight_kg ?? 0,
-      },
-    });
+    const row = (await kdb.insertInto("loadsheet_passengers").values({
+      loadsheet_id: data.loadsheet_id,
+      booking_passenger_id: data.booking_passenger_id,
+      booking_leg_id: data.booking_leg_id,
+      seat_row: data.seat_row,
+      seat_side: data.seat_side,
+      clothed_weight_kg: data.clothed_weight_kg,
+      baggage_weight_kg: data.baggage_weight_kg,
+      freight_weight_kg: data.freight_weight_kg ?? 0,
+    } as any).returningAll().execute())[0];
     return row as unknown as LoadsheetPassengerRow;
   },
 
   async updatePassengerBoarding(id: number, boarded: boolean): Promise<void> {
-    await db.loadsheet_passengers.update({
-      where: { id },
-      data: { boarded, boarded_at: boarded ? new Date() : null },
-    });
+    await kdb.updateTable("loadsheet_passengers").set({ boarded, boarded_at: boarded ? new Date() : null } as any).where("id", "=", id).execute();
   },
 
   async findPassengers(loadsheetId: number): Promise<LoadsheetPassengerRow[]> {
-    const rows = await db.loadsheet_passengers.findMany({
-      where: { loadsheet_id: loadsheetId },
-      orderBy: [{ seat_row: "asc" }, { seat_side: "asc" }],
-    });
+    const rows = await kdb.selectFrom("loadsheet_passengers").selectAll()
+      .where("loadsheet_id", "=", loadsheetId)
+      .orderBy("seat_row asc").orderBy("seat_side asc")
+      .execute();
     return rows as unknown as LoadsheetPassengerRow[];
   },
 
@@ -197,36 +186,34 @@ export const loadsheetRepository = {
     tow_status: string;
     notes?: string | null;
   }): Promise<LoadsheetSectorRow> {
-    const row = await db.loadsheet_sectors.create({
-      data: {
-        loadsheet_id: data.loadsheet_id,
-        flight_leg_id: data.flight_leg_id,
-        leg_sequence: data.leg_sequence,
-        origin_code: data.origin_code,
-        destination_code: data.destination_code,
-        distance_nm: data.distance_nm,
-        planned_time_min: data.planned_time_min,
-        etd: parseHHMM(data.etd),
-        eta: parseHHMM(data.eta),
-        fuel_on_board_kg: data.fuel_on_board_kg,
-        fuel_burn_kg: data.fuel_burn_kg,
-        fuel_remaining_kg: data.fuel_remaining_kg,
-        takeoff_weight_kg: data.takeoff_weight_kg,
-        landing_weight_kg: data.landing_weight_kg,
-        cog_position_mm: data.cog_position_mm,
-        cog_status: data.cog_status,
-        tow_status: data.tow_status,
-        notes: data.notes ?? null,
-      },
-    });
+    const row = (await kdb.insertInto("loadsheet_sectors").values({
+      loadsheet_id: data.loadsheet_id,
+      flight_leg_id: data.flight_leg_id,
+      leg_sequence: data.leg_sequence,
+      origin_code: data.origin_code,
+      destination_code: data.destination_code,
+      distance_nm: data.distance_nm,
+      planned_time_min: data.planned_time_min,
+      etd: parseHHMM(data.etd),
+      eta: parseHHMM(data.eta),
+      fuel_on_board_kg: data.fuel_on_board_kg,
+      fuel_burn_kg: data.fuel_burn_kg,
+      fuel_remaining_kg: data.fuel_remaining_kg,
+      takeoff_weight_kg: data.takeoff_weight_kg,
+      landing_weight_kg: data.landing_weight_kg,
+      cog_position_mm: data.cog_position_mm,
+      cog_status: data.cog_status,
+      tow_status: data.tow_status,
+      notes: data.notes ?? null,
+    } as any).returningAll().execute())[0];
     return row as unknown as LoadsheetSectorRow;
   },
 
   async findSectors(loadsheetId: number): Promise<LoadsheetSectorRow[]> {
-    const rows = await db.loadsheet_sectors.findMany({
-      where: { loadsheet_id: loadsheetId },
-      orderBy: { leg_sequence: "asc" },
-    });
+    const rows = await kdb.selectFrom("loadsheet_sectors").selectAll()
+      .where("loadsheet_id", "=", loadsheetId)
+      .orderBy("leg_sequence asc")
+      .execute();
     return rows as unknown as LoadsheetSectorRow[];
   },
 
@@ -236,14 +223,11 @@ export const loadsheetRepository = {
     ata: string | null,
     actualTimeMin: number | null
   ): Promise<void> {
-    await db.loadsheet_sectors.update({
-      where: { id },
-      data: {
-        atd: parseHHMM(atd),
-        ata: parseHHMM(ata),
-        actual_time_min: actualTimeMin,
-      },
-    });
+    await kdb.updateTable("loadsheet_sectors").set({
+      atd: parseHHMM(atd),
+      ata: parseHHMM(ata),
+      actual_time_min: actualTimeMin,
+    } as any).where("id", "=", id).execute();
   },
 
   async logAudit(data: {
@@ -255,13 +239,13 @@ export const loadsheetRepository = {
     actor_id?: number | null;
     ip_address?: string | null;
   }): Promise<void> {
-    await db.loadsheet_audit_log.create({ data });
+    await kdb.insertInto("loadsheet_audit_log").values(data as any).execute();
   },
 
   async deleteByFlightId(flightId: number): Promise<void> {
-    const ls = await db.loadsheets.findUnique({ where: { flight_id: flightId } });
+    const ls = (await kdb.selectFrom("loadsheets").selectAll().where("flight_id", "=", flightId).execute())[0] ?? null;
     if (ls) {
-      await db.loadsheets.delete({ where: { id: ls.id } });
+      await kdb.deleteFrom("loadsheets").where("id", "=", ls.id).execute();
     }
   },
 };

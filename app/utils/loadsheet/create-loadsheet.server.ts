@@ -1,4 +1,6 @@
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 import { loadsheetRepository } from "./loadsheet-repository.server";
 import { computeLoadsheetCalculations } from "./loadsheet-calculations.server";
 import { DEFAULT_BN2_MTOW_KG } from "../constants";
@@ -9,24 +11,24 @@ export async function createLoadsheetFromFlight(flightId: number): Promise<numbe
   const existing = await loadsheetRepository.findByFlightId(flightId);
   if (existing && existing.status !== "archived") return existing.id;
 
-  const flight = await db.flights.findUnique({
-    where: { id: flightId },
-    select: { id: true, schedule_id: true, pilot_id: true, aircraft_id: true, flight_number: true, departure_time: true },
-  });
+  const flight = (await kdb.selectFrom("flights")
+    .select(["id", "schedule_id", "pilot_id", "aircraft_id", "flight_number", "departure_time"])
+    .where("id", "=", flightId)
+    .execute())[0] ?? null;
   if (!flight) return null;
 
-  const legs = await db.flight_legs.findMany({
-    where: { flight_id: flightId },
-    orderBy: { leg_number: "asc" },
-    select: { id: true, leg_number: true, origin_code: true, destination_code: true, distance_nm: true, etd: true, eta: true },
-  });
+  const legs = await kdb.selectFrom("flight_legs")
+    .select(["id", "leg_number", "origin_code", "destination_code", "distance_nm", "etd", "eta"])
+    .where("flight_id", "=", flightId)
+    .orderBy("leg_number asc")
+    .execute();
 
   // Query passengers that are explicitly assigned to a flight leg of this flight
   // (per-passenger).  Previously used `WHERE bl.flight_id = $1` which is booking-leg
   // level and can include passengers who were per-passenger unassigned or never
   // assigned to a specific leg.
-  const passengerRows = await db.$queryRawUnsafe<Record<string, unknown>[]>(
-    `SELECT DISTINCT ON (bp.id)
+  const passengerRowsResult = await sql<Record<string, unknown>>`
+    SELECT DISTINCT ON (bp.id)
             bp.id,
             blp.booking_leg_id,
             bl.origin_code,
@@ -34,14 +36,13 @@ export async function createLoadsheetFromFlight(flightId: number): Promise<numbe
             COALESCE(blp.clothed_weight_kg, 70)::numeric AS clothed_weight_kg,
             COALESCE(blp.baggage_weight_kg, 0)::numeric AS baggage_weight_kg,
             COALESCE(blp.freight_weight_kg, 0)::numeric AS freight_weight_kg
-     FROM booking_leg_passengers blp
-     JOIN flight_legs fl ON fl.id = blp.flight_leg_id
-     JOIN booking_legs bl ON bl.id = blp.booking_leg_id
-     JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
-     WHERE fl.flight_id = $1
-     ORDER BY bp.id, blp.id ASC`,
-    flightId
-  );
+    FROM booking_leg_passengers blp
+    JOIN flight_legs fl ON fl.id = blp.flight_leg_id
+    JOIN booking_legs bl ON bl.id = blp.booking_leg_id
+    JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
+    WHERE fl.flight_id = ${flightId}
+    ORDER BY bp.id, blp.id ASC
+  `.execute(kdb);
 
   // Build stop order map from flight legs to validate route order
   const stopOrderMap = new Map<string, number>();
@@ -55,7 +56,7 @@ export async function createLoadsheetFromFlight(flightId: number): Promise<numbe
     }
   }
 
-  const routeMatchedRows = (passengerRows as Array<{
+  const routeMatchedRows = (passengerRowsResult.rows as unknown as Array<{
     id: number | bigint; booking_leg_id: number | bigint;
     origin_code: string; destination_code: string;
     clothed_weight_kg: number | bigint; baggage_weight_kg: number | bigint; freight_weight_kg: number | bigint;
@@ -75,10 +76,10 @@ export async function createLoadsheetFromFlight(flightId: number): Promise<numbe
     freightWeightKg: Number(r.freight_weight_kg) || 0,
   }));
 
-  const aircraft = await db.aircraft.findUnique({
-    where: { id: flight.aircraft_id ?? 0 },
-    select: { empty_weight_kg: true, max_takeoff_weight_kg: true },
-  });
+  const aircraft = (await kdb.selectFrom("aircraft")
+    .select(["empty_weight_kg", "max_takeoff_weight_kg"])
+    .where("id", "=", flight.aircraft_id ?? 0)
+    .execute())[0] ?? null;
 
   const emptyWt = aircraft ? Number(aircraft.empty_weight_kg) || BN2_EMPTY_WT : BN2_EMPTY_WT;
   const mtow = aircraft ? Number(aircraft.max_takeoff_weight_kg) || DEFAULT_BN2_MTOW_KG : DEFAULT_BN2_MTOW_KG;

@@ -1,4 +1,6 @@
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 import { bookingRepository } from "../repositories/booking";
 import { bookingPassengerRepository } from "../repositories/booking-passenger";
 import { bookingLegRepository } from "../repositories/booking-leg";
@@ -297,13 +299,10 @@ export async function issueInvoice(
       InvoiceStatus.ISSUED
     );
 
-    // Set issue_date via Prisma (updateStatus doesn't set issue_date)
-    await db.invoices.update({
-      where: { id: params.invoiceId },
-      data: {
-        issue_date: new Date(new Date().toISOString().split("T")[0]),
-      },
-    });
+    // Set issue_date via Kysely (updateStatus doesn't set issue_date)
+    await kdb.updateTable("invoices").set({
+      issue_date: new Date(new Date().toISOString().split("T")[0]),
+    } as any).where("id", "=", params.invoiceId).execute();
 
     // Create accounting journal entry
     const entry = await accountingEntryRepository.createEntry({
@@ -404,17 +403,11 @@ export async function getAgingSummary(
     const asOf = new Date(asOfDate);
 
     // Fetch issued invoices that are overdue (due_date < asOfDate)
-    const overdueInvoices = await db.invoices.findMany({
-      where: {
-        status: InvoiceStatus.ISSUED,
-        due_date: { lt: asOf },
-      },
-      select: {
-        due_date: true,
-        total_gbp: true,
-        amount_paid_gbp: true,
-      },
-    });
+    const overdueInvoices = await kdb.selectFrom("invoices")
+      .select(["due_date", "total_gbp", "amount_paid_gbp"])
+      .where("status", "=", InvoiceStatus.ISSUED)
+      .where("due_date", "<", asOf as any)
+      .execute();
 
     // Group into aging buckets
     const buckets: Record<string, { count: number; totalAmount: number }> = {
@@ -427,7 +420,7 @@ export async function getAgingSummary(
     const now = new Date(asOfDate);
 
     for (const inv of overdueInvoices) {
-      const dueDate = inv.due_date instanceof Date ? inv.due_date : new Date(inv.due_date);
+      const dueDate = (inv.due_date as any) instanceof Date ? inv.due_date as any as Date : new Date(inv.due_date as any);
       const daysOverdue = Math.floor(
         (now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)
       );

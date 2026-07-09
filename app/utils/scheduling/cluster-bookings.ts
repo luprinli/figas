@@ -1,6 +1,8 @@
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 import type { BookingLegRow } from "../repositories/booking-leg";
 import { bookingLegRepository } from "../repositories/booking-leg";
-import { db } from "../db.server";
 import type { ClusterResult } from "./types";
 
 /**
@@ -32,16 +34,13 @@ export async function clusterBookings(): Promise<ClusterResult[]> {
   // passenger count matches what the UI displays as unassigned.
   const legIds = unassignedLegs.map((l) => l.id);
   const countRows = legIds.length > 0
-    ? await db.$queryRawUnsafe<
-        { booking_leg_id: number; count: number }[]
-      >(
-        `SELECT booking_leg_id, COUNT(*)::int AS count
-         FROM booking_leg_passengers
-         WHERE booking_leg_id = ANY($1)
-           AND flight_leg_id IS NULL
-         GROUP BY booking_leg_id`,
-        legIds
-      )
+    ? (await sql<{ booking_leg_id: number; count: number }>`
+        SELECT booking_leg_id, COUNT(*)::int AS count
+        FROM booking_leg_passengers
+        WHERE booking_leg_id = ANY(${legIds})
+          AND flight_leg_id IS NULL
+        GROUP BY booking_leg_id
+      `.execute(kdb)).rows
     : [];
   const passengerCountMap = new Map<number, number>(
     countRows.map((r) => [r.booking_leg_id, r.count])

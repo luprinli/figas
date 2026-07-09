@@ -1,4 +1,6 @@
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 import { exportLogRepository } from "../repositories/export-log";
 import { ExportFormat, ExportType } from "../constants";
 
@@ -122,34 +124,23 @@ async function fetchExportData(
 }> {
   switch (exportType) {
     case "payments": {
-      const records = await db.payments.findMany({
-        where: {
-          created_at: {
-            gte: new Date(dateFrom),
-            lte: new Date(dateTo + "T23:59:59.999Z"),
-          },
-        },
-        include: {
-          booking: {
-            select: {
-              booking_reference: true,
-              id: true,
-            },
-          },
-        },
-        orderBy: {
-          created_at: "desc",
-        },
-      });
+      const records = await kdb.selectFrom("payments as p")
+        .leftJoin("bookings as b", "b.id", "p.booking_id")
+        .selectAll("p")
+        .select(["b.booking_reference", "b.id as booking_id_alias"])
+        .where("p.created_at", ">=", new Date(dateFrom) as any)
+        .where("p.created_at", "<=", new Date(dateTo + "T23:59:59.999Z") as any)
+        .orderBy("p.created_at desc")
+        .execute();
 
       const mapped = records.map((r) => ({
-        id: r.id,
-        amount_gbp: r.amount_gbp,
-        status: r.status,
-        payment_method: r.payment_method,
-        created_at: r.created_at,
-        booking_reference: r.booking?.booking_reference ?? null,
-        booking_id: r.booking?.id ?? null,
+        id: (r as any).id,
+        amount_gbp: (r as any).amount_gbp,
+        status: (r as any).status,
+        payment_method: (r as any).payment_method,
+        created_at: (r as any).created_at,
+        booking_reference: (r as any).booking_reference ?? null,
+        booking_id: (r as any).booking_id_alias ?? (r as any).booking_id ?? null,
       }));
 
       const headers = [
@@ -174,36 +165,26 @@ async function fetchExportData(
     }
 
     case "invoices": {
-      const records = await db.invoices.findMany({
-        where: {
-          issue_date: {
-            gte: new Date(dateFrom),
-            lte: new Date(dateTo + "T23:59:59.999Z"),
-          },
-        },
-        include: {
-          booking: {
-            select: {
-              booking_reference: true,
-            },
-          },
-        },
-        orderBy: {
-          issue_date: "desc",
-        },
-      });
+      const records = await kdb.selectFrom("invoices as i")
+        .leftJoin("bookings as b", "b.id", "i.booking_id")
+        .selectAll("i")
+        .select("b.booking_reference")
+        .where("i.issue_date", ">=", new Date(dateFrom) as any)
+        .where("i.issue_date", "<=", new Date(dateTo + "T23:59:59.999Z") as any)
+        .orderBy("i.issue_date desc")
+        .execute();
 
       const mapped = records.map((r) => ({
-        id: r.id,
-        invoice_number: r.invoice_number,
-        status: r.status,
-        issue_date: r.issue_date,
-        due_date: r.due_date,
-        total_gbp: r.total_gbp,
-        amount_paid_gbp: r.amount_paid_gbp,
+        id: (r as any).id,
+        invoice_number: (r as any).invoice_number,
+        status: (r as any).status,
+        issue_date: (r as any).issue_date,
+        due_date: (r as any).due_date,
+        total_gbp: (r as any).total_gbp,
+        amount_paid_gbp: (r as any).amount_paid_gbp,
         // amount_due_gbp is a generated column; compute it
-        amount_due_gbp: Number(r.total_gbp) - Number(r.amount_paid_gbp),
-        booking_reference: r.booking?.booking_reference ?? null,
+        amount_due_gbp: Number((r as any).total_gbp) - Number((r as any).amount_paid_gbp),
+        booking_reference: (r as any).booking_reference ?? null,
       }));
 
       const headers = [
@@ -232,48 +213,41 @@ async function fetchExportData(
     }
 
     case "journal": {
-      const records = await db.accounting_journal_entries.findMany({
-        where: {
-          entry_date: {
-            gte: new Date(dateFrom),
-            lte: new Date(dateTo + "T23:59:59.999Z"),
-          },
-        },
-        include: {
-          journal_lines: {
-            include: {
-              account: {
-                select: {
-                  account_code: true,
-                },
-              },
-            },
-          },
-        },
-        orderBy: [
-          { entry_date: "asc" },
-          { id: "asc" },
-        ],
-      });
+      const rawRows = await kdb.selectFrom("accounting_journal_entries as aje")
+        .leftJoin("accounting_journal_lines as ajl", "ajl.entry_id", "aje.id")
+        .leftJoin("chart_of_accounts as coa", "coa.id", "ajl.account_id")
+        .select([
+          "aje.id",
+          "aje.entry_number",
+          "aje.entry_type",
+          "aje.description",
+          "aje.entry_date",
+          "aje.created_by",
+          "ajl.account_id",
+          "ajl.debit_amount_gbp",
+          "ajl.credit_amount_gbp",
+          "ajl.description as line_description",
+          "coa.account_code",
+        ])
+        .where("aje.entry_date", ">=", new Date(dateFrom) as any)
+        .where("aje.entry_date", "<=", new Date(dateTo + "T23:59:59.999Z") as any)
+        .orderBy("aje.entry_date asc")
+        .orderBy("aje.id asc")
+        .execute();
 
       // Flatten: each journal line becomes a row
-      const mapped: Array<Record<string, unknown>> = [];
-      for (const entry of records) {
-        for (const line of entry.journal_lines) {
-          mapped.push({
-            id: entry.id,
-            entry_number: entry.entry_number,
-            entry_type: entry.entry_type,
-            description: entry.description,
-            entry_date: entry.entry_date,
-            created_by: entry.created_by,
-            account_id: line.account?.account_code ?? line.account_id,
-            debit_amount_gbp: line.debit_amount_gbp,
-            credit_amount_gbp: line.credit_amount_gbp,
-            line_description: line.description,
-          });
-        }
-      }
+      const mapped: Array<Record<string, unknown>> = rawRows.map((r) => ({
+        id: (r as any).id,
+        entry_number: (r as any).entry_number,
+        entry_type: (r as any).entry_type,
+        description: (r as any).description,
+        entry_date: (r as any).entry_date,
+        created_by: (r as any).created_by,
+        account_id: (r as any).account_code ?? (r as any).account_id,
+        debit_amount_gbp: (r as any).debit_amount_gbp,
+        credit_amount_gbp: (r as any).credit_amount_gbp,
+        line_description: (r as any).line_description,
+      }));
 
       const headers = [
         "Entry ID",
@@ -304,19 +278,11 @@ async function fetchExportData(
 
     case "aging": {
       const now = new Date();
-      const records = await db.invoices.findMany({
-        where: {
-          status: "issued",
-          due_date: {
-            lt: now,
-          },
-        },
-        select: {
-          total_gbp: true,
-          amount_paid_gbp: true,
-          due_date: true,
-        },
-      });
+      const records = await kdb.selectFrom("invoices")
+        .select(["total_gbp", "amount_paid_gbp", "due_date"])
+        .where("status", "=", "issued")
+        .where("due_date", "<", now as any)
+        .execute();
 
       // Bucket in-memory
       const buckets: Record<string, { count: number; total: number }> = {

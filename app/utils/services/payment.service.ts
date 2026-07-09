@@ -1,5 +1,7 @@
 import { getStripe } from "../stripe.server";
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 import { bookingRepository } from "../repositories/booking";
 import { bookingPassengerRepository } from "../repositories/booking-passenger";
 import { paymentMethodRepository } from "../repositories/payment-method";
@@ -115,15 +117,18 @@ export async function initiateStripePayment(params: {
     // Create the parent payments record first — stripe_payments.payment_id
     // is an FK to payments.id (auto-increment integer), so we must create
     // the payments row before the stripe_payments row.
-    const payment = await db.payments.create({
-      data: {
+    const paymentRows = await kdb.insertInto("payments")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .values({
         booking_id: params.bookingId,
-        amount: params.amount,
-        amount_gbp: params.amount,
+        amount: String(params.amount),
+        amount_gbp: String(params.amount),
         method: PaymentMethod.STRIPE,
         status: PaymentStatus.PROCESSING,
-      },
-    });
+      } as any)
+      .returningAll()
+      .execute();
+    const payment = paymentRows[0] as unknown as { id: number };
 
     // Create Stripe Checkout Session with idempotency key
     const idempotencyKey = `booking_${params.bookingId}_${Date.now()}`;
@@ -250,10 +255,9 @@ export async function handleStripeSuccess(params: {
     });
 
     // Auto-reconcile: Stripe is the source of truth for card payments
-    await db.$queryRawUnsafe(
-      `UPDATE payments SET reconciled_at = NOW(), reconciled_by = $1 WHERE id = $2`,
-      [params.userId, stripePayment.payment_id]
-    );
+    await sql`
+      UPDATE payments SET reconciled_at = NOW(), reconciled_by = ${params.userId} WHERE id = ${stripePayment.payment_id}
+    `.execute(kdb);
 
     return { success: true, paymentId: String(stripePayment.payment_id) };
   } catch (error) {

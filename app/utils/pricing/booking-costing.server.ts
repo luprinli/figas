@@ -1,4 +1,6 @@
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 import { computeLegFare, computeBookingTotal } from "./pricing-engine.server";
 import type { DiscountType } from "./pricing-engine.server";
 
@@ -28,27 +30,26 @@ export interface BookingCostResult {
 }
 
 export async function computeBookingCost(input: BookingCostInput): Promise<BookingCostResult> {
-  const rows = await db.$queryRawUnsafe<Record<string, unknown>[]>(
-    `SELECT
-       blp.id AS booking_leg_passenger_id,
-       blp.booking_leg_id,
-       bp.id AS passenger_id,
-       CONCAT(bp.first_name, ' ', bp.last_name) AS passenger_name,
-       EXTRACT(YEAR FROM AGE(bp.date_of_birth))::int AS passenger_age,
-       COALESCE(bp.discount_type, 'none') AS discount_type,
-       bl.origin_code,
-       bl.destination_code
-     FROM booking_leg_passengers blp
-     JOIN booking_legs bl ON bl.id = blp.booking_leg_id
-     JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
-     WHERE bl.booking_id = $1
-     ORDER BY blp.id`,
-    input.bookingId
-  );
+  const rows = await sql<Record<string, unknown>>`
+    SELECT
+      blp.id AS booking_leg_passenger_id,
+      blp.booking_leg_id,
+      bp.id AS passenger_id,
+      CONCAT(bp.first_name, ' ', bp.last_name) AS passenger_name,
+      EXTRACT(YEAR FROM AGE(bp.date_of_birth))::int AS passenger_age,
+      COALESCE(bp.discount_type, 'none') AS discount_type,
+      bl.origin_code,
+      bl.destination_code
+    FROM booking_leg_passengers blp
+    JOIN booking_legs bl ON bl.id = blp.booking_leg_id
+    JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
+    WHERE bl.booking_id = ${input.bookingId}
+    ORDER BY blp.id
+  `.execute(kdb);
 
   const lines: LegCostLine[] = [];
 
-  for (const r of (rows as Array<{
+  for (const r of (rows.rows as unknown as Array<{
     booking_leg_passenger_id: number | bigint;
     booking_leg_id: number | bigint;
     passenger_id: number | bigint;
@@ -83,13 +84,10 @@ export async function computeBookingCost(input: BookingCostInput): Promise<Booki
     });
 
     // Persist line fare
-    await db.booking_leg_passengers.update({
-      where: { id: Number(r.booking_leg_passenger_id) },
-      data: {
-        line_fare_amount: fare.discountedFare,
-        discount_applied: fare.discountPercent > 0,
-      },
-    });
+    await kdb.updateTable("booking_leg_passengers").set({
+      line_fare_amount: fare.discountedFare,
+      discount_applied: fare.discountPercent > 0,
+    } as any).where("id", "=", Number(r.booking_leg_passenger_id)).execute();
   }
 
   const totals = computeBookingTotal(lines.map((l) => ({
@@ -102,8 +100,5 @@ export async function computeBookingCost(input: BookingCostInput): Promise<Booki
 }
 
 export async function updateBookingTotals(bookingId: number, grandTotal: number): Promise<void> {
-  await db.bookings.update({
-    where: { id: bookingId },
-    data: { total_amount: grandTotal },
-  });
+  await kdb.updateTable("bookings").set({ total_amount: grandTotal } as any).where("id", "=", bookingId).execute();
 }
