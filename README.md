@@ -521,4 +521,6 @@ Comprehensive documentation is maintained in the `docs/` directory:
 
 ## License
 
-This project is proprietary software for the Falkland Islands Government Air Service (FIGAS).
+This project is proprietary software. Copyright (c) 2026 Luyo Likoko. All rights reserved.
+
+Luyo Likoko owns this software and retains the exclusive right to use, modify, and distribute it. No use, modification, or distribution by any other party is permitted without prior written permission. See [`LICENSE`](LICENSE) for full terms.

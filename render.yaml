@@ -27,8 +27,10 @@ services:
     autoDeploy: true
     # `npm ci` runs the `postinstall` hook (prisma generate) before the build.
     buildCommand: npm ci && npm run build
-    # Runs migrations against the database before each deploy goes live.
-    preDeployCommand: npm run migrate
+    # Syncs the database schema to prisma/schema.prisma before each deploy goes
+    # live. Idempotent; fails safely (no --accept-data-loss) if a change would
+    # drop data. Seed data is loaded once via Render Shell (see README/SETUP).
+    preDeployCommand: npm run db:push
     startCommand: npm run start
     healthCheckPath: /login
     envVars:

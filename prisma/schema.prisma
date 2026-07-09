@@ -1806,3 +1806,51 @@ model ata_chapters {
 
   @@map("ata_chapters")
 }
+
+/// Dead-letter queue for payment gateway webhooks (Stripe). Accessed via raw SQL
+/// in app/utils/repositories/webhook-event.ts.
+model webhook_events {
+  id           Int       @id @default(autoincrement())
+  provider     String    @default("stripe") @db.VarChar(50)
+  event_id     String    @unique @db.VarChar(255)
+  event_type   String    @db.VarChar(100)
+  payload      Json?
+  status       String    @default("received") @db.VarChar(20)
+  attempts     Int       @default(1)
+  last_error   String?   @db.Text
+  created_at   DateTime  @default(now()) @db.Timestamptz()
+  processed_at DateTime? @db.Timestamptz()
+
+  @@index([status])
+  @@index([provider])
+  @@index([created_at])
+  @@map("webhook_events")
+}
+
+/// Freight consignments for cargo operations. Accessed via raw SQL in
+/// app/routes/checkin.freight.tsx. FK columns (flight_id, created_by) are kept
+/// as plain scalars because the app manages these relations through raw SQL.
+model freight_consignments {
+  id                      Int       @id @default(autoincrement())
+  flight_id               Int?
+  consignor_name          String    @db.VarChar(255)
+  consignee_name          String    @db.VarChar(255)
+  description             String?   @db.Text
+  weight_kg               Decimal   @db.Decimal(7, 1)
+  length_cm               Decimal?  @db.Decimal(5, 1)
+  width_cm                Decimal?  @db.Decimal(5, 1)
+  height_cm               Decimal?  @db.Decimal(5, 1)
+  priority                String?   @default("medium") @db.VarChar(20)
+  hazardous               Boolean?  @default(false)
+  waybill_number          String?   @db.VarChar(50)
+  payment_mode            String?   @db.VarChar(30)
+  organization_account_id Int?
+  status                  String?   @default("unassigned") @db.VarChar(20)
+  created_by              Int?
+  created_at              DateTime? @default(now()) @db.Timestamptz()
+  updated_at              DateTime? @default(now()) @db.Timestamptz()
+
+  @@index([flight_id])
+  @@index([status])
+  @@map("freight_consignments")
+}
