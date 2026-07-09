@@ -456,15 +456,22 @@ export async function handleCreateFlight(
     const now = new Date();
     const flightNumber = await generateFlightNumber(now, tx);
 
-    // Create the flight record
+    // Every flight path must start and end at STY (RULE 1). Resolve the STY id.
+    const styRow = await tx.aerodromes.findFirst({
+      where: { code: "STY" },
+      select: { id: true },
+    });
+    const styId = styRow?.id ?? originAerodromeId;
+
+    // Create the flight record as an STY → … → STY round trip.
     const result = await tx.flights.create({
       data: {
         schedule_id: scheduleId,
         flight_number: flightNumber,
-        origin_aerodrome_id: originAerodromeId,
-        destination_aerodrome_id: destinationAerodromeId,
-        origin_code: originCode,
-        destination_code: destinationCode,
+        origin_aerodrome_id: styId,
+        destination_aerodrome_id: styId,
+        origin_code: "STY",
+        destination_code: "STY",
         aircraft_id: aircraftId,
         departure_time: new Date(),
         arrival_time: new Date(),
@@ -475,7 +482,7 @@ export async function handleCreateFlight(
     });
     const flightId = result.id;
 
-    // Link unassigned booking legs whose route matches this flight's route
+    // Link unassigned booking legs whose sector matches origin → destination
     if (originCode && destinationCode) {
       await tx.booking_legs.updateMany({
         where: {
@@ -487,12 +494,20 @@ export async function handleCreateFlight(
       });
     }
 
-    // Create the flight leg (origin → destination)
-    await flightLegRepository.replaceFlightLegs(
-      flightId,
-      [{ leg_sequence: 1, origin_code: originCode, destination_code: destinationCode }],
-      tx
-    );
+    // Build STY-bounded legs: STY → origin → destination → STY, skipping any
+    // bookend that is already STY (and any zero-length hop). Guarantees RULE 1.
+    const legRoutes: Array<{ leg_sequence: number; origin_code: string; destination_code: string }> = [];
+    let seq = 1;
+    let cursor = "STY";
+    for (const code of [originCode, destinationCode, "STY"]) {
+      if (!code || code === cursor) continue;
+      legRoutes.push({ leg_sequence: seq++, origin_code: cursor, destination_code: code });
+      cursor = code;
+    }
+    if (legRoutes.length === 0) {
+      legRoutes.push({ leg_sequence: 1, origin_code: "STY", destination_code: destinationCode || "STY" });
+    }
+    await flightLegRepository.replaceFlightLegs(flightId, legRoutes, tx);
 
     // Query the full flight row so the client can add it to state immediately
     const flightRow = await findSummaryById(flightId, tx);

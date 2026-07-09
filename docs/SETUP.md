@@ -154,20 +154,24 @@ npm run migrate
 
 > The original per-feature migrations (`001`–`019`) are preserved for reference under [`migrations/archive/`](../migrations/archive/). Later feature migrations (`008-system-settings.sql` … `018-freight.sql`) and one-off `fix-*.sql` scripts live at the top of [`migrations/`](../migrations/) and are applied by dedicated scripts under [`scripts/`](../scripts/).
 
-### 4.3 Seed Reference Data
+### 4.3 Provision the database (schema + data) — one command
+
+Provisioning is **amalgamated** into a single, idempotent, order‑correct command so there is never a state where required reference data is absent:
 
 ```bash
-# Load reference + demo data (aerodromes, aircraft, pilots, fares, bookings)
-npm run seed:full
-
-# Configure PBAC roles/permissions and assign them to seeded users
-npm run seed:pbac
-npm run seed:pbac:assign
+npm run bootstrap
 ```
 
-> Tip: `npm run setup` runs migrations plus all of the above in one command.
+`bootstrap` runs, in order:
+1. `prisma db push` — sync the schema from `prisma/schema.prisma`.
+2. `seed:comprehensive` — all **required reference data** (aerodromes with the canonical `STY` code, `aerodrome_distances`, `aerodrome_headings`, aircraft, fuel rules, fare routes, users, pilots, no‑fly rules) **plus** demo bookings/flights/financials.
+3. `seed:pbac` + `seed:pbac:assign` — roles/permissions and their assignment to the seeded users.
 
-The seed scripts load data from CSV files in the [`data/`](../data/) directory:
+The comprehensive seeder ends with a **required‑data integrity gate**: if any table the app cannot function without (aerodromes, distances, headings, aircraft, fuel rules, fares, users, or STY routing) is empty, the seed **fails loudly** rather than leaving a silently‑broken deployment. Every insert is `ON CONFLICT`‑guarded, so `bootstrap` is safe to re‑run.
+
+> `npm run setup` is an alias for `npm run bootstrap`. For a clean rebuild (drops all data), run `npx prisma db push --force-reset` first, then `npm run bootstrap`.
+
+The seed loads data from CSV files in the [`data/`](../data/) directory:
 - [`data/aerodromes.csv`](../data/aerodromes.csv) — Airport/airstrip reference data
 - [`data/aircraft.csv`](../data/aircraft.csv) — Aircraft fleet information
 - [`data/pilots.csv`](../data/pilots.csv) — Pilot records
@@ -214,7 +218,8 @@ This starts the [Vite](https://vitejs.dev/) dev server with HMR (Hot Module Repl
 | `typecheck` | `npm run typecheck` | Run TypeScript type checking (`tsc`) |
 | `lint` | `npm run lint` | Run ESLint |
 | `migrate` | `npm run migrate` | Apply pending migrations |
-| `setup` | `npm run setup` | Migrate + seed:full + seed:pbac + seed:pbac:assign |
+| `setup` | `npm run setup` | Alias for `bootstrap` |
+| `bootstrap` | `npm run bootstrap` | Atomic provisioning: db push + comprehensive seed + PBAC (idempotent, integrity‑gated) |
 | `test` | `npm test` | Vitest unit + integration tests |
 | `test:e2e` | `npm run test:e2e` | Playwright end-to-end tests |
 | `test:related` | `npm run test:related` | Only suites affected by changed files |

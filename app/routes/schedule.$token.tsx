@@ -30,6 +30,7 @@ interface FlightData {
   flightNumber?: string;
   originCode?: string;
   destinationCode?: string;
+  routePath?: string | null;
   departureTime?: string;
   arrivalTime?: string;
   aircraftType?: string | null;
@@ -76,7 +77,7 @@ export default function PublicSchedule() {
               <div key={i} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                   <span className="text-sm font-bold text-cyan-700">{f.flightNumber}</span>
-                  <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{f.originCode} → {f.destinationCode}</span>
+                  <span className="text-xs font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500">{f.routePath || `${f.originCode} → ${f.destinationCode}`}</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-300 dark:text-slate-500">
                   {f.departureTime ? (

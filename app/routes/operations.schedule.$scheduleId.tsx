@@ -37,7 +37,33 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         [Number(params.scheduleId)]
     );
 
-    return json({ schedule: schedule[0], flights: flights.rows });
+    // Build the true STY → … → STY route path from flight_legs (RULE 1).
+    // The flight-level origin/destination aerodrome is STY↔STY for round-trip
+    // sorties, so the human-readable path MUST come from the ordered legs.
+    const legs = await db.query(
+        `SELECT flight_id, leg_number, origin_code, destination_code
+ FROM flight_legs
+ WHERE flight_id IN (SELECT id FROM flights WHERE schedule_id = $1)
+ ORDER BY flight_id, leg_number`,
+        [Number(params.scheduleId)]
+    );
+    const routeByFlight = new Map<number, string[]>();
+    for (const row of legs.rows as Array<Record<string, unknown>>) {
+        const fid = Number(row.flight_id);
+        const codes = routeByFlight.get(fid) ?? [];
+        if (codes.length === 0) codes.push(String(row.origin_code));
+        codes.push(String(row.destination_code));
+        routeByFlight.set(fid, codes);
+    }
+    const flightsWithRoute = (flights.rows as Array<Record<string, unknown>>).map((f) => {
+        const codes = routeByFlight.get(Number(f.id)) ?? [];
+        return {
+            ...f,
+            route: codes.length > 0 ? codes.join(" → ") : `${f.origin_code} → ${f.destination_code}`,
+        };
+    });
+
+    return json({ schedule: schedule[0], flights: flightsWithRoute });
 }
 
 export default function ScheduleDetail() {
@@ -69,8 +95,8 @@ export default function ScheduleDetail() {
                             >
                                 {f.flight_number as string}
                             </Link>
-                            <span className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
-                                {f.origin_code as string} → {f.destination_code as string}
+                            <span className="text-sm font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                                {(f.route as string) ?? `${f.origin_code as string} → ${f.destination_code as string}`}
                             </span>
                             <span className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
                                 {f.aircraft_registration as string ?? "Unassigned"}

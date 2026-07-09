@@ -79,8 +79,12 @@ async function main() {
   for (const line of csv) {
     const parts = line.split(",");
     const name = parts[0]?.trim();
-    const code = parts[1]?.trim();
+    let code = parts[1]?.trim();
     if (!code) continue;
+    // Canonical Stanley code is STY — it matches the distance, heading and fare
+    // matrices and the scheduling depot. The reference CSV lists Stanley as
+    // "PSY"; remap it so we never create a duplicate, unroutable Stanley record.
+    if (code === "PSY") code = "STY";
     const lat = parseFloat(parts[2]) || null;
     const lng = parseFloat(parts[3]) || null;
     const rw = parseFloat(parts[6]) || null;
@@ -101,6 +105,104 @@ async function main() {
      ON CONFLICT (code) DO NOTHING`
   );
   console.log(`  ✓ ${aeroCount} aerodromes`);
+
+  // 1.1b Aerodrome distances & headings (REQUIRED for routing).
+  // Without these, loadDistances()/loadHeadings() return empty, the CVRP
+  // distance matrix is empty, and every flight leg gets a 0 nm distance.
+  const validCodes = new Set(
+    (
+      await prisma.$queryRawUnsafe<Array<{ code: string }>>(
+        `SELECT code FROM aerodromes WHERE is_active = true`
+      )
+    ).map((r) => r.code)
+  );
+  const parseMatrix = (file: string) => {
+    const lines = fs
+      .readFileSync(path.resolve(`data/${file}`), "utf-8")
+      .trim()
+      .split("\n")
+      .map((l) => l.replace(/\r$/, ""));
+    const headers = lines[0].split("\t").map((h) => h.trim());
+    const rows = lines.slice(1).map((l) => l.split("\t").map((c) => c.trim()));
+    return { codes: headers.slice(1), rows };
+  };
+  {
+    const { codes, rows } = parseMatrix("distance.csv");
+    let dCount = 0;
+    for (const row of rows) {
+      const origin = row[0];
+      if (!origin || !validCodes.has(origin)) continue;
+      for (let j = 1; j < row.length && j - 1 < codes.length; j++) {
+        const dest = codes[j - 1];
+        if (!dest || dest === origin || !validCodes.has(dest)) continue;
+        const distance = parseFloat(row[j]);
+        if (!Number.isFinite(distance) || distance <= 0) continue;
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO aerodrome_distances (origin_code, destination_code, distance_nm)
+           VALUES ($1, $2, $3) ON CONFLICT (origin_code, destination_code) DO NOTHING`,
+          origin,
+          dest,
+          distance
+        );
+        dCount++;
+      }
+    }
+    console.log(`  ✓ ${dCount} aerodrome distances`);
+  }
+  {
+    const { codes, rows } = parseMatrix("heading.csv");
+    let hCount = 0;
+    for (const row of rows) {
+      const origin = row[0];
+      if (!origin || !validCodes.has(origin)) continue;
+      for (let j = 1; j < row.length && j - 1 < codes.length; j++) {
+        const dest = codes[j - 1];
+        if (!dest || dest === origin || !validCodes.has(dest)) continue;
+        const heading = parseFloat(row[j]);
+        if (!Number.isFinite(heading)) continue;
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO aerodrome_headings (origin_code, destination_code, heading_degrees)
+           VALUES ($1, $2, $3) ON CONFLICT (origin_code, destination_code) DO NOTHING`,
+          origin,
+          dest,
+          heading
+        );
+        hCount++;
+      }
+    }
+    console.log(`  ✓ ${hCount} aerodrome headings`);
+  }
+
+  // 1.1c Fuel rules (required for fuel planning during scheduling).
+  {
+    const lines = fs
+      .readFileSync(path.resolve("data/fuel.csv"), "utf-8")
+      .trim()
+      .split("\n")
+      .map((l) => l.replace(/\r$/, ""));
+    let fCount = 0;
+    for (const line of lines.slice(1)) {
+      const c = line.split("\t");
+      if (c.length < 5 || !c[0].trim()) continue;
+      const ft = parseInt(c[0], 10);
+      const sectors = parseInt(c[1], 10);
+      const req = parseFloat(c[2]);
+      const min = parseFloat(c[3]);
+      const state = c[4].trim();
+      if (Number.isNaN(ft) || Number.isNaN(sectors)) continue;
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO fuel_rules (flight_time_minutes, sectors, required_fuel_kg, minimum_fuel_kg, fuel_state)
+         VALUES ($1, $2, $3, $4, $5) ON CONFLICT (flight_time_minutes, sectors) DO NOTHING`,
+        ft,
+        sectors,
+        req,
+        min,
+        state
+      );
+      fCount++;
+    }
+    console.log(`  ✓ ${fCount} fuel rules`);
+  }
 
   // 1.2 Aircraft
   for (const [reg, , isActive] of [["VP-FBZ","142h",true],["VP-FAZ","87h",true],["VP-FCZ","23h",true],["VP-FDZ","0h (OOS)",false]] as const) {
@@ -672,6 +774,33 @@ async function main() {
       (SELECT COUNT(*) FROM booking_leg_passengers WHERE checked_in = true) AS checked_in`
   );
   const c = counts[0];
+
+  // ── Required-data integrity gate ────────────────────────────────────────
+  // Fail loudly if any table the app cannot function without is empty. This
+  // prevents "provisioned but silently broken" states (e.g. an empty distance
+  // matrix that makes every flight route 0 nm / unroutable).
+  const req = await prisma.$queryRawUnsafe<Array<Record<string, number>>>(
+    `SELECT
+       (SELECT COUNT(*) FROM aerodromes WHERE is_active = true) AS aerodromes,
+       (SELECT COUNT(*) FROM aerodrome_distances) AS aerodrome_distances,
+       (SELECT COUNT(*) FROM aerodrome_headings) AS aerodrome_headings,
+       (SELECT COUNT(*) FROM aircraft WHERE is_active = true) AS aircraft,
+       (SELECT COUNT(*) FROM fuel_rules) AS fuel_rules,
+       (SELECT COUNT(*) FROM fare_routes) AS fare_routes,
+       (SELECT COUNT(*) FROM users) AS users,
+       (SELECT COUNT(*) FROM aerodrome_distances WHERE origin_code = 'STY' OR destination_code = 'STY') AS sty_distances`
+  );
+  const r = req[0];
+  const missing = Object.entries(r)
+    .filter(([, n]) => Number(n) === 0)
+    .map(([k]) => k);
+  if (missing.length > 0) {
+    throw new Error(
+      `Required reference data missing after seed: ${missing.join(", ")}. ` +
+        `The application will not function correctly — check data/*.csv and seed order.`
+    );
+  }
+  console.log(`  ✓ Integrity check passed (STY distance rows: ${r.sty_distances})`);
 
   console.log("\n══════════════════════════════════════════════");
   console.log("  SEED COMPLETE");

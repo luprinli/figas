@@ -18,7 +18,7 @@ import { db } from "../db.server";
 import { solveCvrp } from "./cvrp-solver";
 import { validateCvrpRoutes, filterFeasibleRoutes } from "./cvrp-validator";
 import type { ValidationAircraft } from "./flight-validation";
-import { loadDistances } from "./distance-lookup";
+import { loadDistances, loadHeadings, getDistance, getHeading } from "./distance-lookup";
 import type { PassengerDemand } from "./cvrp-types";
 
 /**
@@ -116,6 +116,7 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
 
     // Build distance matrix
     const distRows = await loadDistances();
+    const headingRows = await loadHeadings();
     const distanceMatrix = new Map<string, number>();
     for (const d of distRows) {
       distanceMatrix.set(`${d.origin}->${d.destination}`, d.distance_nm);
@@ -201,18 +202,26 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
       );
       const flight = (flightResult.rows[0] as unknown as FlightRow);
 
-      // Create flight legs from CVRP route stops
+      // Create flight legs from CVRP route stops.
+      // Use the actual per-sector distance/heading from the reference matrices;
+      // fall back to an even split of the total only if a pair is missing.
+      const legCount = cvrpRoute.stops.length - 1;
+      const evenSplitNm = legCount > 0 ? cvrpRoute.totalDistanceNm / legCount : 0;
       const legDistances: Array<{ distance_nm: number }> = [];
       for (let s = 0; s < cvrpRoute.stops.length - 1; s++) {
-        const legDistNm = cvrpRoute.totalDistanceNm / (cvrpRoute.stops.length - 1);
+        const from = cvrpRoute.stops[s];
+        const to = cvrpRoute.stops[s + 1];
+        const realDist = getDistance(distRows, from, to);
+        const legDistNm = realDist > 0 ? realDist : evenSplitNm;
+        const legHeading = getHeading(headingRows, from, to);
         legDistances.push({ distance_nm: legDistNm });
         await flightLegRepository.create({
           flight_id: flight.id,
           leg_sequence: s + 1,
-          origin_code: cvrpRoute.stops[s],
-          destination_code: cvrpRoute.stops[s + 1],
+          origin_code: from,
+          destination_code: to,
           distance_nm: legDistNm,
-          heading: null,
+          heading: legHeading > 0 ? legHeading : null,
         });
       }
 
@@ -236,13 +245,21 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
         await bookingLegRepository.updateStatus(blId, BookingStatus.FLIGHT_ASSIGNED);
       }
 
-      // Build a RouteResult for Phases 3-5
-      const routeStops = cvrpRoute.stops.slice(1).map((code, idx) => ({
-        aerodromeCode: code,
-        legSequence: idx + 1,
-        distanceNm: cvrpRoute.totalDistanceNm / (cvrpRoute.stops.length - 1),
-        heading: null,
-      }));
+      // Build a RouteResult for Phases 3-5. Each routeStop represents the leg
+      // that ARRIVES at that stop (legSequence idx+1 = leg stops[idx]→stops[idx+1]),
+      // so carry the real per-leg distance/heading aligned to that leg.
+      const routeStops = cvrpRoute.stops.slice(1).map((code, idx) => {
+        const from = cvrpRoute.stops[idx];
+        const to = cvrpRoute.stops[idx + 1];
+        const realDist = getDistance(distRows, from, to);
+        const h = getHeading(headingRows, from, to);
+        return {
+          aerodromeCode: code,
+          legSequence: idx + 1,
+          distanceNm: realDist > 0 ? realDist : evenSplitNm,
+          heading: h > 0 ? h : null,
+        };
+      });
       const route: RouteResult = {
         flight,
         stops: routeStops,

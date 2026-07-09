@@ -1622,6 +1622,7 @@ model published_schedule_flights {
   aircraft_registration   String?   @db.VarChar(20)
   pilot_name              String?   @db.VarChar(255)
   stop_count              Int       @default(0)
+  route_path              String?   @db.VarChar(255)
   notes                   String?   @db.Text
 
   published_schedule published_schedules @relation(fields: [published_schedule_id], references: [id], onDelete: Cascade)

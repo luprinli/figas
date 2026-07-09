@@ -50,7 +50,19 @@ export async function publishSchedule(scheduleId: number, publishedBy: number, a
 
   // Snapshot flights
   for (const f of flights) {
-    const legCount = await db.flight_legs.count({ where: { flight_id: f.id } });
+    // Snapshot the true STY → … → STY path from the ordered flight legs so the
+    // public view shows the real route, not the flight-level STY↔STY round trip.
+    const legs = await db.flight_legs.findMany({
+      where: { flight_id: f.id },
+      orderBy: { leg_number: "asc" },
+      select: { origin_code: true, destination_code: true },
+    });
+    const routePath =
+      legs.length > 0
+        ? [legs[0].origin_code, ...legs.map((l) => l.destination_code)].join(" → ")
+        : f.origin_code && f.destination_code
+          ? `${f.origin_code} → ${f.destination_code}`
+          : null;
     await db.published_schedule_flights.create({
       data: {
         published_schedule_id: pub.id,
@@ -64,7 +76,8 @@ export async function publishSchedule(scheduleId: number, publishedBy: number, a
         aircraft_type: f.aircraft?.type ?? null,
         aircraft_registration: f.aircraft?.registration ?? null,
         pilot_name: f.pilot?.name ?? null,
-        stop_count: legCount,
+        stop_count: legs.length,
+        route_path: routePath,
       },
     });
   }
@@ -134,6 +147,7 @@ export async function getPublicSchedule(token: string): Promise<{
       flightNumber: f.flight_number,
       originCode: f.origin_code,
       destinationCode: f.destination_code,
+      routePath: f.route_path,
       departureTime: f.departure_time,
       arrivalTime: f.arrival_time,
       status: f.status,

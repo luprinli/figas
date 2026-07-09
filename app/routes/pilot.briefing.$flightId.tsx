@@ -46,6 +46,18 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 
     const f = flight[0];
 
+    // Ordered flight legs — the true STY → … → STY route (RULE 1).
+    // Route display MUST derive from flight_legs, not the flight-level
+    // origin/destination aerodrome (which is STY↔STY for round-trip sorties).
+    const legs = await db.$queryRawUnsafe<Array<{
+        leg_number: number; origin_code: string; destination_code: string;
+        distance_nm: number | null; etd: string | null; eta: string | null;
+    }>>(
+        `SELECT leg_number, origin_code, destination_code, distance_nm, etd, eta
+ FROM flight_legs WHERE flight_id = $1 ORDER BY leg_number`,
+        [Number(params.flightId)]
+    );
+
     const crew = await db.$queryRawUnsafe<Array<{ name: string; role: string }>>(
         `SELECT u.name, pa.role
  FROM pilot_assignments pa
@@ -104,6 +116,14 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         destination: f.destination_code,
         departureTime: f.departure_time,
         arrivalTime: f.arrival_time,
+        legs: legs.map((l) => ({
+            legNumber: Number(l.leg_number),
+            originCode: l.origin_code,
+            destinationCode: l.destination_code,
+            distanceNm: l.distance_nm != null ? Number(l.distance_nm) : null,
+            etd: l.etd,
+            eta: l.eta,
+        })),
         aircraftRegistration: f.aircraft_registration ?? "Unassigned",
         aircraftType: f.aircraft_type ?? "BN-2 Islander",
         emptyWeightKg: Number(f.empty_weight_kg),

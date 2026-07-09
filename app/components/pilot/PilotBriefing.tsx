@@ -1,5 +1,12 @@
 ﻿import type { ReactNode } from "react";
 
+/** Extract HH:MM from an ISO timestamp deterministically (no locale/hydration drift). */
+function hhmm(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const m = /T(\d{2}:\d{2})/.exec(iso);
+  return m ? m[1] : "—";
+}
+
 interface BriefingSectionProps {
   title: string;
   children: ReactNode;
@@ -27,6 +34,15 @@ export interface PilotBriefingData {
   destination: string;
   departureTime: string;
   arrivalTime: string;
+  /** Ordered flight legs (STY → … → STY). Empty only for legacy flights without leg rows. */
+  legs: {
+    legNumber: number;
+    originCode: string;
+    destinationCode: string;
+    distanceNm: number | null;
+    etd: string | null;
+    eta: string | null;
+  }[];
   aircraftRegistration: string;
   aircraftType: string;
   emptyWeightKg: number;
@@ -80,11 +96,62 @@ export default function PilotBriefing({ data }: { data: PilotBriefingData }) {
       </div>
 
       <BriefingSection title="Route" dataTour="briefing-route">
-        <div className="flex items-center gap-4 text-lg font-mono">
-          <span className="text-emerald-600 dark:text-emerald-400">{data.origin}</span>
-          <span className="text-slate-400 dark:text-slate-500">→</span>
-          <span className="text-red-600 dark:text-red-400">{data.destination}</span>
-        </div>
+        {data.legs.length > 0 ? (
+          <>
+            <div className="flex flex-wrap items-center gap-2 text-lg font-mono">
+              {[data.legs[0].originCode, ...data.legs.map((l) => l.destinationCode)].map((code, i, arr) => (
+                <span key={i} className="flex items-center gap-2">
+                  <span
+                    className={
+                      i === 0
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : i === arr.length - 1
+                          ? "text-red-600 dark:text-red-400"
+                          : "text-slate-700 dark:text-slate-200"
+                    }
+                  >
+                    {code}
+                  </span>
+                  {i < arr.length - 1 && <span className="text-slate-400 dark:text-slate-500">→</span>}
+                </span>
+              ))}
+            </div>
+            <div className="mt-3 overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-slate-500 dark:text-slate-400">
+                    <th className="py-1 pr-3 font-medium">Leg</th>
+                    <th className="py-1 pr-3 font-medium">Sector</th>
+                    <th className="py-1 pr-3 font-medium">ETD</th>
+                    <th className="py-1 pr-3 font-medium">ETA</th>
+                    <th className="py-1 text-right font-medium">Dist (nm)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                  {data.legs.map((l) => (
+                    <tr key={l.legNumber}>
+                      <td className="py-1 pr-3 tabular-nums text-slate-500 dark:text-slate-400">{l.legNumber}</td>
+                      <td className="py-1 pr-3 font-mono text-slate-700 dark:text-slate-200">
+                        {l.originCode} → {l.destinationCode}
+                      </td>
+                      <td className="py-1 pr-3 tabular-nums text-slate-600 dark:text-slate-300">{hhmm(l.etd)}</td>
+                      <td className="py-1 pr-3 tabular-nums text-slate-600 dark:text-slate-300">{hhmm(l.eta)}</td>
+                      <td className="py-1 text-right tabular-nums text-slate-600 dark:text-slate-300">
+                        {l.distanceNm != null ? Number(l.distanceNm).toFixed(0) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center gap-4 text-lg font-mono">
+            <span className="text-emerald-600 dark:text-emerald-400">{data.origin}</span>
+            <span className="text-slate-400 dark:text-slate-500">→</span>
+            <span className="text-red-600 dark:text-red-400">{data.destination}</span>
+          </div>
+        )}
         <div className="mt-2 flex gap-6 text-sm text-slate-600 dark:text-slate-300 dark:text-slate-500">
           <span>ETD: {data.departureTime}</span>
           <span>ETA: {data.arrivalTime}</span>
