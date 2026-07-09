@@ -11,7 +11,7 @@
     "start": "remix-serve ./build/server/index.js",
     "typecheck": "tsc",
     "migrate": "node --env-file-if-exists=.env --import tsx app/utils/migrate.ts",
-    "db:push": "prisma db push --skip-generate",
+    "db:push": "prisma db push",
     "seed": "node --env-file-if-exists=.env --import tsx app/utils/seed.ts",
     "seed:users": "node --env-file-if-exists=.env --import tsx scripts/seed-users.ts",
     "seed:pbac": "node --env-file-if-exists=.env --import tsx prisma/seed-pbac.ts",
