@@ -30,10 +30,12 @@ services:
     # tailwindcss) to install even though NODE_ENV=production, which npm would
     # otherwise use to omit them. They are needed to build and to run db push.
     buildCommand: npm ci --include=dev && npm run build
-    # Syncs the database schema to prisma/schema.prisma before each deploy goes
-    # live. Idempotent; fails safely (no --accept-data-loss) if a change would
-    # drop data. Seed data is loaded once via Render Shell (see README/SETUP).
-    preDeployCommand: npm run db:push
+    # NOTE: No automatic schema step. The database schema is managed manually via
+    # `npm run db:push` (or `npx prisma db push --force-reset` for a clean rebuild)
+    # in the Render Shell. Running `db push` unattended on every deploy blocks
+    # releases whenever a change is flagged as data-lossy (e.g. adding a unique
+    # constraint), and `--accept-data-loss` on every deploy risks dropping real
+    # data. See SETUP.md for the provisioning/seed steps.
     startCommand: npm run start
     healthCheckPath: /login
     envVars:
