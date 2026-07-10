@@ -344,7 +344,7 @@ CSRF_SECRET=your-csrf-secret          # CSRF token signing
 
 ### 8.1 Render Deployment
 
-The project is configured for **Render** as a persistent Node web service via [`render.yaml`](../render.yaml). A long-running process is used because the app relies on a Server-Sent Events endpoint (`app/routes/api.schedule-events.ts`) and a per-process Prisma connection pool.
+The project is configured for **Render** as a persistent Node web service via [`render.yaml`](../render.yaml). A long-running process is used because the app relies on a Server-Sent Events endpoint (`app/routes/api.schedule-events.ts`) and a per-process database connection pool.
 
 The blueprint provisions a managed PostgreSQL 16 database and a web service with:
 

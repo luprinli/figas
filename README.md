@@ -31,7 +31,7 @@ A comprehensive flight booking, scheduling, check-in, and operations management 
 FIGAS operates a network of scheduled and on-demand flights across the Falkland Islands, serving approximately 30 aerodromes. This system replaces manual processes with a digital platform that handles:
 
 - **Booking Management** — Multi-leg itineraries with per-leg passenger, baggage, and freight tracking
-- **Flight Scheduling** — Automated daily schedule builder using nearest-neighbor route optimization
+- **Flight Scheduling** — Automated daily schedule builder using CVRP (capacitated vehicle routing problem) route optimization
 - **Check-In Operations** — Per-leg passenger check-in with weight verification and boarding tracking
 - **Payment Processing** — Stripe integration, invoicing, payment reminders, and accounting journal entries
 - **Flight Manifests** — Per-leg passenger manifests with weight and balance calculations
@@ -49,8 +49,8 @@ The system serves multiple personas: passengers (self-service), booking agents, 
 | **Framework** | [Remix v2](https://remix.run) (React Router v6) | Server-side rendering, nested routes, loaders/actions |
 | **Language** | [TypeScript](https://www.typescriptlang.org/) v5.1 | Type safety across the full stack |
 | **Database** | [PostgreSQL](https://www.postgresql.org/) 16 | Relational data store with JSONB support |
-| **ORM / Driver** | [Prisma](https://www.prisma.io/) v7 (`@prisma/client` + `@prisma/adapter-pg`) | PrismaClient singleton with raw-SQL query shims over a PostgreSQL adapter |
-| **Email** | [Nodemailer](https://nodemailer.com/) v9 | Transactional email (SMTP) |
+| **Query Builder** | [Kysely](https://kysely.dev/) v0.29 + [`pg`](https://node-postgres.com/) v8 | Type‑safe SQL query builder with compile‑time schema checking; generated `Database` type from `schema.prisma` |
+| **Schema Mgmt** | [Prisma CLI](https://www.prisma.io/) v7 | `prisma db push` provisions the schema; `prisma generate` generates Kysely types |
 | **Icons** | [`lucide-react`](https://lucide.dev/) | Icon set |
 | **Styling** | [Tailwind CSS](https://tailwindcss.com/) v4 | Utility-first CSS framework |
 | **Payments** | [Stripe](https://stripe.com) v22.1 | Payment processing (Checkout Sessions, webhooks) |
@@ -115,16 +115,16 @@ The system serves multiple personas: passengers (self-service), booking agents, 
 │  │  app/utils/scheduling/assign-pilots.ts                       │   │
 │  └──────────────────────┬───────────────────────────────────────┘   │
 │                         │                                          │
-│  ┌──────────────────────▼───────────────────────────────────────┐   │
-│  │              Database Layer (Prisma + adapter-pg)            │   │
-│  │  app/utils/db.server.ts → PrismaClient → PostgreSQL         │   │
-│  └──────────────────────────────────────────────────────────────┘   │
+│  ┌──────────────────────▼──────────────────────────────────────────────────┐   │
+│  │              Database Layer (Kysely + pg.Pool)                           │   │
+│  │  app/utils/db.server.ts → Kysely<DB> → PostgreSQL                       │   │
+│  └──────────────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Key Design Decisions
 
-1. **Repository Pattern** — All database access is abstracted through repository modules in [`app/utils/repositories/`](app/utils/repositories/) (28+ files). Repositories issue hand-written SQL via the `db.query()` / `db.queryOne()` helpers exposed by [`app/utils/db.server.ts`](app/utils/db.server.ts). As of the Prisma migration, `db` is a `PrismaClient` singleton (backed by `@prisma/adapter-pg`) that provides these raw-SQL shims for backward compatibility, so query patterns stay isolated from route handlers.
+1. **Repository Pattern** — All database access is abstracted through repository modules in [`app/utils/repositories/`](app/utils/repositories/) (28+ files). Repositories use the Kysely query builder (type‑safe `selectFrom`, `insertInto`, `updateTable`, `deleteFrom`) and `sql<T>` tagged templates for complex queries, all compile‑time checked against the generated `Database` type from [`schema.prisma`](prisma/schema.prisma). Queries are isolated from route handlers.
 
 2. **Server-Side Rendering** — Remix handles all data fetching on the server via loaders. Forms submit to actions on the same server, providing fast initial page loads and progressive enhancement.
 
@@ -288,7 +288,7 @@ The app will be available at `http://localhost:5173`.
 │   │   ├── pricing/          # Fare/pricing engine + invoice lines
 │   │   ├── loadsheet/        # Loadsheet generation & calculations
 │   │   ├── publishing/       # Schedule publishing
-│   │   ├── db.server.ts      # PrismaClient singleton + raw-SQL helpers
+│   │   ├── db.server.ts      # Kysely<DB> singleton over pg.Pool
 │   │   ├── permissions.server.ts  # PBAC implementation
 │   │   ├── stripe.server.ts  # Stripe client singleton
 │   │   ├── migrate.ts        # Migration runner
@@ -303,9 +303,11 @@ The app will be available at `http://localhost:5173`.
 │   └── entry.client.tsx      # Client entry point
 ├── migrations/               # SQL migrations: consolidated/ (applied), archive/ (historical), 008-018 + fix-*.sql
 ├── data/                     # Reference data (CSV files)
-├── prisma/                   # Prisma schema, generated-client seed & audit scripts (PBAC + data utilities)
-├── generated/prisma/         # Auto-generated Prisma client & model types
-├── scripts/                  # Seeders, DB maintenance, integrity checks, CI helpers
+├── generated/
+│   └── kysely/             # Auto-generated Kysely Database type from schema.prisma
+├── scripts/
+│   ├── generate-kysely-types.ts  # Schema → Kysely DB type generator
+│   └── ...
 ├── tests/                    # Vitest (unit/integration/smoke) + Playwright (e2e) suites
 ├── public/                   # Static assets
 ├── docs/                     # Documentation
@@ -483,9 +485,9 @@ Comprehensive documentation is maintained in the `docs/` directory:
 | [`docs/WORKFLOWS.md`](docs/WORKFLOWS.md) | Business workflows (booking, check-in, payment, scheduling) |
 | [`docs/SETUP.md`](docs/SETUP.md) | Environment setup and development guide |
 | [`docs/business-rules.md`](docs/business-rules.md) | Domain business rules and constraints |
-| [`docs/DATABASE-AUDIT-SUMMARY.md`](docs/DATABASE-AUDIT-SUMMARY.md) | Consolidated database audit findings |
 | [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) | Full annotated directory tree |
 | [`plans/MASTER-PLAN.md`](plans/MASTER-PLAN.md) | Active high-level roadmap |
+| [`docs/archive/`](docs/archive/) | Historical plans, audits, and migration guides |
 
 **Authoritative domain contracts** are maintained as agent skills under [`.agents/skills/`](.agents/skills/):
 - `flight-schedule` — Scheduling system interfaces, invariants, and test contracts
