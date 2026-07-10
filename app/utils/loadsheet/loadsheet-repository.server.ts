@@ -65,13 +65,14 @@ const EDITABLE_STATUSES = ["draft", "review"];
 const ACTIVE_STATUSES = ["active"];
 const IMMUTABLE_STATUSES = ["finalized", "archived"];
 
-function parseHHMM(value: string | null | undefined): Date | null {
+function parseHHMM(value: string | null | undefined): string | null {
   if (!value) return null;
   const cleaned = value.replace(/[^0-9]/g, "").substring(0, 4);
   if (cleaned.length < 3) return null;
   const h = cleaned.substring(0, cleaned.length === 3 ? 1 : 2);
   const m = cleaned.length === 3 ? cleaned.substring(1) : cleaned.substring(2);
-  return new Date(`1970-01-01T${h.padStart(2, "0")}:${m.padStart(2, "0")}:00Z`);
+  // PostgreSQL `time` columns expect a time‑only string, not a full timestamp.
+  return `${h.padStart(2, "0")}:${m.padStart(2, "0")}:00`;
 }
 
 export function canEditLoadsheet(status: string): boolean {
