@@ -118,7 +118,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     total_baggage_weight_kg: number;
     total_weight_kg: number;
   }>`
-    SELECT wbs.starting_fuel_kg, wbs.reserve_fuel_kg,
+    SELECT wbs.required_fuel_kg AS starting_fuel_kg, wbs.minimum_fuel_kg AS reserve_fuel_kg,
         wbs.passenger_weight_kg AS total_passenger_weight_kg,
         wbs.baggage_weight_kg AS total_baggage_weight_kg,
         wbs.total_weight_kg
