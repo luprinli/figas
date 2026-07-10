@@ -40,7 +40,7 @@ export default function EngineerMaintenance() {
             <span className="tabular-nums font-medium">{Number(r.total_hours).toLocaleString()}</span>
         )},
         { key: "last_reading_date", header: "Last Check", sortable: true, render: (r) => (
-            <span>{r.last_reading_date ? new Date(String(r.last_reading_date)).toLocaleDateString() : "—"}</span>
+            <span>{r.last_reading_date ? new Date(String(r.last_reading_date)).toLocaleDateString("en-GB") : "—"}</span>
         )},
         { key: "next_check_date", header: "Next Due", sortable: true, render: (r) => {
             const nextDate = r.next_check_date ? new Date(String(r.next_check_date)) : null;
@@ -48,7 +48,7 @@ export default function EngineerMaintenance() {
             const isOverdue = nextDate && nextDate < now;
             return (
                 <span className={isOverdue ? "text-red-600 dark:text-red-400 font-medium" : "text-slate-600 dark:text-slate-300"}>
-                    {nextDate ? nextDate.toLocaleDateString() : "—"}
+                    {nextDate ? nextDate.toLocaleDateString("en-GB") : "—"}
                 </span>
             );
         }},

@@ -1,4 +1,4 @@
-ï»¿import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, Form, useNavigation , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
@@ -159,9 +159,9 @@ export default function FinanceExports() {
       header: "Date Range",
       render: (r) => (
         <span className="text-sm/5 text-slate-500 dark:text-slate-400 tabular-nums">
-          {r.date_from ? new Date(r.date_from).toLocaleDateString() : "â€”"}
-          {" â†’ "}
-          {r.date_to ? new Date(r.date_to).toLocaleDateString() : "â€”"}
+          {r.date_from ? new Date(r.date_from).toLocaleDateString("en-GB") : "—"}
+          {" ? "}
+          {r.date_to ? new Date(r.date_to).toLocaleDateString("en-GB") : "—"}
         </span>
       ),
     },
@@ -181,7 +181,7 @@ export default function FinanceExports() {
       className: "text-right",
       render: (r) => (
         <span className="text-sm/5 text-slate-900 dark:text-slate-100 tabular-nums">
-          Â£{Number(r.total_amount_gbp).toFixed(2)}
+          £{Number(r.total_amount_gbp).toFixed(2)}
         </span>
       ),
     },
@@ -206,7 +206,7 @@ export default function FinanceExports() {
       header: "Exported At",
       render: (r) => (
         <span className="text-sm/5 text-slate-500 dark:text-slate-400 tabular-nums">
-          {r.created_at ? new Date(r.created_at).toLocaleString() : "â€”"}
+          {r.created_at ? new Date(r.created_at).toLocaleString() : "—"}
         </span>
       ),
     },

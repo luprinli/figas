@@ -135,7 +135,7 @@ export default function InvoiceList() {
       sortable: true,
       render: (inv) => (
         <span className="text-sm/5 text-slate-500 dark:text-slate-400 tabular-nums">
-          {inv.issue_date ? new Date(inv.issue_date).toLocaleDateString() : "—"}
+          {inv.issue_date ? new Date(inv.issue_date).toLocaleDateString("en-GB") : "—"}
         </span>
       ),
     },
@@ -145,7 +145,7 @@ export default function InvoiceList() {
       sortable: true,
       render: (inv) => (
         <span className="text-sm/5 text-slate-500 dark:text-slate-400 tabular-nums">
-          {inv.due_date ? new Date(inv.due_date).toLocaleDateString() : "—"}
+          {inv.due_date ? new Date(inv.due_date).toLocaleDateString("en-GB") : "—"}
         </span>
       ),
     },

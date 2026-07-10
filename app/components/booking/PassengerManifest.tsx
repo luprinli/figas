@@ -1,4 +1,4 @@
-﻿import type { BookingPassengerRow } from "../../utils/repositories/booking-passenger";
+import type { BookingPassengerRow } from "../../utils/repositories/booking-passenger";
 import type { BookingLegPassengerWithDetails } from "../../utils/repositories/booking-leg-passenger";
 import { Users, AlertCircle } from "lucide-react";
 import Skeleton from "../Skeleton";
@@ -91,7 +91,7 @@ function BoardingPassCard({
             <div>
               <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">DOB:</span>{" "}
               <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">
-                {new Date(passenger.date_of_birth).toLocaleDateString()}
+                {new Date(passenger.date_of_birth).toLocaleDateString("en-GB")}
               </span>
             </div>
           )}

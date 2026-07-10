@@ -134,7 +134,7 @@ export default function PaymentList() {
       sortable: true,
       render: (p) => (
         <span className="text-sm/5 text-slate-500 dark:text-slate-400 tabular-nums">
-          {p.created_at ? new Date(p.created_at).toLocaleDateString() : "—"}
+          {p.created_at ? new Date(p.created_at).toLocaleDateString("en-GB") : "—"}
         </span>
       ),
     },

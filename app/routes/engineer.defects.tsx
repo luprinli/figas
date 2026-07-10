@@ -124,7 +124,7 @@ export default function EngineerDefects() {
     { key: "deferral_expiry_date", header: "Expires", render: (r) => {
       const date = r.deferral_expiry_date ? new Date(String(r.deferral_expiry_date)) : null;
       const overdue = date && date < new Date();
-      return <span className={overdue ? 'text-red-600 dark:text-red-400 font-medium' : 'text-slate-600 dark:text-slate-300'}>{date ? date.toLocaleDateString() : '—'}</span>;
+      return <span className={overdue ? 'text-red-600 dark:text-red-400 font-medium' : 'text-slate-600 dark:text-slate-300'}>{date ? date.toLocaleDateString("en-GB") : '—'}</span>;
     }},
   ];
 

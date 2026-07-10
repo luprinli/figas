@@ -535,7 +535,7 @@ export default function OperationsBookingDetail() {
                 <PaymentStatusBadge status={booking.payment_status} />
               </div>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
-                Created {new Date(booking.created_at).toLocaleDateString()} &middot;{" "}
+                Created {new Date(booking.created_at).toLocaleDateString("en-GB")} &middot;{" "}
                 {sourceLabels[booking.booking_source] ?? booking.booking_source}
               </p>
             </div>

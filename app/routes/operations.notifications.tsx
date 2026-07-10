@@ -123,7 +123,7 @@ export default function Notifications() {
       header: "Created",
       render: (notif) => (
         <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">
-          {new Date(notif.created_at as string).toLocaleDateString()}
+          {new Date(notif.created_at as string).toLocaleDateString("en-GB")}
         </span>
       ),
       sortable: true,
@@ -134,7 +134,7 @@ export default function Notifications() {
       render: (notif) => (
         <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">
           {notif.sent_at
-            ? new Date(notif.sent_at as string).toLocaleDateString()
+            ? new Date(notif.sent_at as string).toLocaleDateString("en-GB")
             : "—"}
         </span>
       ),

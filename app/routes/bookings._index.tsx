@@ -1,4 +1,4 @@
-ï»¿import { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { Form, Link, useLoaderData, useNavigation, useSearchParams, useSubmit, useRouteError, isRouteErrorResponse } from "@remix-run/react";
@@ -141,8 +141,8 @@ export default function BookingList() {
       render: (item) => (
         <span className="text-slate-600 dark:text-slate-300">
           {item.firstLeg
-            ? `${item.firstLeg.origin_code} â†’ ${item.firstLeg.destination_code}`
-            : "â€”"}
+            ? `${item.firstLeg.origin_code} ? ${item.firstLeg.destination_code}`
+            : "—"}
         </span>
       ),
     },
@@ -152,7 +152,7 @@ export default function BookingList() {
       sortable: true,
       render: (item) => (
         <span className="text-slate-600 dark:text-slate-300">
-          {item.firstLeg ? new Date(item.firstLeg.leg_date).toLocaleDateString() : "â€”"}
+          {item.firstLeg ? new Date(item.firstLeg.leg_date).toLocaleDateString("en-GB") : "—"}
         </span>
       ),
     },
@@ -170,8 +170,8 @@ export default function BookingList() {
       render: (item) => (
         <span className="font-medium text-slate-900 dark:text-slate-100">
           {item.booking.total_amount_gbp != null
-            ? `Â£${Number(item.booking.total_amount_gbp).toFixed(2)}`
-            : "â€”"}
+            ? `£${Number(item.booking.total_amount_gbp).toFixed(2)}`
+            : "—"}
         </span>
       ),
     },
@@ -350,16 +350,16 @@ export default function BookingList() {
                   <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                     <span>
                       {item.firstLeg
-                        ? `${item.firstLeg.origin_code} â†’ ${item.firstLeg.destination_code}`
-                        : "â€”"}
+                        ? `${item.firstLeg.origin_code} ? ${item.firstLeg.destination_code}`
+                        : "—"}
                     </span>
                     <span>
-                      {item.firstLeg ? new Date(item.firstLeg.leg_date).toLocaleDateString() : "â€”"}
+                      {item.firstLeg ? new Date(item.firstLeg.leg_date).toLocaleDateString("en-GB") : "—"}
                     </span>
                   </div>
                   {item.booking.total_amount_gbp != null && (
                     <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                      Â£{Number(item.booking.total_amount_gbp).toFixed(2)}
+                      £{Number(item.booking.total_amount_gbp).toFixed(2)}
                     </span>
                   )}
                 </Link>

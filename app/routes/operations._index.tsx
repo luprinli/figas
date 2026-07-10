@@ -174,14 +174,14 @@ export default function OperationsDashboard() {
         { key: "booking_reference", header: "Reference", render: (item) => <span className="font-medium text-slate-800 dark:text-slate-100">{item.booking.booking_reference}</span>, sortable: true },
         { key: "passenger", header: "Passenger", render: (item) => <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">{item.passenger ? `${item.passenger.first_name} ${item.passenger.last_name}` : "—"}</span>, sortable: true },
         { key: "status", header: "Status", render: (item) => <StatusBadge status={item.booking.status} />, sortable: true },
-        { key: "date", header: "Date", render: (item) => <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">{item.firstLeg ? new Date(item.firstLeg.leg_date).toLocaleDateString() : new Date(item.booking.created_at).toLocaleDateString()}</span>, sortable: true },
+        { key: "date", header: "Date", render: (item) => <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">{item.firstLeg ? new Date(item.firstLeg.leg_date).toLocaleDateString("en-GB") : new Date(item.booking.created_at).toLocaleDateString("en-GB")}</span>, sortable: true },
         { key: "time-in-status", header: "Waiting", render: (item) => <TimeInStatus updatedAt={item.booking.updated_at} status={item.booking.status} />, sortable: true },
     ];
 
     const flightColumns: Column<Record<string, unknown>>[] = [
         { key: "flight_number", header: "Flight", render: (f) => <span className="font-medium text-slate-800 dark:text-slate-100">{f.flight_number as string}</span>, sortable: true },
         { key: "route", header: "Route", render: (f) => <span>{f.origin_code as string} → {f.destination_code as string}</span> },
-        { key: "departure_time", header: "Departure", render: (f) => <span className="tabular-nums">{new Date(f.departure_time as string).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>, sortable: true },
+        { key: "departure_time", header: "Departure", render: (f) => <span className="tabular-nums">{new Date(f.departure_time as string).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</span>, sortable: true },
         {
             key: "status", header: "Status", sortable: true,
             render: (f) => (

@@ -168,7 +168,7 @@ export default function EngineerDashboard() {
                                         {record.registration as string}
                                     </p>
                                     <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
-                                        {new Date(record.recorded_at as string).toLocaleDateString()}
+                                        {new Date(record.recorded_at as string).toLocaleDateString("en-GB")}
                                     </p>
                                 </div>
                                 <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 dark:text-slate-300 tabular-nums">

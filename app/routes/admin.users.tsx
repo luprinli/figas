@@ -1,4 +1,4 @@
-﻿import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, Form, useActionData, Link, useSearchParams, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import { useState } from "react";
@@ -288,7 +288,7 @@ export default function ManageUsers() {
               header: "Created",
               render: (u) => (
                 <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">
-                  {new Date(u.created_at as string).toLocaleDateString()}
+                  {new Date(u.created_at as string).toLocaleDateString("en-GB")}
                 </span>
               ),
             },

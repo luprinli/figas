@@ -1,4 +1,4 @@
-﻿import { Link } from "@remix-run/react";
+import { Link } from "@remix-run/react";
 import type { ReactNode } from "react";
 import StatusBadge from "./StatusBadge";
 import PaymentStatusBadge from "./PaymentStatusBadge";
@@ -103,7 +103,7 @@ export default function BookingCard({
           <span className="text-slate-500 dark:text-slate-400">&rarr;</span>
           <span className="font-semibold">{firstLeg.destination_code}</span>
           <span className="text-slate-500 dark:text-slate-400 ml-auto">
-            {new Date(firstLeg.leg_date).toLocaleDateString()}
+            {new Date(firstLeg.leg_date).toLocaleDateString("en-GB")}
           </span>
         </div>
       )}

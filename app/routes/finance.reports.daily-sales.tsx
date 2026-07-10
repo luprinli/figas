@@ -117,7 +117,7 @@ export default function DailySalesReport() {
       header: "Date",
       render: (r) => (
         <span className="text-sm/5 font-medium text-slate-900 dark:text-slate-100 tabular-nums">
-          {r.entry_date ? new Date(r.entry_date).toLocaleDateString() : "—"}
+          {r.entry_date ? new Date(r.entry_date).toLocaleDateString("en-GB") : "—"}
         </span>
       ),
     },

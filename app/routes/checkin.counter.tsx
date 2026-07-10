@@ -1,4 +1,4 @@
-﻿import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { Form, useLoaderData, useSearchParams , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
@@ -120,7 +120,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   `.execute(kdb);
 
   const tillPayments = await sql<Record<string, unknown>>`
-    SELECT p.id, p.amount_gbp AS amount, p.method, COALESCE(b.booking_reference, '—') AS booking_reference,
+    SELECT p.id, p.amount_gbp AS amount, p.method, COALESCE(b.booking_reference, '�') AS booking_reference,
        p.created_at AS timestamp
      FROM payments p LEFT JOIN bookings b ON b.id = p.booking_id
      WHERE p.created_at::date = CURRENT_DATE
@@ -220,7 +220,7 @@ export async function action({ request }: ActionFunctionArgs) {
   return json({ error: "Unknown intent" }, { status: 400 });
 }
 
-/* ── Flight Select Screen ─────────────────────────────────────────────── */
+/* -- Flight Select Screen ----------------------------------------------- */
 function FlightSelect({ flights, today }: { flights: Array<Record<string, unknown>>; today: string }) {
   const [, setSearchParams] = useSearchParams();
   return (
@@ -235,7 +235,7 @@ function FlightSelect({ flights, today }: { flights: Array<Record<string, unknow
       <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
-            Select Flight — {new Date(today).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+            Select Flight � {new Date(today).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
           </h2>
         </div>
         <div className="divide-y divide-slate-100 dark:divide-slate-700 bg-white dark:bg-slate-800">
@@ -254,7 +254,7 @@ function FlightSelect({ flights, today }: { flights: Array<Record<string, unknow
                     <p className="text-xs text-slate-500">{new Date(String(f.departure_time)).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</p>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm text-slate-700 dark:text-slate-200">{String(f.origin_code)} → {String(f.destination_code)}</p>
+                    <p className="text-sm text-slate-700 dark:text-slate-200">{String(f.origin_code)} ? {String(f.destination_code)}</p>
                     <p className="text-xs text-slate-500">{String(f.registration ?? "Unassigned aircraft")}</p>
                   </div>
                   <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${String(f.status) === 'scheduled' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>{String(f.status)}</span>
@@ -266,7 +266,7 @@ function FlightSelect({ flights, today }: { flights: Array<Record<string, unknow
                     </div>
                     <p className="text-[10px] text-slate-500 mt-1 text-right">{ci}/{tp} checked in</p>
                   </div>
-                  <span className="text-blue-600 dark:text-blue-400 text-sm font-medium">Check In →</span>
+                  <span className="text-blue-600 dark:text-blue-400 text-sm font-medium">Check In ?</span>
                 </div>
               </a>
             );
@@ -277,30 +277,30 @@ function FlightSelect({ flights, today }: { flights: Array<Record<string, unknow
   );
 }
 
-/* ── Cash Keypad ──────────────────────────────────────────────────────── */
+/* -- Cash Keypad -------------------------------------------------------- */
 function CashKeypad({ onEnter, onQuick }: { onEnter: (val: string) => void; onQuick: (val: number) => void }) {
   const [input, setInput] = useState("");
-  const keys = ["1","2","3","4","5","6","7","8","9","C","0","↵"];
+  const keys = ["1","2","3","4","5","6","7","8","9","C","0","?"];
   return (
     <div className="space-y-2">
       <div className="flex gap-1 flex-wrap">
-        {QUICK_CASH.map((v) => <button key={v} type="button" onClick={() => onQuick(v)} className="px-3 py-1.5 text-xs font-medium rounded border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100">£{v}</button>)}
+        {QUICK_CASH.map((v) => <button key={v} type="button" onClick={() => onQuick(v)} className="px-3 py-1.5 text-xs font-medium rounded border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100">�{v}</button>)}
       </div>
       <div className="flex items-center gap-2">
-        <div className="text-lg font-mono font-bold text-slate-800 dark:text-slate-100 bg-slate-100 dark:bg-slate-700 rounded px-3 py-1 min-w-[100px] text-right">£{input || "0.00"}</div>
+        <div className="text-lg font-mono font-bold text-slate-800 dark:text-slate-100 bg-slate-100 dark:bg-slate-700 rounded px-3 py-1 min-w-[100px] text-right">�{input || "0.00"}</div>
         <button type="button" onClick={() => { if (input) { onEnter(input); setInput(""); } }} className="px-3 py-1 text-xs font-medium rounded bg-emerald-600 text-white hover:bg-emerald-700">Enter</button>
       </div>
       <div className="grid grid-cols-3 gap-1 w-40">
         {keys.map((k) => (
-          <button key={k} type="button" onClick={() => { if (k==="C") setInput(""); else if (k==="↵") { if (input) { onEnter(input); setInput(""); } } else setInput(input+k); }}
-            className={`h-9 text-sm font-medium rounded ${k==="C"?"bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400":k==="↵"?"bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400":"bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600"}`}>{k}</button>
+          <button key={k} type="button" onClick={() => { if (k==="C") setInput(""); else if (k==="?") { if (input) { onEnter(input); setInput(""); } } else setInput(input+k); }}
+            className={`h-9 text-sm font-medium rounded ${k==="C"?"bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400":k==="?"?"bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400":"bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600"}`}>{k}</button>
         ))}
       </div>
     </div>
   );
 }
 
-/* ── Card Processor ───────────────────────────────────────────────────── */
+/* -- Card Processor ----------------------------------------------------- */
 function CardProcessor({ onComplete }: { onComplete: (approved: boolean, ref: string) => void }) {
   const [s, setS] = useState<"idle"|"processing"|"approved"|"declined">("idle");
   return (
@@ -308,8 +308,8 @@ function CardProcessor({ onComplete }: { onComplete: (approved: boolean, ref: st
       <div className={`p-4 rounded-lg border text-center ${s==="idle"?"bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600":s==="processing"?"bg-amber-50 dark:bg-amber-900/30 border-amber-200":s==="approved"?"bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200":"bg-red-50 dark:bg-red-900/30 border-red-200"}`}>
         {s==="idle"&&<p className="text-sm text-slate-600 dark:text-slate-300">Terminal ready</p>}
         {s==="processing"&&<p className="text-sm text-amber-700 dark:text-amber-400 animate-pulse">Processing...</p>}
-        {s==="approved"&&<p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">✓ Approved</p>}
-        {s==="declined"&&<p className="text-sm font-medium text-red-700 dark:text-red-400">✗ Declined</p>}
+        {s==="approved"&&<p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">? Approved</p>}
+        {s==="declined"&&<p className="text-sm font-medium text-red-700 dark:text-red-400">? Declined</p>}
       </div>
       {s==="idle"&&<Button color="primary" onClick={()=>{setS("processing");setTimeout(()=>setS("approved"),2000)}}>Process Card</Button>}
       {s==="approved"&&<Button color="success" onClick={()=>onComplete(true,`CARD-${Date.now()}`)}>Confirm</Button>}
@@ -318,7 +318,7 @@ function CardProcessor({ onComplete }: { onComplete: (approved: boolean, ref: st
   );
 }
 
-/* ── Check-In Workflow ────────────────────────────────────────────────── */
+/* -- Check-In Workflow -------------------------------------------------- */
 function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<string, unknown>; passengers: FlightPassenger[]; tillPayments: PaymentRecord[] }) {
   const flightId = String(flight.id);
   const [selectedPassenger, setSelectedPassenger] = useState<FlightPassenger | null>(null);
@@ -344,7 +344,7 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
 
   const recalc = useCallback(() => {
     const items: LineItem[] = [];
-    if (excessCharge > 0) items.push({ id:"excess", label:`Excess Baggage (${excessBaggage}kg × £${EXCESS_RATE_PER_KG}/kg)`, amount:excessCharge, type:"excess_baggage", quantity:excessBaggage, unitPrice:EXCESS_RATE_PER_KG });
+    if (excessCharge > 0) items.push({ id:"excess", label:`Excess Baggage (${excessBaggage}kg � �${EXCESS_RATE_PER_KG}/kg)`, amount:excessCharge, type:"excess_baggage", quantity:excessBaggage, unitPrice:EXCESS_RATE_PER_KG });
     setLineItems(items);
   }, [excessCharge, excessBaggage]);
   useEffect(() => { recalc(); }, [recalc]);
@@ -377,7 +377,7 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
       <div className="flex items-center justify-between px-4 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700">
         <div className="flex items-center gap-4">
           <span className="font-bold text-slate-800 dark:text-slate-100">{String(flight.flight_number)}</span>
-          <span className="text-sm text-slate-600 dark:text-slate-300">{String(flight.origin_code)} → {String(flight.destination_code)}</span>
+          <span className="text-sm text-slate-600 dark:text-slate-300">{String(flight.origin_code)} ? {String(flight.destination_code)}</span>
           <span className="text-sm text-slate-500">{String(flight.registration)}</span>
         </div>
         <div className="flex items-center gap-3">
@@ -411,7 +411,7 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
                   <p className={`text-sm font-medium ${p.checkedIn?'text-emerald-700 dark:text-emerald-400 line-through':'text-slate-800 dark:text-slate-100'}`}>{p.firstName} {p.lastName}</p>
                   <p className="text-[11px] text-slate-500">{p.bookingReference}</p>
                 </div>
-                {p.checkedIn&&<span className="text-xs text-emerald-600">✓</span>}
+                {p.checkedIn&&<span className="text-xs text-emerald-600">?</span>}
               </button>
             ))}
           </div>
@@ -424,13 +424,13 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
           </h3>
 
           {!pax && <p className="text-sm text-slate-500 py-8 text-center">Select a passenger to begin check-in.</p>}
-          {pax && pax.checkedIn && <div className="py-8 text-center"><p className="text-emerald-600 dark:text-emerald-400 font-medium">✓ Already checked in</p><p className="text-sm text-slate-500 mt-1">{pax.firstName} {pax.lastName}</p></div>}
+          {pax && pax.checkedIn && <div className="py-8 text-center"><p className="text-emerald-600 dark:text-emerald-400 font-medium">? Already checked in</p><p className="text-sm text-slate-500 mt-1">{pax.firstName} {pax.lastName}</p></div>}
           {pax && !pax.checkedIn && pax.origin !== "STY" && (
             <div className="py-4 text-center">
               <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 mb-3">
-                <span className="text-sm text-amber-700 dark:text-amber-400 font-medium">⛔ Remote Check-In</span>
+                <span className="text-sm text-amber-700 dark:text-amber-400 font-medium">? Remote Check-In</span>
               </div>
-              <p className="text-xs text-slate-500">Passenger boards at <span className="font-semibold">{pax.origin}</span> — will be checked in by pilot at departure stop.</p>
+              <p className="text-xs text-slate-500">Passenger boards at <span className="font-semibold">{pax.origin}</span> � will be checked in by pilot at departure stop.</p>
             </div>
           )}
           {pax && !pax.checkedIn && pax.origin === "STY" && (
@@ -449,7 +449,7 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
                   <button type="button" onClick={()=>setBaggageWeight(15)} className="text-[10px] px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-slate-500">15</button>
                   <button type="button" onClick={()=>setBaggageWeight(20)} className="text-[10px] px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-slate-500">20</button>
                 </div>
-                {excessCharge>0&&<p className="mt-1 text-xs text-amber-600">⚠ Excess {excessBaggage}kg × £{EXCESS_RATE_PER_KG} = £{excessCharge.toFixed(2)}</p>}
+                {excessCharge>0&&<p className="mt-1 text-xs text-amber-600">? Excess {excessBaggage}kg � �{EXCESS_RATE_PER_KG} = �{excessCharge.toFixed(2)}</p>}
               </div>
             </>
           )}
@@ -468,24 +468,24 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
               <div className="border-t border-slate-100 dark:border-slate-700 pt-4 mt-4 text-left">
                 <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">Today&rsquo;s Transactions</p>
                 <div className="max-h-[200px] overflow-y-auto space-y-1.5">
-                  {tillPayments.slice(0,8).map((tp,i)=>(<div key={i} className="flex justify-between text-[11px]"><span className="text-slate-500">{tp.bookingReference}</span><span className="tabular-nums">£{Number(tp.amount).toFixed(2)}</span><span className="text-slate-500 capitalize">{tp.method.replace("_"," ")}</span></div>))}
+                  {tillPayments.slice(0,8).map((tp,i)=>(<div key={i} className="flex justify-between text-[11px]"><span className="text-slate-500">{tp.bookingReference}</span><span className="tabular-nums">�{Number(tp.amount).toFixed(2)}</span><span className="text-slate-500 capitalize">{tp.method.replace("_"," ")}</span></div>))}
                 </div>
-                {tillPayments.length>0&&<p className="text-xs font-medium mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">Till: £{tillPayments.reduce((s,tp)=>s+Number(tp.amount),0).toFixed(2)}</p>}
+                {tillPayments.length>0&&<p className="text-xs font-medium mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">Till: �{tillPayments.reduce((s,tp)=>s+Number(tp.amount),0).toFixed(2)}</p>}
               </div>
             </div>
           ) : (
             <div className="divide-y divide-slate-100 dark:divide-slate-700">
               {/* Charges */}
               <div className="p-3 space-y-1">
-                {lineItems.length===0?<p className="text-xs text-slate-500">No charges due</p>:lineItems.map(i=>(<div key={i.id} className="flex justify-between text-xs"><span>{i.label}</span><span className="tabular-nums font-medium">£{i.amount.toFixed(2)}</span></div>))}
-                <div className="flex justify-between text-sm font-bold pt-2 border-t border-slate-100 dark:border-slate-700"><span>TOTAL</span><span>£{totalDue.toFixed(2)}</span></div>
+                {lineItems.length===0?<p className="text-xs text-slate-500">No charges due</p>:lineItems.map(i=>(<div key={i.id} className="flex justify-between text-xs"><span>{i.label}</span><span className="tabular-nums font-medium">�{i.amount.toFixed(2)}</span></div>))}
+                <div className="flex justify-between text-sm font-bold pt-2 border-t border-slate-100 dark:border-slate-700"><span>TOTAL</span><span>�{totalDue.toFixed(2)}</span></div>
               </div>
 
               {/* Payments list */}
               <div className="p-3 space-y-1">
-                <div className="flex justify-between text-xs"><span className="text-slate-500">Paid</span><span className="tabular-nums font-medium">£{totalPaid.toFixed(2)}</span></div>
+                <div className="flex justify-between text-xs"><span className="text-slate-500">Paid</span><span className="tabular-nums font-medium">�{totalPaid.toFixed(2)}</span></div>
                 {isBalanced&&<div className="text-xs text-emerald-600 font-medium">Balanced</div>}
-                {payments.map(p=>(<div key={p.id} className="flex justify-between text-[11px]"><span className="capitalize">{p.method}</span><span className="tabular-nums">£{p.amount.toFixed(2)}</span><button onClick={()=>removePayment(p.id)} className="text-red-500">✕</button></div>))}
+                {payments.map(p=>(<div key={p.id} className="flex justify-between text-[11px]"><span className="capitalize">{p.method}</span><span className="tabular-nums">�{p.amount.toFixed(2)}</span><button onClick={()=>removePayment(p.id)} className="text-red-500">?</button></div>))}
               </div>
 
               {/* Payment Methods (only if not balanced) */}
@@ -500,8 +500,8 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
 
               {paymentStep==="cash" && <div className="p-3"><CashKeypad onEnter={v=>addCash(Number(v))} onQuick={v=>addCash(v)}/><button onClick={()=>setPaymentStep("method")} className="text-xs text-slate-500 mt-2">Cancel</button></div>}
               {paymentStep==="card" && <div className="p-3"><CardProcessor onComplete={(a,r)=>addCard(a,r)}/><button onClick={()=>setPaymentStep("method")} className="text-xs text-slate-500 mt-2">Cancel</button></div>}
-              {paymentStep==="invoice" && <div className="p-3 space-y-2"><p className="text-xs">Amount: £{remaining.toFixed(2)}</p><input value={authorizationCode} onChange={e=>setAuthorizationCode(e.target.value)} placeholder="PO / Auth Ref" className="block w-full rounded border px-2 py-1 text-xs" /><div className="flex gap-2"><Button color="primary" onClick={addInvoice} disabled={!authorizationCode}>Confirm</Button><Button variant="outlined" onClick={()=>setPaymentStep("method")}>Cancel</Button></div></div>}
-              {paymentStep==="deferred" && <div className="p-3 space-y-2"><p className="text-xs">Flag £{remaining.toFixed(2)} for collection at destination.</p><div className="flex gap-2"><Button color="warning" onClick={addDeferred}>Flag</Button><Button variant="outlined" onClick={()=>setPaymentStep("method")}>Cancel</Button></div></div>}
+              {paymentStep==="invoice" && <div className="p-3 space-y-2"><p className="text-xs">Amount: �{remaining.toFixed(2)}</p><input value={authorizationCode} onChange={e=>setAuthorizationCode(e.target.value)} placeholder="PO / Auth Ref" className="block w-full rounded border px-2 py-1 text-xs" /><div className="flex gap-2"><Button color="primary" onClick={addInvoice} disabled={!authorizationCode}>Confirm</Button><Button variant="outlined" onClick={()=>setPaymentStep("method")}>Cancel</Button></div></div>}
+              {paymentStep==="deferred" && <div className="p-3 space-y-2"><p className="text-xs">Flag �{remaining.toFixed(2)} for collection at destination.</p><div className="flex gap-2"><Button color="warning" onClick={addDeferred}>Flag</Button><Button variant="outlined" onClick={()=>setPaymentStep("method")}>Cancel</Button></div></div>}
 
               {/* Manual override & Quick actions */}
               <div className="p-3 space-y-2">
@@ -518,14 +518,14 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
                         weight: bodyWeight,
                         baggageWeight: baggageWeight,
                         seat: pax.seatNumber ?? undefined,
-                        date: new Date().toLocaleDateString(),
+                        date: new Date().toLocaleDateString("en-GB"),
                       })}
                       label="Print Tags"
                       variant="outlined"
                       className="text-[10px] px-2 py-0.5"
                     />
                   )}
-                  <button onClick={voidTransaction} className="text-[10px] px-2 py-0.5 rounded border border-red-200 dark:border-red-700 text-red-500">❌ Void</button>
+                  <button onClick={voidTransaction} className="text-[10px] px-2 py-0.5 rounded border border-red-200 dark:border-red-700 text-red-500">? Void</button>
                 </div>
               </div>
 
@@ -541,7 +541,7 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
                   <input type="hidden" name="weight_override_code" value={manualOverrideCode} />
                   <input type="hidden" name="payments" value={JSON.stringify(payments.map(p=>({method:p.method, amount:p.amount, reference:p.reference})))} />
                   <Button type="submit" color="primary" className="w-full" disabled={!isBalanced || !weightsValid}>
-                    {!isBalanced ? `Balance: £${remaining.toFixed(2)}` : `✓ Complete Sale — £${totalDue.toFixed(2)}`}
+                    {!isBalanced ? `Balance: �${remaining.toFixed(2)}` : `? Complete Sale � �${totalDue.toFixed(2)}`}
                   </Button>
                 </Form>
                 {!isBalanced && <p className="text-[10px] text-slate-500 mt-1 text-center">Balance payments before completing</p>}

@@ -1,4 +1,4 @@
-﻿import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { Link, useLoaderData, useNavigation, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import { bookingRepository } from "../utils/repositories/booking";
@@ -221,7 +221,7 @@ export default function BookingsLayout() {
 
   const isLoading = navigation.state === "loading" && navigation.location.pathname === "/bookings";
 
-  // ── Loading State ──────────────────────────────────────────────────────────
+  // -- Loading State ----------------------------------------------------------
   if (isLoading) {
     return (
       <PageLayout
@@ -247,7 +247,7 @@ export default function BookingsLayout() {
   const hasPast = pastBookings.length > 0;
   const hasAnyBookings = hasUpcoming || hasPast;
 
-  // ── Empty State (no bookings at all) ───────────────────────────────────────
+  // -- Empty State (no bookings at all) ---------------------------------------
   if (!hasAnyBookings) {
     return (
       <PageLayout
@@ -273,7 +273,7 @@ export default function BookingsLayout() {
     );
   }
 
-  // ── Populated State ───────────────────────────────────────────────────────
+  // -- Populated State -------------------------------------------------------
   return (
     <PageLayout
       title="My Bookings"
@@ -289,7 +289,7 @@ export default function BookingsLayout() {
         ) : undefined
       }
     >
-      {/* ── Hero Card (single upcoming booking) ─────────────────────────────── */}
+      {/* -- Hero Card (single upcoming booking) ------------------------------- */}
       {upcomingBookings.length === 1 && (
         <div className="mb-8">
           {(() => {
@@ -321,7 +321,7 @@ export default function BookingsLayout() {
         </div>
       )}
 
-      {/* ── Card Grid (multiple upcoming bookings) ──────────────────────────── */}
+      {/* -- Card Grid (multiple upcoming bookings) ---------------------------- */}
       {upcomingBookings.length > 1 && (
         <div className="mb-8">
           <h2 className="mb-4 text-lg font-semibold text-slate-800 dark:text-slate-100">
@@ -351,7 +351,7 @@ export default function BookingsLayout() {
         </div>
       )}
 
-      {/* ── No upcoming, has past bookings ──────────────────────────────────── */}
+      {/* -- No upcoming, has past bookings ------------------------------------ */}
       {!hasUpcoming && hasPast && (
         <div className="mb-8">
           <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700 p-6 text-center">
@@ -373,7 +373,7 @@ export default function BookingsLayout() {
         </div>
       )}
 
-      {/* ── Past Bookings (collapsible) ─────────────────────────────────────── */}
+      {/* -- Past Bookings (collapsible) --------------------------------------- */}
       {hasPast && (
         <ExpandableSection
           title="Past Bookings"
@@ -400,8 +400,8 @@ export default function BookingsLayout() {
                 <div className="flex items-center gap-3 shrink-0">
                   <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                     {firstLeg
-                      ? new Date(firstLeg.leg_date).toLocaleDateString()
-                      : new Date(booking.created_at).toLocaleDateString()}
+                      ? new Date(firstLeg.leg_date).toLocaleDateString("en-GB")
+                      : new Date(booking.created_at).toLocaleDateString("en-GB")}
                   </span>
                   <StatusBadge status={booking.status} />
                 </div>
