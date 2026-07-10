@@ -1,6 +1,8 @@
 ﻿import { useEffect, useRef, useState } from "react";
 import { useFetcher } from "@remix-run/react";
 import { X, Printer } from "lucide-react";
+import PrintButton from "../PrintButton";
+import type { PrintOptions } from "../../utils/print.client";
 import ManifestJourney from "./ManifestJourney";
 import CGEnvelopeChart from "../seat-map/CGEnvelopeChart";
 import { useWeightBalance } from "../../hooks/useWeightBalance";
@@ -43,6 +45,61 @@ interface LoadsheetData {
   }>;
   stopCodes: string[];
   canEdit: boolean; canEnterActual: boolean; isLocked: boolean; canPerformInFlight: boolean;
+}
+
+function fmt(v: unknown): string {
+  if (v == null) return "—";
+  if (typeof v === "number") return Number(v).toFixed(0);
+  return String(v);
+}
+
+function buildLoadsheetPrintOptions(data: LoadsheetData, flightId: number): PrintOptions {
+  const totalPaxWt = data.passengers.reduce((s, p) => s + p.clothedWeightKg, 0);
+  const totalBagWt = data.passengers.reduce((s, p) => s + p.baggageWeightKg, 0);
+  const sectors: PrintOptions["sections"] = data.sectors.map((sec) => ({
+    heading: `Sector ${sec.leg_sequence}: ${sec.origin_code ?? "?"} → ${sec.destination_code ?? "?"}`,
+    rows: [
+      { label: "ETD", value: sec.etd ?? "—" },
+      { label: "ETA", value: sec.eta ?? "—" },
+      { label: "Distance", value: sec.distance_nm != null ? `${sec.distance_nm} nm` : "—" },
+      { label: "Planned Time", value: sec.planned_time_min != null ? `${sec.planned_time_min} min` : "—" },
+      { label: "Fuel on Board", value: sec.fuel_on_board_kg != null ? `${sec.fuel_on_board_kg} kg` : "—" },
+      { label: "Fuel Burn", value: sec.fuel_burn_kg != null ? `${sec.fuel_burn_kg} kg` : "—" },
+      { label: "Fuel Remaining", value: sec.fuel_remaining_kg != null ? `${sec.fuel_remaining_kg} kg` : "—" },
+      { label: "Take-off Weight", value: sec.takeoff_weight_kg != null ? `${sec.takeoff_weight_kg} kg` : "—" },
+      { label: "Landing Weight", value: sec.landing_weight_kg != null ? `${sec.landing_weight_kg} kg` : "—" },
+      { label: "CoG", value: sec.cog_position_mm != null ? `${sec.cog_position_mm} mm` : "—" },
+      { label: "CoG Status", value: sec.cog_status ?? "—" },
+      { label: "TOW Status", value: sec.tow_status ?? "—" },
+    ],
+  }));
+
+  return {
+    title: `Loadsheet ${data.flightNumber}`,
+    header: `Loadsheet — ${data.flightNumber}`,
+    subheader: `${data.stopCodes.join(" → ")} — ${data.pilotName} — ${data.aircraftType} ${data.aircraftRegistration} — ${data.loadsheet.total_pax} pax`,
+    sections: [
+      {
+        heading: "Weight & Balance Summary",
+        rows: [
+          { label: "Empty Weight", value: `${fmt(data.loadsheet.empty_weight_kg)} kg` },
+          { label: "Crew", value: `${fmt(data.loadsheet.pilot_weight_kg)} kg` },
+          { label: "Passenger Weight", value: `${totalPaxWt} kg` },
+          { label: "Baggage", value: `${totalBagWt} kg` },
+          { label: "Status", value: data.loadsheet.status.toUpperCase() },
+        ],
+      },
+      {
+        heading: `Passenger Manifest (${data.passengers.length})`,
+        rows: data.passengers.map((p) => ({
+          label: `${p.seat} ${p.name}`,
+          value: `${p.origin} → ${p.destination}  ${p.clothedWeightKg}kg + ${p.baggageWeightKg}kg bag  ${p.boarded ? "BOARDED" : ""}`,
+        })),
+      },
+      ...sectors,
+    ],
+    footer: `FIGAS Flight Operations — Loadsheet ${data.flightNumber} — Uncontrolled when printed`,
+  };
 }
 
 export default function LoadsheetModal({ flightId, isOpen, onClose, canPerformInFlight }: LoadsheetModalProps) {
@@ -142,14 +199,22 @@ export default function LoadsheetModal({ flightId, isOpen, onClose, canPerformIn
                   <span>{data.loadsheet.total_pax} pax</span>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => window.open(`/ops/flight/${flightId}/loadsheet/print`, "_blank")}
-                  className="rounded-md border border-slate-200 dark:border-slate-700 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1 text-xs font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 dark:hover:bg-slate-700/50 hover:text-slate-700 no-print"
-                >
-                  <Printer size={14} className="inline mr-1" absoluteStrokeWidth />
-                  Print
-                </button>
+               <div className="flex items-center gap-2">
+                {data ? (
+                  <PrintButton
+                    options={buildLoadsheetPrintOptions(data, flightId)}
+                    label="Print"
+                    className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1 text-xs font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                  />
+                ) : (
+                  <button
+                    disabled
+                    className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1 text-xs font-medium text-slate-400 cursor-not-allowed no-print"
+                  >
+                    <Printer size={14} className="inline mr-1" absoluteStrokeWidth />
+                    Print
+                  </button>
+                )}
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[data.loadsheet.status] ?? "bg-slate-100 dark:bg-slate-700"}`}>
                   {data.loadsheet.status.toUpperCase()}
                 </span>
