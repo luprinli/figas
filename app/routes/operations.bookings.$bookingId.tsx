@@ -661,7 +661,7 @@ export default function OperationsBookingDetail() {
                   {booking.payment_method.replace(/_/g, " ")}
                 </span>{" "}
                 on{" "}
-                {new Date(booking.updated_at).toLocaleDateString(undefined, {
+                {new Date(booking.updated_at).toLocaleDateString("en-GB", {
                   year: "numeric",
                   month: "short",
                   day: "numeric",

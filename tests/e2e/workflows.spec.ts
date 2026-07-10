@@ -441,7 +441,10 @@ test.describe("Workflow 4 — Payment Processing", () => {
       await page.goto("/operations/bookings", { waitUntil: "networkidle" });
     });
 
-    await test.step("find a booking with a pending payment and navigate to it", async () => {
+    await test.step("find a booking and navigate to it", async () => {
+      // The booking list page has mixed link types: detail (/operation/bookings/123),
+      // edit (/.../edit), cancel (/.../cancel), and "New Booking" (/.../new).
+      // Filter to only the detail links.
       const bookingLinks = page.locator('a[href*="/operations/bookings/"]');
       const linkCount = await bookingLinks.count();
 
@@ -452,8 +455,9 @@ test.describe("Workflow 4 — Payment Processing", () => {
       }
 
       let foundBooking = false;
-      for (let i = 0; i < Math.min(linkCount, 10); i++) {
-        const href = await bookingLinks.nth(i).getAttribute("href");
+      for (let i = 0; i < Math.min(linkCount, 15); i++) {
+        const href = await bookingLinks.nth(i).getAttribute("href").catch(() => null);
+        // Match detail links: /operations/bookings/<number> (not /new, /edit, /cancel)
         if (href && /\/operations\/bookings\/\d+$/.test(href)) {
           await page.goto(href, { waitUntil: "networkidle" });
           foundBooking = true;
