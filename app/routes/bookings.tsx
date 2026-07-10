@@ -224,6 +224,7 @@ export default function BookingsLayout() {
   // -- Loading State ----------------------------------------------------------
   if (isLoading) {
     return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       <PageLayout
         title="My Bookings"
         userIdentity={userIdentity}
@@ -240,6 +241,7 @@ export default function BookingsLayout() {
       >
         <DashboardSkeleton />
       </PageLayout>
+      </div>
     );
   }
 
@@ -250,6 +252,7 @@ export default function BookingsLayout() {
   // -- Empty State (no bookings at all) ---------------------------------------
   if (!hasAnyBookings) {
     return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       <PageLayout
         title="My Bookings"
         userIdentity={userIdentity}
@@ -270,11 +273,13 @@ export default function BookingsLayout() {
           action={permissions.canCreate ? { label: "Create your first booking", to: "/bookings/new" } : undefined}
         />
       </PageLayout>
+      </div>
     );
   }
 
   // -- Populated State -------------------------------------------------------
   return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
     <PageLayout
       title="My Bookings"
       userIdentity={userIdentity}
@@ -411,6 +416,7 @@ export default function BookingsLayout() {
         </ExpandableSection>
       )}
     </PageLayout>
+    </div>
   );
 }
 
