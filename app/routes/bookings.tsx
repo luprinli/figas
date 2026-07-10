@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { Link, useLoaderData, useNavigation, useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { Form } from "@remix-run/react";
 import { bookingRepository } from "../utils/repositories/booking";
 import { requireUser } from "../utils/layout.server";
 import { getUserPermissions } from "../utils/permissions.server";
@@ -284,14 +285,22 @@ export default function BookingsLayout() {
       title="My Bookings"
       userIdentity={userIdentity}
       headerActions={
-        permissions.canCreate ? (
-          <Link
-            to="/bookings/new"
-            className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 transition-colors"
-          >
-            New Booking
-          </Link>
-        ) : undefined
+        <div className="flex items-center gap-4">
+          <span className="text-xs text-slate-500 dark:text-slate-400">{userIdentity?.email ?? ""}</span>
+          {permissions.canCreate ? (
+            <Link
+              to="/bookings/new"
+              className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 transition-colors"
+            >
+              New Booking
+            </Link>
+          ) : null}
+          <Form method="post" action="/logout">
+            <button type="submit" className="text-xs text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors">
+              Log out
+            </button>
+          </Form>
+        </div>
       }
     >
       {/* -- Hero Card (single upcoming booking) ------------------------------- */}
