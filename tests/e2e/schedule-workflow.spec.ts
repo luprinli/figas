@@ -7,6 +7,16 @@
  *   3. Drag-and-drop: assign bookings to flights, create flights from bookings
  *   4. Post-mutation loadsheet re-verification
  *
+ * DATA DEPENDENCY: Before running, seed the e2e drag-test data and ensure
+ * the comprehensive dataset is loaded:
+ *   npm run seed:comprehensive
+ *   npm run seed:pbac && npm run seed:pbac:assign
+ *   node --import tsx --env-file-if-exists=.env scripts/seed-e2e-drag-test.ts
+ *
+ * The e2e drag seed creates DRAG-001–014 bookings on today + 1 + 2 days
+ * with draft schedules, which the drag-and-drop and auto-build tests depend
+ * on. Without it, the tests gracefully skip.
+ *
  * Robustness:
  *   - Every step is gated on preconditions (skips gracefully instead of
  *     failing if prerequisite data is absent).
@@ -132,8 +142,7 @@ test.describe("Schedule Builder — End-to-End Workflow", () => {
     const run = new TestRun();
 
     await test.step("navigate to schedule builder", async () => {
-      // Use a seeded date with unassigned bookings (Nov 17, 2026 — 10 unassigned)
-      await page.goto("/operations/schedule?date=2026-11-17");
+      await page.goto("/operations/schedule");
       await page.waitForLoadState("networkidle");
     });
 
@@ -221,7 +230,7 @@ test.describe("Schedule Builder — End-to-End Workflow", () => {
     const run = new TestRun();
 
     await test.step("navigate and check for bookings", async () => {
-      await schedulePage.goto("2026-11-17");
+      await schedulePage.goto();
       const bookingCount = await schedulePage.getUnassignedBookingCount();
       if (bookingCount === 0) {
         run.warn("No unassigned bookings — skipping drag-to-create test");
@@ -291,7 +300,7 @@ test.describe("Schedule Builder — End-to-End Workflow", () => {
     const run = new TestRun();
 
     await test.step("prepare schedule with at least 2 flights + unassigned bookings", async () => {
-      await schedulePage.goto("2026-11-17");
+      await schedulePage.goto();
 
       // Ensure we have flights (auto‑build if needed)
       let flightCount = await schedulePage.getFlightCardCount();
@@ -390,7 +399,7 @@ test.describe("Schedule Builder — End-to-End Workflow", () => {
     const run = new TestRun();
 
     await test.step("navigate and auto-build", async () => {
-      await schedulePage.goto("2026-11-17");
+      await schedulePage.goto();
 
       const btnVisible = await schedulePage.autoBuildButton.isVisible({ timeout: 5_000 }).catch(() => false);
       if (!btnVisible) {
