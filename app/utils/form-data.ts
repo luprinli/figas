@@ -25,7 +25,13 @@ export function parseIndexedFormData<T extends Record<string, string>>(
   fields: (keyof T)[],
   options?: { filterEmpty?: boolean }
 ): T[] {
-  const columns = fields.map((field) => formData.getAll(field as string) as string[]);
+  const columns = fields.map((field) => {
+    const name = field as string;
+    // Try the plain field name first, then with [] suffix (forms that use
+    // name="field[]" need the suffix to match formData.getAll).
+    const values = formData.getAll(name) as string[];
+    return values.length > 0 ? values : (formData.getAll(name + "[]") as string[]);
+  });
 
   const rowCount = Math.max(...columns.map((col) => col.length), 0);
 
