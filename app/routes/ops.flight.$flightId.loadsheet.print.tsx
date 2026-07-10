@@ -1,5 +1,6 @@
 ﻿import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { useLoaderData , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { useEffect } from "react";
 
 import { loadsheetRepository } from "../utils/loadsheet/loadsheet-repository.server";
 import { createLoadsheetFromFlight } from "../utils/loadsheet/create-loadsheet.server";
@@ -127,6 +128,12 @@ export default function PrintLoadsheet() {
   const TEAL = "#06b6d4";
 
   const s = (v: unknown) => (v != null ? String(v) : "—");
+
+  // Auto-trigger the browser print dialog once the page has rendered.
+  useEffect(() => {
+    const t = setTimeout(() => window.print(), 600);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <div>
