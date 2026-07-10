@@ -1,4 +1,5 @@
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
 
 export interface CheckinReminderRow {
   id: number;
@@ -66,72 +67,80 @@ export const checkinRepository = {
     bookingId: number,
     scheduledAt: string,
   ): Promise<CheckinReminderRow> {
-    const result = await db.checkin_reminders.create({
-      data: {
+    const rows = await kdb
+      .insertInto("checkin_reminders")
+      .values({
         flight_id: flightId,
         booking_id: bookingId,
-        scheduled_at: new Date(scheduledAt),
-      },
-    });
-    return result as unknown as CheckinReminderRow;
+        scheduled_at: scheduledAt,
+      } as any)
+      .returningAll()
+      .execute();
+    return rows[0] as unknown as CheckinReminderRow;
   },
 
   async findPending(): Promise<PendingReminderRow[]> {
-    const reminders = await db.checkin_reminders.findMany({
-      where: {
-        sent_at: null,
-        scheduled_at: { lte: new Date() },
-        flight_id: { not: null },
-      },
-      include: {
-        booking: { select: { booking_reference: true } },
-        flight: { select: { flight_number: true } },
-      },
-      orderBy: { scheduled_at: "asc" },
-    });
-    return reminders.map((r) => ({
-      id: r.id,
-      flight_id: r.flight_id ?? 0,
-      booking_id: r.booking_id,
-      passenger_id: r.passenger_id,
-      reminder_type: r.reminder_type,
-      scheduled_at: r.scheduled_at.toISOString(),
-      scheduled_for: r.scheduled_for?.toISOString() ?? null,
-      sent_at: r.sent_at?.toISOString() ?? null,
-      sent_via: r.sent_via,
-      status: r.status,
-      created_at: r.created_at.toISOString(),
-      updated_at: r.updated_at.toISOString(),
-      booking_reference: r.booking.booking_reference,
-      flight_number: r.flight!.flight_number,
-    })) as unknown as PendingReminderRow[];
+    const now = new Date().toISOString();
+    const rows = await kdb
+      .selectFrom("checkin_reminders as cr")
+      .innerJoin("bookings as b", "b.id", "cr.booking_id")
+      .innerJoin("flights as f", "f.id", "cr.flight_id")
+      .select([
+        "cr.id",
+        "cr.flight_id",
+        "cr.booking_id",
+        "cr.passenger_id",
+        "cr.reminder_type",
+        "cr.scheduled_at",
+        "cr.scheduled_for",
+        "cr.sent_at",
+        "cr.sent_via",
+        "cr.status",
+        "cr.created_at",
+        "cr.updated_at",
+        "b.booking_reference",
+        "f.flight_number",
+      ])
+      .where("cr.sent_at", "is", null)
+      .where("cr.scheduled_at", "<=", now)
+      .where("cr.flight_id", "is not", null)
+      .orderBy("cr.scheduled_at asc")
+      .execute();
+    return (rows as unknown as PendingReminderRow[]);
   },
 
   async findById(id: number): Promise<CheckinReminderRow | null> {
-    const result = await db.checkin_reminders.findUnique({
-      where: { id },
-    });
-    return (result as unknown as CheckinReminderRow) ?? null;
+    const rows = await kdb
+      .selectFrom("checkin_reminders")
+      .selectAll()
+      .where("id", "=", id)
+      .execute();
+    return (rows[0] as unknown as CheckinReminderRow) ?? null;
   },
 
   async findByBookingId(bookingId: number): Promise<CheckinReminderRow | null> {
-    const result = await db.checkin_reminders.findFirst({
-      where: { booking_id: bookingId },
-    });
-    return (result as unknown as CheckinReminderRow) ?? null;
+    const rows = await kdb
+      .selectFrom("checkin_reminders")
+      .selectAll()
+      .where("booking_id", "=", bookingId)
+      .limit(1)
+      .execute();
+    return (rows[0] as unknown as CheckinReminderRow) ?? null;
   },
 
   async markAsSent(id: number): Promise<void> {
-    await db.checkin_reminders.update({
-      where: { id },
-      data: { sent_at: new Date(), updated_at: new Date() },
-    });
+    const now = new Date().toISOString();
+    await kdb
+      .updateTable("checkin_reminders")
+      .set({ sent_at: now, updated_at: now } as any)
+      .where("id", "=", id)
+      .execute();
   },
 
   async searchBookings(query: string): Promise<BookingSearchResult[]> {
     const searchTerm = `%${query}%`;
-    const rows = await db.$queryRawUnsafe(
-      `SELECT DISTINCT
+    const result = await sql`
+      SELECT DISTINCT
         b.id,
         b.booking_reference,
         b.status,
@@ -144,32 +153,31 @@ export const checkinRepository = {
         a_dest.code AS destination_code,
         f.departure_time,
         CASE WHEN blp.checked_in THEN 'Checked in' ELSE NULL END AS checkin_status
-       FROM bookings b
-       JOIN booking_passengers bp ON bp.booking_id = b.id
-       LEFT JOIN booking_legs bl ON bl.booking_id = b.id
-       LEFT JOIN booking_leg_passengers blp ON blp.booking_leg_id = bl.id AND blp.booking_passenger_id = bp.id
-       LEFT JOIN flights f ON f.id = bl.flight_id
-       LEFT JOIN aerodromes a_orig ON a_orig.id = f.origin_aerodrome_id
-       LEFT JOIN aerodromes a_dest ON a_dest.id = f.destination_aerodrome_id
-       WHERE (
-         b.booking_reference ILIKE $1
-         OR f.flight_number ILIKE $1
-         OR bp.first_name ILIKE $1
-         OR bp.last_name ILIKE $1
-         OR bp.email ILIKE $1
-       )
-       ORDER BY b.booking_reference, bp.last_name, bp.first_name`,
-      searchTerm,
-    ) as Record<string, unknown>[];
-    return (rows ?? []) as unknown as BookingSearchResult[];
+      FROM bookings b
+      JOIN booking_passengers bp ON bp.booking_id = b.id
+      LEFT JOIN booking_legs bl ON bl.booking_id = b.id
+      LEFT JOIN booking_leg_passengers blp ON blp.booking_leg_id = bl.id AND blp.booking_passenger_id = bp.id
+      LEFT JOIN flights f ON f.id = bl.flight_id
+      LEFT JOIN aerodromes a_orig ON a_orig.id = f.origin_aerodrome_id
+      LEFT JOIN aerodromes a_dest ON a_dest.id = f.destination_aerodrome_id
+      WHERE (
+        b.booking_reference ILIKE ${searchTerm}
+        OR f.flight_number ILIKE ${searchTerm}
+        OR bp.first_name ILIKE ${searchTerm}
+        OR bp.last_name ILIKE ${searchTerm}
+        OR bp.email ILIKE ${searchTerm}
+      )
+      ORDER BY b.booking_reference, bp.last_name, bp.first_name
+    `.execute(kdb);
+    return (result.rows ?? []) as unknown as BookingSearchResult[];
   },
 
   async getPassengerForCheckin(
     bookingId: number,
     passengerId: number,
   ): Promise<PassengerCheckinDetail | null> {
-    const rows = await db.$queryRawUnsafe(
-      `SELECT
+    const rows = await sql`
+      SELECT
         bp.id,
         bp.booking_id,
         b.booking_reference,
@@ -192,49 +200,44 @@ export const checkinRepository = {
         b.payment_status,
         b.total_amount_gbp,
         b.is_organization_billing AS organization_billing
-       FROM booking_passengers bp
-       JOIN bookings b ON b.id = bp.booking_id
-       LEFT JOIN booking_legs bl ON bl.booking_id = b.id AND bl.leg_sequence = 1
-       LEFT JOIN booking_leg_passengers blp ON blp.booking_leg_id = bl.id AND blp.booking_passenger_id = bp.id
-       LEFT JOIN flights f ON f.id = bl.flight_id
-       LEFT JOIN aerodromes a_orig ON a_orig.id = f.origin_aerodrome_id
-       LEFT JOIN aerodromes a_dest ON a_dest.id = f.destination_aerodrome_id
-       WHERE bp.booking_id = $1 AND bp.id = $2`,
-      bookingId,
-      passengerId,
-    ) as Record<string, unknown>[];
-    return (rows[0] as unknown as PassengerCheckinDetail) ?? null;
+      FROM booking_passengers bp
+      JOIN bookings b ON b.id = bp.booking_id
+      LEFT JOIN booking_legs bl ON bl.booking_id = b.id AND bl.leg_sequence = 1
+      LEFT JOIN booking_leg_passengers blp ON blp.booking_leg_id = bl.id AND blp.booking_passenger_id = bp.id
+      LEFT JOIN flights f ON f.id = bl.flight_id
+      LEFT JOIN aerodromes a_orig ON a_orig.id = f.origin_aerodrome_id
+      LEFT JOIN aerodromes a_dest ON a_dest.id = f.destination_aerodrome_id
+      WHERE bp.booking_id = ${bookingId} AND bp.id = ${passengerId}
+    `.execute(kdb);
+    return (rows.rows[0] as unknown as PassengerCheckinDetail) ?? null;
   },
 
   async confirmCheckin(
     passengerId: number,
     actualWeight: number,
   ): Promise<void> {
-    // This method is deprecated in favor of bookingLegPassengerRepository.checkIn()
-    // which handles per-leg check-in. This method updates the passenger's base weight
-    // in booking_passengers for reference.
-    await db.booking_passengers.update({
-      where: { id: passengerId },
-      data: {
+    const now = new Date().toISOString();
+    await kdb
+      .updateTable("booking_passengers")
+      .set({
         clothed_body_weight_kg: actualWeight,
-        updated_at: new Date(),
-      },
-    });
+        updated_at: now,
+      } as any)
+      .where("id", "=", passengerId)
+      .execute();
   },
 
   async getOutstandingBalance(bookingId: number): Promise<number> {
-    const rows = await db.$queryRawUnsafe(
-      `SELECT
+    const rows = await sql`
+      SELECT
         COALESCE(b.total_amount_gbp, 0) -
         COALESCE((
-          SELECT SUM(amount_gbp) FROM payments WHERE booking_id = $1
+          SELECT SUM(amount_gbp) FROM payments WHERE booking_id = ${bookingId}
         ), 0) AS balance
-       FROM bookings b
-       WHERE b.id = $1`,
-      bookingId,
-    ) as Record<string, unknown>[];
-    const row = rows[0] as { balance: number } | undefined;
-    return row?.balance ?? 0;
+      FROM bookings b
+      WHERE b.id = ${bookingId}
+    `.execute(kdb);
+    return Number((rows.rows[0] as { balance: number } | undefined)?.balance ?? 0);
   },
 
   async recordPayment(
@@ -243,15 +246,20 @@ export const checkinRepository = {
     paymentMethod: string,
     transactionReference: string,
   ): Promise<void> {
-    await db.payments.create({
-      data: {
+    await kdb
+      .insertInto("payments")
+      .values({
         booking_id: bookingId,
-        amount: amountGbp,
-        amount_gbp: amountGbp,
+        amount: String(amountGbp),
+        amount_gbp: String(amountGbp),
         method: paymentMethod,
+        payment_method: paymentMethod,
         transaction_reference: transactionReference,
         status: "completed",
-      },
-    });
+        fee_gbp: "0",
+        net_amount_gbp: String(amountGbp),
+        currency: "GBP",
+      } as any)
+      .execute();
   },
 };

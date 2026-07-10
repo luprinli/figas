@@ -1,4 +1,4 @@
-﻿import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { Link, useLoaderData, Outlet , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
@@ -6,7 +6,8 @@ import { useState } from "react";
 import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { requireAnyPermission } from "../utils/permissions.server";
 import { checkinRepository } from "../utils/repositories/checkin";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 
 export const meta: MetaFunction = () => [{ title: "Check-In - FIGAS" }];
 
@@ -14,9 +15,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const user = await requireAnyPermission(request, ["checkin:view", "checkin:process"]);
   const pending = await checkinRepository.findPending();
   const today = new Date().toISOString().slice(0, 10);
-  const flights = await db.query(
-    `SELECT f.id, f.flight_number FROM flights f WHERE f.departure_time::date = $1 ORDER BY f.flight_number`, [today]
-  );
+  const flights = await sql<Record<string, unknown>>`
+    SELECT f.id, f.flight_number FROM flights f WHERE f.departure_time::date = ${today} ORDER BY f.flight_number
+  `.execute(kdb);
   return json({ user, pendingCount: pending.length, flights: flights.rows });
 }
 

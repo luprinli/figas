@@ -6,7 +6,8 @@ import { json } from "@remix-run/node";
 import { Form, useActionData, useNavigation , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 
 
 import Button from "../components/Button";
@@ -28,10 +29,11 @@ export async function action({ request }: ActionFunctionArgs) {
   const trimmedEmail = email.toLowerCase().trim();
 
   // Look up the user
-  const user = await db.queryOne(
-    "SELECT id FROM users WHERE email = $1",
-    [trimmedEmail]
-  );
+  const result = await sql<{ id: number }>`
+    SELECT id FROM users WHERE email = ${trimmedEmail}
+  `.execute(kdb);
+
+  const user = result.rows[0] ?? null;
 
   if (!user) {
     // Don't reveal whether the email exists for security
@@ -46,10 +48,9 @@ export async function action({ request }: ActionFunctionArgs) {
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
   // Store the reset token in the database
-  await db.query(
-    "UPDATE users SET reset_token = $1, reset_token_expires_at = $2, updated_at = NOW() WHERE id = $3",
-    [resetToken, expiresAt, (user as { id: number }).id]
-  );
+  await sql`
+    UPDATE users SET reset_token = ${resetToken}, reset_token_expires_at = ${expiresAt}, updated_at = NOW() WHERE id = ${user.id}
+  `.execute(kdb);
 
   // In production, send the reset link via email.
   // The reset link would be: https://figas.co/reset-password?token=${resetToken}

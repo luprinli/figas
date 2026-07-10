@@ -3,7 +3,8 @@ import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import { requireUser } from "../utils/layout.server";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
@@ -60,21 +61,19 @@ export async function loader({ request }: LoaderFunctionArgs) {
   }
 
   const [flight, pax] = await Promise.all([
-    db.query(
-      `SELECT f.id, f.flight_number, a.max_takeoff_weight_kg, a.empty_weight_kg
-       FROM flights f LEFT JOIN aircraft a ON a.id = f.aircraft_id WHERE f.id = $1`,
-      [Number(flightId)]
-    ),
-    db.query(
-      `SELECT blp.id AS leg_pax_id, blp.booking_leg_id, bl.booking_id,
+    sql<Record<string, unknown>>`
+      SELECT f.id, f.flight_number, a.max_takeoff_weight_kg, a.empty_weight_kg
+       FROM flights f LEFT JOIN aircraft a ON a.id = f.aircraft_id WHERE f.id = ${Number(flightId)}
+    `.execute(kdb),
+    sql<Record<string, unknown>>`
+      SELECT blp.id AS leg_pax_id, blp.booking_leg_id, bl.booking_id,
          bp.first_name, bp.last_name, COALESCE(blp.clothed_weight_kg, bp.clothed_body_weight_kg, 70) AS body_kg,
          COALESCE(blp.baggage_weight_kg, 0) AS baggage_kg
        FROM booking_leg_passengers blp
        JOIN booking_legs bl ON bl.id = blp.booking_leg_id
        JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
-       WHERE blp.id = $1`,
-      [Number(paxId)]
-    ),
+       WHERE blp.id = ${Number(paxId)}
+    `.execute(kdb),
   ]);
 
   if (!flight.rows.length || !pax.rows.length) {
@@ -126,10 +125,9 @@ export async function action({ request }: ActionFunctionArgs) {
     const weightOverrideCode = formData.get("weight_override_code")?.toString() || "";
 
     if (bodyWt > 0) {
-      await db.query(
-        `UPDATE booking_passengers SET clothed_body_weight_kg = $1, updated_at = NOW() WHERE id = (SELECT booking_passenger_id FROM booking_leg_passengers WHERE id = $2)`,
-        [bodyWt, legPaxId]
-      );
+      await sql`
+        UPDATE booking_passengers SET clothed_body_weight_kg = ${bodyWt}, updated_at = NOW() WHERE id = (SELECT booking_passenger_id FROM booking_leg_passengers WHERE id = ${legPaxId})
+      `.execute(kdb);
     }
 
     await bookingLegPassengerRepository.update(legPaxId, {
@@ -139,11 +137,10 @@ export async function action({ request }: ActionFunctionArgs) {
 
     // Record weight override in audit log if manual justification provided
     if (weightOverrideCode) {
-      await db.query(
-        `INSERT INTO payments (booking_id, amount, amount_gbp, method, status, transaction_reference, created_at)
-         VALUES ((SELECT bl.booking_id FROM booking_leg_passengers blp JOIN booking_legs bl ON bl.id = blp.booking_leg_id WHERE blp.id = $1), 0, 0, 'weight_override', 'completed', $2, NOW())`,
-        [legPaxId, `WGT-OVERRIDE-${weightOverrideCode}-${Date.now()}`]
-      );
+      await sql`
+        INSERT INTO payments (booking_id, amount, amount_gbp, method, status, transaction_reference, created_at)
+         VALUES ((SELECT bl.booking_id FROM booking_leg_passengers blp JOIN booking_legs bl ON bl.id = blp.booking_leg_id WHERE blp.id = ${legPaxId}), 0, 0, 'weight_override', 'completed', ${`WGT-OVERRIDE-${weightOverrideCode}-${Date.now()}`}, NOW())
+      `.execute(kdb);
     }
 
     const totalAmount = payments.reduce((s, p) => s + p.amount, 0);
@@ -151,11 +148,10 @@ export async function action({ request }: ActionFunctionArgs) {
       // Determine if this is split payment (multiple methods)
       for (const p of payments) {
         const ref = p.reference || (authorizationCode ? `AUTH-${authorizationCode}` : `POS-${Date.now()}-${p.method}`);
-        await db.query(
-          `INSERT INTO payments (booking_id, amount, amount_gbp, method, status, transaction_reference, created_at)
-           VALUES ((SELECT bl.booking_id FROM booking_leg_passengers blp JOIN booking_legs bl ON bl.id = blp.booking_leg_id WHERE blp.id = $1), $2, $2, $3, 'completed', $4, NOW())`,
-          [legPaxId, p.amount, p.method, ref]
-        );
+        await sql`
+          INSERT INTO payments (booking_id, amount, amount_gbp, method, status, transaction_reference, created_at)
+           VALUES ((SELECT bl.booking_id FROM booking_leg_passengers blp JOIN booking_legs bl ON bl.id = blp.booking_leg_id WHERE blp.id = ${legPaxId}), ${p.amount}, ${p.amount}, ${p.method}, 'completed', ${ref}, NOW())
+        `.execute(kdb);
       }
     }
 

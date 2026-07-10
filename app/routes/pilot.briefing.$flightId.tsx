@@ -4,7 +4,8 @@ import { useLoaderData, useFetcher, useRouteError, isRouteErrorResponse } from "
 
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import { requireUser } from "../utils/layout.server";
 import PilotBriefing from "../components/pilot/PilotBriefing";
 import type { PilotBriefingData } from "../components/pilot/PilotBriefing";
@@ -18,14 +19,14 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => [
 export async function loader({ request, params }: LoaderFunctionArgs) {
     await requirePermission(request, Permission.FLIGHT_VIEW);
 
-    const flight = await db.$queryRawUnsafe<Array<{
+    const flight = await sql<{
         id: number; flight_number: string; departure_time: string; arrival_time: string;
         origin_code: string; destination_code: string;
         aircraft_registration: string; aircraft_type: string;
         empty_weight_kg: number; mtow_kg: number; mlw_kg: number;
         operational_notes: string;
-    }>>(
-        `SELECT f.id, f.flight_number, f.departure_time, f.arrival_time,
+    }>`
+        SELECT f.id, f.flight_number, f.departure_time, f.arrival_time,
        ao.code AS origin_code, ad.code AS destination_code,
        a.registration AS aircraft_registration, a.type AS aircraft_type,
        COALESCE(a.empty_weight_kg, 1627) AS empty_weight_kg,
@@ -36,41 +37,38 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
  JOIN aerodromes ao ON ao.id = f.origin_aerodrome_id
  JOIN aerodromes ad ON ad.id = f.destination_aerodrome_id
  LEFT JOIN aircraft a ON a.id = f.aircraft_id
- WHERE f.id = $1`,
-        [Number(params.flightId)]
-    );
+ WHERE f.id = ${Number(params.flightId)}
+    `.execute(kdb);
 
-    if (flight.length === 0) {
+    if (flight.rows.length === 0) {
         throw new Response("Flight not found", { status: 404 });
     }
 
-    const f = flight[0];
+    const f = flight.rows[0];
 
     // Ordered flight legs — the true STY → … → STY route (RULE 1).
     // Route display MUST derive from flight_legs, not the flight-level
     // origin/destination aerodrome (which is STY↔STY for round-trip sorties).
-    const legs = await db.$queryRawUnsafe<Array<{
+    const legs = await sql<{
         leg_number: number; origin_code: string; destination_code: string;
         distance_nm: number | null; etd: string | null; eta: string | null;
-    }>>(
-        `SELECT leg_number, origin_code, destination_code, distance_nm, etd, eta
- FROM flight_legs WHERE flight_id = $1 ORDER BY leg_number`,
-        [Number(params.flightId)]
-    );
+    }>`
+        SELECT leg_number, origin_code, destination_code, distance_nm, etd, eta
+ FROM flight_legs WHERE flight_id = ${Number(params.flightId)} ORDER BY leg_number
+    `.execute(kdb);
 
-    const crew = await db.$queryRawUnsafe<Array<{ name: string; role: string }>>(
-        `SELECT u.name, pa.role
+    const crew = await sql<{ name: string; role: string }>`
+        SELECT u.name, pa.role
  FROM pilot_assignments pa
  JOIN pilots p ON p.id = pa.pilot_id
  JOIN users u ON u.id = p.user_id
- WHERE pa.flight_id = $1`,
-        [Number(params.flightId)]
-    );
+ WHERE pa.flight_id = ${Number(params.flightId)}
+    `.execute(kdb);
 
-    const passengers = await db.$queryRawUnsafe<Array<{
+    const passengers = await sql<{
         name: string; origin: string; destination: string; seat: string; weightKg: number;
-    }>>(
-        `SELECT bp.first_name || ' ' || bp.last_name AS name,
+    }>`
+        SELECT bp.first_name || ' ' || bp.last_name AS name,
        bl.origin_code AS origin, bl.destination_code AS destination,
        COALESCE(blp.seat_number, '—') AS seat,
        COALESCE(blp.clothed_weight_kg, 70) AS "weightKg"
@@ -78,11 +76,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
  JOIN booking_legs bl ON bl.id = blp.booking_leg_id
  JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
  WHERE blp.flight_leg_id IS NOT NULL
-   AND bl.flight_id = $1`,
-        [Number(params.flightId)]
-    );
+   AND bl.flight_id = ${Number(params.flightId)}
+    `.execute(kdb);
 
-    const wbResult = await db.$queryRawUnsafe<Array<{
+    const wbResult = await sql<{
         passenger_weight_kg: number; baggage_weight_kg: number; freight_weight_kg: number;
         fuel_weight_kg: number; crew_weight_kg: number; total_weight_kg: number;
         mtow_used_pct: number; mlw_used_pct: number; cg_position_pct: number;
@@ -93,8 +90,8 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         fuel_rule_applied: string | null;
         starting_fuel_kg: number | null;
         reserve_fuel_kg: number | null;
-    }>>(
-        `SELECT wbs.passenger_weight_kg, wbs.baggage_weight_kg, wbs.freight_weight_kg,
+    }>`
+        SELECT wbs.passenger_weight_kg, wbs.baggage_weight_kg, wbs.freight_weight_kg,
         wbs.fuel_weight_kg, wbs.crew_weight_kg, wbs.total_weight_kg,
         wbs.mtow_used_pct, wbs.mlw_used_pct, wbs.cg_position_pct,
         COALESCE(wbs.binding_constraint, 'OK') AS binding_constraint,
@@ -103,11 +100,9 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         wbs.starting_fuel_kg, wbs.reserve_fuel_kg
  FROM weight_balance_snapshots wbs
  JOIN flight_legs fl ON fl.id = wbs.flight_leg_id
- WHERE fl.flight_id = $1
- ORDER BY wbs.id DESC LIMIT 1`,
-
-        [Number(params.flightId)]
-    );
+ WHERE fl.flight_id = ${Number(params.flightId)}
+ ORDER BY wbs.id DESC LIMIT 1
+    `.execute(kdb);
 
     const briefingData: PilotBriefingData = {
         flightNumber: f.flight_number,
@@ -116,7 +111,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         destination: f.destination_code,
         departureTime: f.departure_time,
         arrivalTime: f.arrival_time,
-        legs: legs.map((l) => ({
+        legs: legs.rows.map((l) => ({
             legNumber: Number(l.leg_number),
             originCode: l.origin_code,
             destinationCode: l.destination_code,
@@ -129,22 +124,22 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         emptyWeightKg: Number(f.empty_weight_kg),
         mtowKg: Number(f.mtow_kg),
         mlwKg: Number(f.mlw_kg),
-    crew: crew.map((c: { name: string; role: string }) => ({ name: c.name, role: c.role })),
-    passengers: passengers.map((p: { name: string; origin: string; destination: string; seat: string; weightKg: number }) => ({
+    crew: crew.rows.map((c) => ({ name: c.name, role: c.role })),
+    passengers: passengers.rows.map((p) => ({
             name: p.name,
             origin: p.origin,
             destination: p.destination,
             seat: String(p.seat),
             weightKg: Number(p.weightKg),
         })),
-        fuelPlan: wbResult.length > 0 ? {
-            requiredFuelKg: Number(wbResult[0].required_fuel_kg ?? 45),
-            reserveFuelKg: Number(wbResult[0].reserve_fuel_kg ?? 35),
+        fuelPlan: wbResult.rows.length > 0 ? {
+            requiredFuelKg: Number(wbResult.rows[0].required_fuel_kg ?? 45),
+            reserveFuelKg: Number(wbResult.rows[0].reserve_fuel_kg ?? 35),
             burnRateKgPerHr: 45,
-            enduranceMinutes: wbResult[0].fuel_weight_kg
-              ? Math.round((Number(wbResult[0].fuel_weight_kg) / 45) * 60)
+            enduranceMinutes: wbResult.rows[0].fuel_weight_kg
+              ? Math.round((Number(wbResult.rows[0].fuel_weight_kg) / 45) * 60)
               : 120,
-            needsStanleyRevisit: wbResult[0].fuel_state === "stanley_revisit",
+            needsStanleyRevisit: wbResult.rows[0].fuel_state === "stanley_revisit",
         } : {
             requiredFuelKg: 45,
             reserveFuelKg: 35,
@@ -152,17 +147,17 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
             enduranceMinutes: 120,
             needsStanleyRevisit: false,
         },
-        weightBalance: wbResult.length > 0 ? {
-            passengerWeightKg: Number(wbResult[0].passenger_weight_kg),
-            baggageWeightKg: Number(wbResult[0].baggage_weight_kg),
-            freightWeightKg: Number(wbResult[0].freight_weight_kg),
-            fuelWeightKg: Number(wbResult[0].fuel_weight_kg),
-            crewWeightKg: Number(wbResult[0].crew_weight_kg),
-            totalWeightKg: Number(wbResult[0].total_weight_kg),
-            mtowUsedPct: Number(wbResult[0].mtow_used_pct),
-            mlwUsedPct: Number(wbResult[0].mlw_used_pct),
-            cgPositionPct: Number(wbResult[0].cg_position_pct),
-            bindingConstraint: String(wbResult[0].binding_constraint),
+        weightBalance: wbResult.rows.length > 0 ? {
+            passengerWeightKg: Number(wbResult.rows[0].passenger_weight_kg),
+            baggageWeightKg: Number(wbResult.rows[0].baggage_weight_kg),
+            freightWeightKg: Number(wbResult.rows[0].freight_weight_kg),
+            fuelWeightKg: Number(wbResult.rows[0].fuel_weight_kg),
+            crewWeightKg: Number(wbResult.rows[0].crew_weight_kg),
+            totalWeightKg: Number(wbResult.rows[0].total_weight_kg),
+            mtowUsedPct: Number(wbResult.rows[0].mtow_used_pct),
+            mlwUsedPct: Number(wbResult.rows[0].mlw_used_pct),
+            cgPositionPct: Number(wbResult.rows[0].cg_position_pct),
+            bindingConstraint: String(wbResult.rows[0].binding_constraint),
         } : {
             passengerWeightKg: 0, baggageWeightKg: 0, freightWeightKg: 0,
             fuelWeightKg: 0, crewWeightKg: 80, totalWeightKg: 0,
@@ -186,28 +181,25 @@ export async function action({ request, params }: ActionFunctionArgs) {
   const intent = formData.get("intent")?.toString();
 
   if (intent === "accept-briefing") {
-    const existing = await db.$queryRawUnsafe<Array<{ id: number }>>(
-      `SELECT id FROM sign_offs WHERE entity_type = 'briefing' AND entity_id = $1 AND signed_by = $2 LIMIT 1`,
-      [flightId, Number(userId)]
-    );
+    const existing = await sql<{ id: number }>`
+      SELECT id FROM sign_offs WHERE entity_type = 'briefing' AND entity_id = ${flightId} AND signed_by = ${Number(userId)} LIMIT 1
+    `.execute(kdb);
 
-    if (existing.length > 0) {
+    if (existing.rows.length > 0) {
       return json({ error: "Briefing already accepted" }, { status: 409 });
     }
 
-    await db.$queryRawUnsafe(
-      `INSERT INTO sign_offs (entity_type, entity_id, signed_by, signed_at, certification_statement)
-       VALUES ('briefing', $1, $2, NOW(), $3)`,
-      [flightId, Number(userId), `I have reviewed and accept the briefing for flight #${flightId}`]
-    );
+    await sql`
+      INSERT INTO sign_offs (entity_type, entity_id, signed_by, signed_at, certification_statement)
+       VALUES ('briefing', ${flightId}, ${Number(userId)}, NOW(), ${`I have reviewed and accept the briefing for flight #${flightId}`})
+    `.execute(kdb);
 
-    await db.$queryRawUnsafe(
-      `UPDATE pilot_assignments SET confirmed_at = NOW(), status = 'confirmed'
-       WHERE flight_id = $1 AND pilot_id IN (
-         SELECT id FROM pilots WHERE user_id = $2
-       )`,
-      [flightId, Number(userId)]
-    );
+    await sql`
+      UPDATE pilot_assignments SET confirmed_at = NOW(), status = 'confirmed'
+       WHERE flight_id = ${flightId} AND pilot_id IN (
+         SELECT id FROM pilots WHERE user_id = ${Number(userId)}
+       )
+    `.execute(kdb);
 
     return json({ success: true, message: "Briefing accepted" });
   }

@@ -7,7 +7,8 @@ import { Form, Link, useActionData, useNavigation, useSearchParams , useRouteErr
 
 
 import { commitSession, getSession } from "../session.server";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import { hashPassword } from "../utils/password.server";
 
 import Button from "../components/Button";
@@ -66,10 +67,7 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 
   // Check if email already exists
-  const existingUser = await db.users.findUnique({
-    where: { email: trimmedEmail },
-    select: { id: true },
-  });
+  const existingUser = (await kdb.selectFrom("users").select("id").where("email", "=", trimmedEmail).execute())[0] ?? null;
 
   if (existingUser) {
     return json(
@@ -81,25 +79,17 @@ export async function action({ request }: ActionFunctionArgs) {
   // Hash password and create user
   const hashedPassword = await hashPassword(password);
 
-  const user = await db.users.create({
-    data: {
-      name: trimmedName,
-      email: trimmedEmail,
-      password: hashedPassword,
-      role: "passenger",
-    },
-    select: { id: true, role: true },
-  });
+  const user = (await kdb.insertInto("users").values({
+    name: trimmedName,
+    email: trimmedEmail,
+    password: hashedPassword,
+    role: "passenger",
+  } as any).returning(["id", "role"]).execute())[0];
 
   try {
-    const role = await db.$queryRawUnsafe<Array<{ id: number }>>(
-      `SELECT id FROM roles WHERE name = 'passenger' LIMIT 1`
-    );
-    if (role.length > 0) {
-      await db.$queryRawUnsafe(
-        `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-        [user.id, role[0].id]
-      );
+    const role = await sql<{ id: number }>`SELECT id FROM roles WHERE name = 'passenger' LIMIT 1`.execute(kdb);
+    if (role.rows.length > 0) {
+      await sql`INSERT INTO user_roles (user_id, role_id) VALUES (${user.id}, ${role.rows[0].id}) ON CONFLICT DO NOTHING`.execute(kdb);
     }
   } catch {
     // Non-critical — user can still be assigned roles later via admin

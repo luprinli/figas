@@ -1,9 +1,10 @@
-﻿import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { requirePermission } from "../utils/permissions.server";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import { requireUser } from "../utils/layout.server";
 import SidebarLayout from "../components/SidebarLayout";
 
@@ -16,13 +17,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const today = new Date().toISOString().slice(0, 10);
 
   const [todaysFlightsResult, pendingManifestsResult] = await Promise.all([
-    db.query(
-      `SELECT COUNT(*) as cnt FROM flights WHERE departure_time::date = $1`,
-      [today]
-    ),
-    db.query(
-      `SELECT COUNT(*) as cnt FROM flight_manifests WHERE signed_off_at IS NULL`
-    ),
+    sql<{ cnt: string }>`
+      SELECT COUNT(*) as cnt FROM flights WHERE departure_time::date = ${today}
+    `.execute(kdb),
+    sql<{ cnt: string }>`
+      SELECT COUNT(*) as cnt FROM flight_manifests WHERE signed_off_at IS NULL
+    `.execute(kdb),
   ]);
 
   const todaysFlights = Number(

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { db } from "./db.server";
+import { sql } from "kysely";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,33 +22,32 @@ const MIGRATIONS_TABLE = "_migrations";
 // ---------------------------------------------------------------------------
 
 async function ensureMigrationsTable(): Promise<void> {
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS ${MIGRATIONS_TABLE} (
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql.raw(MIGRATIONS_TABLE)} (
       id          SERIAL PRIMARY KEY,
       filename    VARCHAR(255) NOT NULL UNIQUE,
       applied_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
     )
-  `);
+  `.execute(db);
 }
 
 async function getAppliedMigrations(): Promise<Set<string>> {
-  const result = await db.query(
-    `SELECT filename FROM ${MIGRATIONS_TABLE} ORDER BY id`
-  );
-  return new Set(result.rows.map((r) => (r as { filename: string }).filename));
+  const result = await sql`
+    SELECT filename FROM ${sql.raw(MIGRATIONS_TABLE)} ORDER BY id
+  `.execute(db);
+  return new Set(result.rows.map((r: unknown) => (r as { filename: string }).filename));
 }
 
 async function applyMigration(
   filename: string,
-  sql: string
+  migrationSql: string
 ): Promise<void> {
   try {
-    await db.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(sql);
-      await tx.$executeRawUnsafe(
-        `INSERT INTO ${MIGRATIONS_TABLE} (filename) VALUES ($1)`,
-        filename
-      );
+    await db.transaction().execute(async (tx) => {
+      await sql`${sql.raw(migrationSql)}`.execute(tx);
+      await sql`
+        INSERT INTO ${sql.raw(MIGRATIONS_TABLE)} (filename) VALUES (${filename})
+      `.execute(tx);
     });
     console.log(`  ✔ ${filename}`);
   } catch (err) {
@@ -67,7 +67,6 @@ async function main(): Promise<void> {
   if (!fs.existsSync(MIGRATIONS_DIR)) {
     console.log(`Migrations directory not found: ${MIGRATIONS_DIR}`);
     console.log("Nothing to migrate.\n");
-    await db.$disconnect();
     return;
   }
 
@@ -79,7 +78,6 @@ async function main(): Promise<void> {
 
   if (files.length === 0) {
     console.log("No migration files found.\n");
-    await db.$disconnect();
     return;
   }
 
@@ -92,7 +90,6 @@ async function main(): Promise<void> {
 
   if (pending.length === 0) {
     console.log("All migrations are already applied. Nothing to do.\n");
-    await db.$disconnect();
     return;
   }
 
@@ -100,12 +97,11 @@ async function main(): Promise<void> {
 
   for (const file of pending) {
     const filePath = path.join(MIGRATIONS_DIR, file);
-    const sql = fs.readFileSync(filePath, "utf-8");
-    await applyMigration(file, sql);
+    const migrationSql = fs.readFileSync(filePath, "utf-8");
+    await applyMigration(file, migrationSql);
   }
 
   console.log("\n✅ All pending migrations applied successfully.\n");
-  await db.$disconnect();
 }
 
 main().catch((err) => {

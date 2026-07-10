@@ -1,17 +1,3 @@
-/**
- * Unified distance and heading lookup module.
- *
- * Merges the previously separate distance-cache.ts (DB-backed) and
- * distance-csv.ts (CSV file) into a single module with a LRU cache.
- *
- * Strategy:
- *   1. Primary: DB-backed aerodrome_distances table (loaded lazily)
- *   2. Fallback: CSV file data/distance.csv (loaded lazily)
- *   3. Heading lookup: DB-backed aerodrome_headings table only
- *
- * All lookups are O(1) via bidirectional Map<string, number>.
- */
-
 import { db } from "../db.server";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -39,12 +25,12 @@ let distanceCache: DistanceRow[] | null = null;
 
 export async function loadDistances(): Promise<DistanceRow[]> {
   if (distanceCache) return distanceCache;
-  const rows = await db.aerodrome_distances.findMany({
-    select: { origin_code: true, destination_code: true, distance_nm: true },
-  });
+  const rows = await db.selectFrom("aerodrome_distances")
+    .select(["origin_code", "destination_code", "distance_nm"])
+    .execute();
   distanceCache = rows.map((r) => ({
-    origin: r.origin_code,
-    destination: r.destination_code,
+    origin: String(r.origin_code),
+    destination: String(r.destination_code),
     distance_nm: Number(r.distance_nm),
   }));
   dbMap = buildBidirectionalMap(distanceCache);
@@ -53,12 +39,12 @@ export async function loadDistances(): Promise<DistanceRow[]> {
 
 export async function loadHeadings(): Promise<HeadingRow[]> {
   if (headingCache) return headingCache;
-  const rows = await db.aerodrome_headings.findMany({
-    select: { origin_code: true, destination_code: true, heading_degrees: true },
-  });
+  const rows = await db.selectFrom("aerodrome_headings")
+    .select(["origin_code", "destination_code", "heading_degrees"])
+    .execute();
   headingCache = rows.map((r) => ({
-    origin: r.origin_code,
-    destination: r.destination_code,
+    origin: String(r.origin_code),
+    destination: String(r.destination_code),
     heading: Number(r.heading_degrees),
   }));
   return headingCache;
@@ -110,11 +96,6 @@ function buildBidirectionalMap(distances: DistanceRow[]): Map<string, number> {
 
 // ── Unified lookup API ────────────────────────────────────────────────────────
 
-/**
- * Get distance between two aerodromes (bidirectional).
- * Tries DB first, falls back to CSV. Returns 0 if unknown.
- * Lazy-loads caches on first call.
- */
 export async function lookupDistance(from: string, to: string): Promise<number> {
   const key = `${from}→${to}`;
   if (!dbMap) await loadDistances();
@@ -124,29 +105,16 @@ export async function lookupDistance(from: string, to: string): Promise<number> 
   return csvMap!.get(key) ?? 0;
 }
 
-/**
- * O(1) synchronous distance lookup using the pre-loaded DB Map.
- * Returns 0 if the cache hasn't been loaded yet.
- * For guaranteed synchronous access, call loadDistances() first.
- */
 export function getDistanceFast(from: string, to: string): number {
   if (!dbMap) return 0;
   return dbMap.get(`${from}→${to}`) ?? 0;
 }
 
-/**
- * Get distance between two aerodromes from the pre-built CSV map only.
- * Used by loadsheet calculations which prefer the CSV source.
- */
 export async function getCSVDistance(from: string, to: string): Promise<number> {
   if (!csvMap) await loadCSVMap();
   return csvMap!.get(`${from}→${to}`) ?? 0;
 }
 
-/**
- * Look up the distance by searching the DistanceRow array (linear scan).
- * @deprecated Use getDistanceFast for O(1) lookup.
- */
 export function getDistance(
   distances: DistanceRow[],
   from: string,
@@ -160,9 +128,6 @@ export function getDistance(
   return row?.distance_nm ?? 0;
 }
 
-/**
- * Look up the heading from one aerodrome to another (directional).
- */
 export function getHeading(
   headings: HeadingRow[],
   from: string,

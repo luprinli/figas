@@ -5,7 +5,8 @@ import { Form, useLoaderData, useSearchParams , useRouteError, isRouteErrorRespo
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { bookingLegPassengerRepository } from "../utils/repositories/booking-leg-passenger";
 import { getUserId } from "../utils/auth.server";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import Button from "../components/Button";
 import PrintButton, { buildBaggageTagOptions } from "../components/PrintButton";
 import DatePicker from "../components/DatePicker";
@@ -68,8 +69,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const selectedDate = url.searchParams.get("date") || new Date().toISOString().slice(0, 10);
 
   if (!flightId) {
-    const flights = await db.query(
-      `SELECT f.id, f.flight_number, f.departure_time, f.status,
+    const flights = await sql<Record<string, unknown>>`
+      SELECT f.id, f.flight_number, f.departure_time, f.status,
          ao.code AS origin_code, ad.code AS destination_code,
          a.registration,
          COUNT(blp.id) FILTER (WHERE blp.checked_in = true)::int AS checked_count,
@@ -80,19 +81,18 @@ export async function loader({ request }: LoaderFunctionArgs) {
        LEFT JOIN aircraft a ON a.id = f.aircraft_id
        LEFT JOIN booking_legs bl ON bl.flight_id = f.id
        LEFT JOIN booking_leg_passengers blp ON blp.booking_leg_id = bl.id
-       WHERE f.departure_time::date = $1
+       WHERE f.departure_time::date = ${selectedDate}
        GROUP BY f.id, f.flight_number, f.departure_time, f.status, ao.code, ad.code, a.registration
-       ORDER BY f.departure_time ASC`,
-      [selectedDate]
-    );
-    const allFlights = await db.query(
-      `SELECT f.id, f.flight_number FROM flights f WHERE f.departure_time::date = $1 ORDER BY f.flight_number`, [selectedDate]
-    );
+       ORDER BY f.departure_time ASC
+    `.execute(kdb);
+    const allFlights = await sql<Record<string, unknown>>`
+      SELECT f.id, f.flight_number FROM flights f WHERE f.departure_time::date = ${selectedDate} ORDER BY f.flight_number
+    `.execute(kdb);
     return json({ mode: "select" as const, flights: flights.rows, today: selectedDate, allFlights: allFlights.rows });
   }
 
-  const flight = await db.query(
-    `SELECT f.id, f.flight_number, f.departure_time, f.status,
+  const flight = await sql<Record<string, unknown>>`
+    SELECT f.id, f.flight_number, f.departure_time, f.status,
        ao.code AS origin_code, ad.code AS destination_code,
        COALESCE(a.registration, 'Unassigned') AS registration,
        COALESCE(a.empty_weight_kg, 1627) AS empty_weight_kg,
@@ -101,13 +101,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
      JOIN aerodromes ao ON ao.id = f.origin_aerodrome_id
      JOIN aerodromes ad ON ad.id = f.destination_aerodrome_id
      LEFT JOIN aircraft a ON a.id = f.aircraft_id
-     WHERE f.id = $1`,
-    [Number(flightId)]
-  );
+     WHERE f.id = ${Number(flightId)}
+  `.execute(kdb);
   if (flight.rows.length === 0) return json({ mode: "select" as const, flights: [], today: "" });
 
-  const passengers = await db.query(
-    `SELECT blp.id AS leg_passenger_id, blp.booking_leg_id, bl.booking_id, blp.checked_in,
+  const passengers = await sql<Record<string, unknown>>`
+    SELECT blp.id AS leg_passenger_id, blp.booking_leg_id, bl.booking_id, blp.checked_in,
        blp.clothed_weight_kg, blp.baggage_weight_kg, blp.seat_number,
        bp.id AS passenger_id, bp.first_name, bp.last_name, bp.email, bp.clothed_body_weight_kg,
        bl.origin_code, bl.destination_code, bl.leg_sequence,
@@ -116,18 +115,17 @@ export async function loader({ request }: LoaderFunctionArgs) {
      JOIN booking_legs bl ON bl.id = blp.booking_leg_id
      JOIN bookings b ON b.id = bl.booking_id
      JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
-     WHERE bl.flight_id = $1 AND b.status NOT IN ('cancelled')
-     ORDER BY bl.leg_sequence, bp.last_name, bp.first_name`,
-    [Number(flightId)]
-  );
+     WHERE bl.flight_id = ${Number(flightId)} AND b.status NOT IN ('cancelled')
+     ORDER BY bl.leg_sequence, bp.last_name, bp.first_name
+  `.execute(kdb);
 
-  const tillPayments = await db.query(
-    `SELECT p.id, p.amount_gbp AS amount, p.method, COALESCE(b.booking_reference, '—') AS booking_reference,
+  const tillPayments = await sql<Record<string, unknown>>`
+    SELECT p.id, p.amount_gbp AS amount, p.method, COALESCE(b.booking_reference, '—') AS booking_reference,
        p.created_at AS timestamp
      FROM payments p LEFT JOIN bookings b ON b.id = p.booking_id
      WHERE p.created_at::date = CURRENT_DATE
-     ORDER BY p.created_at DESC LIMIT 20`
-  );
+     ORDER BY p.created_at DESC LIMIT 20
+  `.execute(kdb);
 
   const mapped: FlightPassenger[] = (passengers.rows as Array<Record<string, unknown>>).map((r) => ({
     legPassengerId: Number(r.leg_passenger_id),
@@ -171,29 +169,26 @@ export async function action({ request }: ActionFunctionArgs) {
     const weightOverrideCode = formData.get("weight_override_code")?.toString() || "";
 
     if (bodyWt > 0) {
-      await db.query(
-        `UPDATE booking_passengers SET clothed_body_weight_kg = $1, updated_at = NOW() WHERE id = (SELECT booking_passenger_id FROM booking_leg_passengers WHERE id = $2)`,
-        [bodyWt, legPaxId]
-      );
+      await sql`
+        UPDATE booking_passengers SET clothed_body_weight_kg = ${bodyWt}, updated_at = NOW() WHERE id = (SELECT booking_passenger_id FROM booking_leg_passengers WHERE id = ${legPaxId})
+      `.execute(kdb);
     }
     await bookingLegPassengerRepository.update(legPaxId, { baggage_weight_kg: bagWt, ...(bodyWt > 0 ? { clothed_weight_kg: bodyWt } : {}) });
 
     if (weightOverrideCode) {
-      await db.query(
-        `INSERT INTO payments (booking_id, amount, amount_gbp, method, status, transaction_reference, created_at)
-         VALUES ((SELECT bl.booking_id FROM booking_leg_passengers blp JOIN booking_legs bl ON bl.id = blp.booking_leg_id WHERE blp.id = $1), 0, 0, 'weight_override', 'completed', $2, NOW())`,
-        [legPaxId, `WGT-OVERRIDE-${weightOverrideCode}-${Date.now()}`]
-      );
+      await sql`
+        INSERT INTO payments (booking_id, amount, amount_gbp, method, status, transaction_reference, created_at)
+         VALUES ((SELECT bl.booking_id FROM booking_leg_passengers blp JOIN booking_legs bl ON bl.id = blp.booking_leg_id WHERE blp.id = ${legPaxId}), 0, 0, 'weight_override', 'completed', ${`WGT-OVERRIDE-${weightOverrideCode}-${Date.now()}`}, NOW())
+      `.execute(kdb);
     }
 
     const totalAmount = payments.reduce((s, p) => s + p.amount, 0);
     if (totalAmount > 0 && payments.length > 0) {
       for (const p of payments) {
-        await db.query(
-          `INSERT INTO payments (booking_id, amount, amount_gbp, method, status, transaction_reference, created_at)
-           VALUES ((SELECT bl.booking_id FROM booking_leg_passengers blp JOIN booking_legs bl ON bl.id = blp.booking_leg_id WHERE blp.id = $1), $2, $2, $3, 'completed', $4, NOW())`,
-          [legPaxId, p.amount, p.method, p.reference || `POS-${Date.now()}-${p.method}`]
-        );
+        await sql`
+          INSERT INTO payments (booking_id, amount, amount_gbp, method, status, transaction_reference, created_at)
+           VALUES ((SELECT bl.booking_id FROM booking_leg_passengers blp JOIN booking_legs bl ON bl.id = blp.booking_leg_id WHERE blp.id = ${legPaxId}), ${p.amount}, ${p.amount}, ${p.method}, 'completed', ${p.reference || `POS-${Date.now()}-${p.method}`}, NOW())
+        `.execute(kdb);
       }
     }
     await bookingLegPassengerRepository.checkIn(legPaxId, userId);
@@ -204,23 +199,22 @@ export async function action({ request }: ActionFunctionArgs) {
     const flightId = formData.get("flight_id")?.toString();
     if (!flightId) return json({ error: "Flight ID required" }, { status: 400 });
 
-    const unchecked = await db.$queryRawUnsafe<Array<{ id: number }>>(
-      `SELECT blp.id
+    const unchecked = await sql<{ id: number }>`
+      SELECT blp.id
        FROM booking_leg_passengers blp
        JOIN booking_legs bl ON bl.id = blp.booking_leg_id
-       WHERE bl.flight_id = $1 AND blp.checked_in = false`,
-      [Number(flightId)]
-    );
+       WHERE bl.flight_id = ${Number(flightId)} AND blp.checked_in = false
+    `.execute(kdb);
 
-    if (unchecked.length === 0) {
+    if (unchecked.rows.length === 0) {
       return json({ error: "All passengers already checked in" }, { status: 400 });
     }
 
-    for (const p of unchecked) {
+    for (const p of unchecked.rows) {
       await bookingLegPassengerRepository.checkIn(p.id, userId);
     }
 
-    return redirect(`/checkin/counter?flightId=${flightId}&batch=${unchecked.length}`);
+    return redirect(`/checkin/counter?flightId=${flightId}&batch=${unchecked.rows.length}`);
   }
 
   return json({ error: "Unknown intent" }, { status: 400 });

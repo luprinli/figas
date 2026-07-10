@@ -1,4 +1,5 @@
 import { db } from "../app/utils/db.server";
+import { sql } from "kysely";
 
 async function seedConfig() {
   console.log("Seeding system_settings...");
@@ -29,12 +30,11 @@ async function seedConfig() {
   ];
 
   for (const [key, value, type, description] of settings) {
-    await db.$queryRawUnsafe(
-      `INSERT INTO system_settings (key, value, type, description, updated_at)
-       VALUES ($1, $2, $3, $4, NOW())
-       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, description = EXCLUDED.description, updated_at = NOW()`,
-      [key, value, type, description]
-    );
+    await sql`
+      INSERT INTO system_settings (key, value, type, description, updated_at)
+       VALUES (${key}, ${value}, ${type}, ${description}, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, description = EXCLUDED.description, updated_at = NOW()
+    `.execute(db);
     console.log(`  ${key} = ${value}`);
   }
 

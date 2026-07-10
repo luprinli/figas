@@ -82,10 +82,13 @@ export async function checkAirframeFeasibility(
   aircraftId: number,
   plannedDurationHours: number
 ): Promise<AirframeFeasibilityResult> {
-  const record = await db.airframe_hours.findFirst({
-    where: { aircraft_id: aircraftId },
-    orderBy: { last_reading_date: "desc" },
-  });
+  const rows = await db.selectFrom("airframe_hours")
+    .selectAll()
+    .where("aircraft_id", "=", aircraftId)
+    .orderBy("last_reading_date", "desc")
+    .limit(1)
+    .execute();
+  const record = rows[0] ?? null;
 
   const hours500 = parseHoursString(record?.hours_until_500_check);
   const hours1000 = parseHoursString(record?.hours_until_1000_check);
@@ -142,10 +145,13 @@ export async function updateAirframeHoursFromActual(
 
   const actualHours = actualFlightMinutes / 60;
 
-  const record = await db.airframe_hours.findFirst({
-    where: { aircraft_id: aircraftId },
-    orderBy: { last_reading_date: "desc" },
-  });
+  const rows2 = await db.selectFrom("airframe_hours")
+    .selectAll()
+    .where("aircraft_id", "=", aircraftId)
+    .orderBy("last_reading_date", "desc")
+    .limit(1)
+    .execute();
+  const record = rows2[0] ?? null;
   if (!record) return;
 
   const newTotal = parseHoursString(record.total_hours) + actualHours;
@@ -153,16 +159,16 @@ export async function updateAirframeHoursFromActual(
   const newUntil1000 = Math.max(0, parseHoursString(record.hours_until_1000_check) - actualHours);
   const newUntilNext = Math.max(0, parseHoursString(record.hours_until_next_check) - actualHours);
 
-  await db.airframe_hours.update({
-    where: { id: record.id },
-    data: {
+  await db.updateTable("airframe_hours")
+    .set({
       total_hours: formatHoursString(newTotal),
       hours_until_500_check: formatHoursString(newUntil500),
       hours_until_1000_check: formatHoursString(newUntil1000),
       hours_until_next_check: formatHoursString(newUntilNext),
       updated_at: new Date(),
-    },
-  });
+    } as any)
+    .where("id", "=", Number(record.id))
+    .execute();
 }
 
 /**
@@ -173,10 +179,13 @@ export async function updateAirframeHoursFromActual(
  * @returns Minimum remaining hours across all check intervals, or Infinity if no record
  */
 export async function getMinRemainingHours(aircraftId: number): Promise<number> {
-  const record = await db.airframe_hours.findFirst({
-    where: { aircraft_id: aircraftId },
-    orderBy: { last_reading_date: "desc" },
-  });
+  const rows3 = await db.selectFrom("airframe_hours")
+    .selectAll()
+    .where("aircraft_id", "=", aircraftId)
+    .orderBy("last_reading_date", "desc")
+    .limit(1)
+    .execute();
+  const record = rows3[0] ?? null;
   if (!record) return Infinity;
 
   const checks = [

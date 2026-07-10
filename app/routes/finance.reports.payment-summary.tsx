@@ -3,7 +3,8 @@ import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import PageHeader from "../components/PageHeader";
 import DataTable from "../components/DataTable";
 import type { Column } from "../components/DataTable";
@@ -12,11 +13,11 @@ import EmptyState from "../components/EmptyState";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   await requirePermission(request, Permission.FINANCE_VIEW);
-  const result = await db.query(
-    `SELECT p.payment_method, COUNT(*)::int AS count, COALESCE(SUM(p.amount_gbp), 0) AS total
+  const result = await sql<Record<string, unknown>>`
+    SELECT p.payment_method, COUNT(*)::int AS count, COALESCE(SUM(p.amount_gbp), 0) AS total
      FROM payments p WHERE p.status = 'succeeded'
-     GROUP BY p.payment_method ORDER BY total DESC`
-  );
+     GROUP BY p.payment_method ORDER BY total DESC
+  `.execute(kdb);
   return json({ summary: result.rows });
 }
 

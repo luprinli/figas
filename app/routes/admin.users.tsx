@@ -6,7 +6,8 @@ import { requireAuth } from "../utils/auth.server";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission, DEFAULT_PAGE_SIZE, UserRole } from "../utils/constants";
 import { adminRepository } from "../utils/repositories/admin";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import { getSession } from "../session.server";
 import DataTable from "../components/DataTable";
 import type { Column } from "../components/DataTable";
@@ -78,11 +79,10 @@ export async function action({ request }: ActionFunctionArgs) {
       const roleSlug = formData.get("role") as string;
       if (targetUserId && roleSlug) {
         // Look up the PBAC role ID by slug
-        const roleResult = await db.query(
-          "SELECT id FROM roles WHERE slug = $1",
-          [roleSlug]
-        );
-        const roleRow = roleResult.rows[0] as { id: number } | undefined;
+        const roleResult = await sql<{ id: number }>`
+          SELECT id FROM roles WHERE slug = ${roleSlug}
+        `.execute(kdb);
+        const roleRow = roleResult.rows[0] ?? null;
         if (roleRow) {
           // Get the actor's user ID from the session
           const session = await getSession(request.headers.get("Cookie"));

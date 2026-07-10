@@ -4,7 +4,8 @@ import { useLoaderData, Form } from "@remix-run/react";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
 import { requireUser } from "../utils/layout.server";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import DataGrid from "../components/DataGrid";
 import type { Column } from "../components/DataTable";
 import EmptyState from "../components/EmptyState";
@@ -14,19 +15,19 @@ import Button from "../components/Button";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   await requirePermission(request, Permission.MAINTENANCE_VIEW);
-  const defects = await db.query(
-    `SELECT d.id, d.title, d.description, d.severity, d.ata_chapter, d.deferral_status,
+  const defects = await sql<Record<string, unknown>>`
+    SELECT d.id, d.title, d.description, d.severity, d.ata_chapter, d.deferral_status,
        d.mel_reference, d.mel_category, d.reported_at, d.deferral_expiry_date, d.aircraft_id,
        a.registration
  FROM defects d
  JOIN aircraft a ON a.id = d.aircraft_id
  ORDER BY d.deferral_status != 'closed' DESC, d.reported_at DESC
- LIMIT 100`
-  );
+ LIMIT 100
+  `.execute(kdb);
   const data = defects.rows as Array<Record<string, unknown>>;
   const openCount = data.filter((d) => d.deferral_status === 'open' || d.deferral_status === 'deferred').length;
   const rectified = data.filter((d) => d.deferral_status === 'rectified').length;
-  const aircraft = await db.query(`SELECT id, registration FROM aircraft ORDER BY registration`);
+  const aircraft = await sql<Record<string, unknown>>`SELECT id, registration FROM aircraft ORDER BY registration`.execute(kdb);
   return json({ defects: data, openCount, rectified, aircraft: aircraft.rows });
 }
 
@@ -48,11 +49,10 @@ export async function action({ request }: ActionFunctionArgs) {
         return json({ error: "Aircraft and title are required." }, { status: 400 });
       }
 
-      await db.$queryRawUnsafe(
-        `INSERT INTO defects (aircraft_id, title, description, severity, ata_chapter, reported_by, deferral_status)
-         VALUES ($1, $2, $3, $4, $5, $6, 'open')`,
-        [aircraftId, title, description, severity, ataChapter, userId]
-      );
+      await sql`
+        INSERT INTO defects (aircraft_id, title, description, severity, ata_chapter, reported_by, deferral_status)
+         VALUES (${aircraftId}, ${title}, ${description}, ${severity}, ${ataChapter}, ${userId}, 'open')
+      `.execute(kdb);
       return redirect("/engineer/defects");
     }
 
@@ -67,11 +67,10 @@ export async function action({ request }: ActionFunctionArgs) {
         return json({ error: "MEL reference is required for deferral." }, { status: 400 });
       }
 
-      await db.$queryRawUnsafe(
-        `UPDATE defects SET deferral_status = 'deferred', mel_reference = $1, mel_category = $2,
-         deferral_approved_by = $3, deferral_expiry_date = $4::date WHERE id = $5`,
-        [melRef, melCat, userId, expiryDate, defectId]
-      );
+      await sql`
+        UPDATE defects SET deferral_status = 'deferred', mel_reference = ${melRef}, mel_category = ${melCat},
+         deferral_approved_by = ${userId}, deferral_expiry_date = ${expiryDate}::date WHERE id = ${defectId}
+      `.execute(kdb);
       return redirect("/engineer/defects");
     }
 
@@ -84,10 +83,9 @@ export async function action({ request }: ActionFunctionArgs) {
         return json({ error: "Rectification description is required." }, { status: 400 });
       }
 
-      await db.$queryRawUnsafe(
-        `UPDATE defects SET deferral_status = 'rectified', rectification = $1, rectified_at = NOW(), rectified_by = $2 WHERE id = $3`,
-        [rectification, userId, defectId]
-      );
+      await sql`
+        UPDATE defects SET deferral_status = 'rectified', rectification = ${rectification}, rectified_at = NOW(), rectified_by = ${userId} WHERE id = ${defectId}
+      `.execute(kdb);
       return redirect("/engineer/defects");
     }
 

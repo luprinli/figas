@@ -15,6 +15,7 @@ import { assignPilotsToRoutes } from "./assign-pilots";
 import { BookingStatus } from "../constants";
 import { isNoFlyDay } from "../services/no-fly.service";
 import { db } from "../db.server";
+import { sql } from "kysely";
 import { solveCvrp } from "./cvrp-solver";
 import { validateCvrpRoutes, filterFeasibleRoutes } from "./cvrp-validator";
 import type { ValidationAircraft } from "./flight-validation";
@@ -38,7 +39,7 @@ import type { PassengerDemand } from "./cvrp-types";
  * @param createdBy - The user ID of the person triggering the build (used for audit fields).
  */
 export async function buildSchedule(date: string, createdBy: number): Promise<ScheduleBuildResult> {
-  return await db.$transaction(async (tx) => {
+  return await db.transaction().execute(async (tx) => {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -76,23 +77,20 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
     }
 
     // ── Create or reuse schedule record ───────────────────────────────────────
-    const existing = await db.query(
-      `SELECT id FROM schedules WHERE schedule_date = $1::date ORDER BY created_at DESC LIMIT 1`,
-      [date]
-    );
+    const existingResult = await sql`
+      SELECT id FROM schedules WHERE schedule_date = ${date}::date ORDER BY created_at DESC LIMIT 1
+    `.execute(db);
     let scheduleId: number;
-    if (existing.rows.length > 0) {
-      scheduleId = (existing.rows[0] as { id: number }).id;
-      await db.$executeRawUnsafe(
-        `UPDATE schedules SET status = 'building', updated_at = NOW() WHERE id = $1`,
-        scheduleId
-      );
+    if (existingResult.rows.length > 0) {
+      scheduleId = Number((existingResult.rows[0] as { id: number | bigint }).id);
+      await sql`
+        UPDATE schedules SET status = 'building', updated_at = NOW() WHERE id = ${scheduleId}
+      `.execute(db);
     } else {
-      const newSchedule = await db.query(
-        `INSERT INTO schedules (schedule_date, created_by, notes, status) VALUES ($1, $2, $3, 'building') RETURNING id`,
-        [date, createdBy, `Auto-generated schedule for ${date}`]
-      );
-      scheduleId = (newSchedule.rows[0] as { id: number }).id;
+      const newScheduleResult = await sql`
+        INSERT INTO schedules (schedule_date, created_by, notes, status) VALUES (${date}, ${createdBy}, ${`Auto-generated schedule for ${date}`}, 'building') RETURNING id
+      `.execute(db);
+      scheduleId = Number((newScheduleResult.rows[0] as { id: number | bigint }).id);
     }
     const schedule = { id: scheduleId };
 
@@ -179,27 +177,23 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
       const destCode = cvrpRoute.stops[cvrpRoute.stops.length - 1] ?? "STY";
 
       // Get aerodrome IDs
-      const originResult = await db.query(
-        "SELECT id FROM aerodromes WHERE code = $1", [originCode]
-      );
-      const destResult = await db.query(
-        "SELECT id FROM aerodromes WHERE code = $1", [destCode]
-      );
-      const originId = (originResult.rows[0] as { id: number })?.id ?? 0;
-      const destId = (destResult.rows[0] as { id: number })?.id ?? 0;
+      const originResult = await sql`
+        SELECT id FROM aerodromes WHERE code = ${originCode}
+      `.execute(db);
+      const destResult = await sql`
+        SELECT id FROM aerodromes WHERE code = ${destCode}
+      `.execute(db);
+      const originId = Number((originResult.rows[0] as { id: number | bigint })?.id ?? 0);
+      const destId = Number((destResult.rows[0] as { id: number | bigint })?.id ?? 0);
 
       const defaultAircraftId = allAircraft.length > 0 ? allAircraft[0].id : 1;
 
-      const flightResult = await db.query(
-        `INSERT INTO flights (
+      const flightResult = await sql`
+        INSERT INTO flights (
           flight_number, aircraft_id, origin_aerodrome_id, destination_aerodrome_id,
           departure_time, arrival_time, status, schedule_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-        [
-          flightNumber, defaultAircraftId, originId, destId,
-          `${date}T10:00:00Z`, `${date}T12:00:00Z`, "scheduled", schedule.id,
-        ]
-      );
+        ) VALUES (${flightNumber}, ${defaultAircraftId}, ${originId}, ${destId}, ${`${date}T10:00:00Z`}, ${`${date}T12:00:00Z`}, ${"scheduled"}, ${schedule.id}) RETURNING *
+      `.execute(db);
       const flight = (flightResult.rows[0] as unknown as FlightRow);
 
       // Create flight legs from CVRP route stops.
@@ -227,12 +221,9 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
 
       // Compute and persist flight duration
       const durationMinutes = computeFlightDuration(legDistances);
-      await db.$executeRawUnsafe(
-        `UPDATE flights SET duration_minutes = $1, check_in_time = $2 WHERE id = $3`,
-        durationMinutes,
-        "08:00",
-        flight.id
-      );
+      await sql`
+        UPDATE flights SET duration_minutes = ${durationMinutes}, check_in_time = ${"08:00"} WHERE id = ${flight.id}
+      `.execute(db);
 
       // Assign booking legs to this flight based on CVRP assignments
       const assignedLegIds: number[] = [];
@@ -270,27 +261,22 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
       routePassengerCounts.set(flight.id, cvrpRoute.passengerCount);
 
       // Populate booking_leg_passengers.flight_leg_id for per-passenger parity
-      const legRows = await tx.$queryRawUnsafe<
-        { id: number; origin_code: string; destination_code: string }[]
-      >(
-        `SELECT id, origin_code, destination_code FROM flight_legs WHERE flight_id = $1 ORDER BY leg_number`,
-        flight.id
-      );
+      const legRows = await sql<{ id: number; origin_code: string; destination_code: string }>`
+        SELECT id, origin_code, destination_code FROM flight_legs WHERE flight_id = ${flight.id} ORDER BY leg_number
+      `.execute(tx);
       for (const blId of assignedLegIds) {
-        const blRow = await tx.$queryRawUnsafe<
-          { origin_code: string; destination_code: string }[]
-        >(`SELECT origin_code, destination_code FROM booking_legs WHERE id = $1`, blId);
-        if (blRow.length === 0) continue;
-        const bl = blRow[0];
-        const matchingLeg = legRows.find(
+        const blRow = await sql<{ origin_code: string; destination_code: string }>`
+          SELECT origin_code, destination_code FROM booking_legs WHERE id = ${blId}
+        `.execute(tx);
+        if (blRow.rows.length === 0) continue;
+        const bl = blRow.rows[0];
+        const matchingLeg = legRows.rows.find(
           (l) => l.origin_code === bl.origin_code && l.destination_code === bl.destination_code
         );
         if (matchingLeg) {
-          await tx.$executeRawUnsafe(
-            `UPDATE booking_leg_passengers SET flight_leg_id = $1 WHERE booking_leg_id = $2 AND flight_leg_id IS NULL`,
-            matchingLeg.id,
-            blId
-          );
+          await sql`
+            UPDATE booking_leg_passengers SET flight_leg_id = ${matchingLeg.id} WHERE booking_leg_id = ${blId} AND flight_leg_id IS NULL
+          `.execute(tx);
         }
       }
     }
@@ -312,11 +298,9 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
       });
 
       // Update the aircraft_id on the flight record using the transaction client
-      await tx.$executeRawUnsafe(
-        "UPDATE flights SET aircraft_id = $1, updated_at = NOW() WHERE id = $2",
-        assignment.aircraft.id,
-        assignment.route.flight.id
-      );
+      await sql`
+        UPDATE flights SET aircraft_id = ${assignment.aircraft.id}, updated_at = NOW() WHERE id = ${assignment.route.flight.id}
+      `.execute(tx);
     }
 
     // ── Phase 4: Weight & Balance ─────────────────────────────────────────────

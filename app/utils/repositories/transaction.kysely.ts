@@ -1,4 +1,4 @@
-import { kdb } from "../db.server.kysely";
+import { kdb } from "../db.server";
 import type { Kysely } from "kysely";
 import type { DB } from "../../../generated/kysely/database";
 

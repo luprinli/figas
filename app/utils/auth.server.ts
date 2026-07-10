@@ -64,10 +64,11 @@ export async function getUserIdentity(
   userId: string | number
 ): Promise<UserIdentity | null> {
   const numericId = typeof userId === "string" ? Number(userId) : userId;
-  const row = await db.users.findUnique({
-    where: { id: numericId },
-    select: { id: true, email: true, name: true, role: true },
-  });
+  const rows = await db.selectFrom("users")
+    .select(["id", "email", "name", "role"])
+    .where("id", "=", numericId)
+    .execute();
+  const row = rows[0] ?? null;
   if (!row) return null;
 
   // Fetch PBAC roles and permissions

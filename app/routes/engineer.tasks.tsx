@@ -4,7 +4,8 @@ import { useLoaderData, Form } from "@remix-run/react";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
 import { requireUser } from "../utils/layout.server";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import DataGrid from "../components/DataGrid";
 import type { Column } from "../components/DataTable";
 import EmptyState from "../components/EmptyState";
@@ -14,21 +15,21 @@ import Button from "../components/Button";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   await requirePermission(request, Permission.MAINTENANCE_VIEW);
-  const tasks = await db.query(
-    `SELECT mt.id, mt.title, mt.task_type, mt.ata_chapter, mt.status, mt.priority,
+  const tasks = await sql<Record<string, unknown>>`
+    SELECT mt.id, mt.title, mt.task_type, mt.ata_chapter, mt.status, mt.priority,
        mt.next_due_hours, mt.interval_value, mt.interval_type, mt.aircraft_id,
        a.registration
  FROM maintenance_tasks mt
  JOIN aircraft a ON a.id = mt.aircraft_id
  ORDER BY mt.status = 'open' DESC, mt.next_due_hours ASC
- LIMIT 100`
-  );
+ LIMIT 100
+  `.execute(kdb);
   const data = tasks.rows as Array<Record<string, unknown>>;
   const openCount = data.filter((t) => t.status === 'open').length;
   const inProgress = data.filter((t) => t.status === 'in_progress').length;
   const overdue = data.filter((t) => t.status === 'open' && Number(t.next_due_hours ?? 9999) <= 0).length;
 
-  const aircraft = await db.query(`SELECT id, registration FROM aircraft ORDER BY registration`);
+  const aircraft = await sql<Record<string, unknown>>`SELECT id, registration FROM aircraft ORDER BY registration`.execute(kdb);
   return json({ tasks: data, openCount, inProgress, overdue, aircraft: aircraft.rows });
 }
 
@@ -52,31 +53,28 @@ export async function action({ request }: ActionFunctionArgs) {
         return json({ error: "Aircraft, title, and interval value are required." }, { status: 400 });
       }
 
-      await db.$queryRawUnsafe(
-        `INSERT INTO maintenance_tasks (aircraft_id, title, task_type, ata_chapter, interval_type, interval_value, priority, status, assigned_to)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'open', $8)`,
-        [aircraftId, title, taskType, ataChapter, intervalType, intervalValue, priority, userId]
-      );
+      await sql`
+        INSERT INTO maintenance_tasks (aircraft_id, title, task_type, ata_chapter, interval_type, interval_value, priority, status, assigned_to)
+         VALUES (${aircraftId}, ${title}, ${taskType}, ${ataChapter}, ${intervalType}, ${intervalValue}, ${priority}, 'open', ${userId})
+      `.execute(kdb);
       return redirect("/engineer/tasks");
     }
 
     case "start": {
       await requirePermission(request, Permission.MAINTENANCE_EDIT);
       const taskId = Number(formData.get("task_id"));
-      await db.$queryRawUnsafe(
-        `UPDATE maintenance_tasks SET status = 'in_progress', updated_at = NOW() WHERE id = $1`,
-        [taskId]
-      );
+      await sql`
+        UPDATE maintenance_tasks SET status = 'in_progress', updated_at = NOW() WHERE id = ${taskId}
+      `.execute(kdb);
       return redirect("/engineer/tasks");
     }
 
     case "complete": {
       await requirePermission(request, Permission.MAINTENANCE_SIGN_OFF);
       const taskId = Number(formData.get("task_id"));
-      await db.$queryRawUnsafe(
-        `UPDATE maintenance_tasks SET status = 'completed', completed_at = NOW(), completed_by = $2 WHERE id = $1`,
-        [taskId, userId]
-      );
+      await sql`
+        UPDATE maintenance_tasks SET status = 'completed', completed_at = NOW(), completed_by = ${userId} WHERE id = ${taskId}
+      `.execute(kdb);
       return redirect("/engineer/tasks");
     }
 

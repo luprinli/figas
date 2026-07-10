@@ -1,21 +1,5 @@
-/**
- * Seeds additional unassigned bookings across multiple dates for the E2E
- * drag-and-drop validation test suite.
- *
- * Creates 14 bookings (28+ passengers) spread across 3 dates:
- *   - Day 0 (today):     5 bookings, 12 passengers (mixed origins/destinations)
- *   - Day 1 (tomorrow):  5 bookings, 10 passengers
- *   - Day 2 (day+2):     4 bookings,  8 passengers
- *
- * Usage:
- *   npx tsx scripts/seed-e2e-drag-test.ts
- *
- * Pre-requisites:
- *   - Database must be migrated and have basic reference data (aerodromes, users)
- *   - Run `npm run seed:full` or `npm run seed` first for baseline data
- */
-
 import { db } from "../app/utils/db.server";
+import { sql } from "kysely";
 import { scheduleRepository } from "../app/utils/repositories/schedule";
 
 function todayISO(): string {
@@ -36,25 +20,21 @@ async function seedE2EDragTest() {
   const day2 = daysFromNow(2);
 
   // 1. Get admin user
-  const userResult = await db.query(
-    "SELECT id, name FROM users WHERE email = 'admin@figas.gov.fk' LIMIT 1"
-  );
+  const userResult = await sql`SELECT id, name FROM users WHERE email = 'admin@figas.gov.fk' LIMIT 1`.execute(db);
   if (userResult.rows.length === 0) {
     console.error("❌ Admin user not found. Run seed:full or seed:users first.");
     process.exit(1);
   }
-  const userId = Number(userResult.rows[0].id);
-  console.log(`  Admin user: "${userResult.rows[0].name}" (id=${userId})`);
+  const userId = Number((userResult.rows[0] as any).id);
+  console.log(`  Admin user: "${(userResult.rows[0] as any).name}" (id=${userId})`);
 
   // 2. Get aerodrome codes (first 6 active ones for variety)
-  const aerodromes = await db.query(
-    "SELECT code FROM aerodromes WHERE is_active = true ORDER BY code LIMIT 8"
-  );
+  const aerodromes = await sql`SELECT code FROM aerodromes WHERE is_active = true ORDER BY code LIMIT 8`.execute(db);
   if (aerodromes.rows.length < 4) {
     console.error("❌ Need at least 4 active aerodromes.");
     process.exit(1);
   }
-  const aeroCodes = aerodromes.rows.map((r: Record<string, unknown>) => r.code);
+  const aeroCodes = aerodromes.rows.map((r: any) => r.code as string);
   console.log(`  Aerodromes available: ${aeroCodes.join(", ")}\n`);
 
   // 3. Ensure schedules exist for all target dates
@@ -97,30 +77,25 @@ async function seedE2EDragTest() {
   let totalPassengers = 0;
 
   for (const b of bookingDefs) {
-    const existing = await db.query(
-      "SELECT id FROM bookings WHERE booking_reference = $1",
-      [b.ref]
-    );
+    const existing = await sql`SELECT id FROM bookings WHERE booking_reference = ${b.ref}`.execute(db);
     if (existing.rows.length > 0) {
       console.log(`  ⏭  Skipping ${b.ref} (already exists)`);
       continue;
     }
 
-    const booking = await db.query(
-      `INSERT INTO bookings (user_id, booking_reference, status, is_organization_billing, payment_status, total_amount, booking_source, created_by)
-       VALUES ($1, $2, 'confirmed', false, 'pending', 100.00, 'online', $3)
-       RETURNING id`,
-      [userId, b.ref, userId]
-    );
-    const bookingId = booking.rows[0].id;
+    const booking = await sql`
+      INSERT INTO bookings (user_id, booking_reference, status, is_organization_billing, payment_status, total_amount, booking_source, created_by)
+       VALUES (${userId}, ${b.ref}, 'confirmed', false, 'pending', 100.00, 'online', ${userId})
+       RETURNING id
+    `.execute(db);
+    const bookingId = (booking.rows[0] as any).id;
 
-    const legResult = await db.query(
-      `INSERT INTO booking_legs (booking_id, origin_code, destination_code, leg_date, departure_date, leg_sequence, status)
-       VALUES ($1, $2, $3, $4, $4, 1, 'confirmed')
-       RETURNING id`,
-      [bookingId, b.origin, b.dest, b.date]
-    );
-    const bookingLegId = legResult.rows[0].id;
+    const legResult = await sql`
+      INSERT INTO booking_legs (booking_id, origin_code, destination_code, leg_date, departure_date, leg_sequence, status)
+       VALUES (${bookingId}, ${b.origin}, ${b.dest}, ${b.date}, ${b.date}, 1, 'confirmed')
+       RETURNING id
+    `.execute(db);
+    const bookingLegId = (legResult.rows[0] as any).id;
 
     for (let i = 0; i < b.names.length; i++) {
       const passengerName = b.names[i];
@@ -128,19 +103,17 @@ async function seedE2EDragTest() {
       const firstName = parts[0];
       const lastName = parts.slice(1).join(" ") || "Passenger";
 
-      const bpResult = await db.query(
-        `INSERT INTO booking_passengers (booking_id, first_name, last_name, clothed_body_weight_kg)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id`,
-        [bookingId, firstName, lastName, b.weight]
-      );
-      const bpId = bpResult.rows[0].id;
+      const bpResult = await sql`
+        INSERT INTO booking_passengers (booking_id, first_name, last_name, clothed_body_weight_kg)
+         VALUES (${bookingId}, ${firstName}, ${lastName}, ${b.weight})
+         RETURNING id
+      `.execute(db);
+      const bpId = (bpResult.rows[0] as any).id;
 
-      await db.query(
-        `INSERT INTO booking_leg_passengers (booking_leg_id, booking_passenger_id, clothed_weight_kg, baggage_weight_kg)
-         VALUES ($1, $2, $3, $4)`,
-        [bookingLegId, bpId, b.weight, 10]
-      );
+      await sql`
+        INSERT INTO booking_leg_passengers (booking_leg_id, booking_passenger_id, clothed_weight_kg, baggage_weight_kg)
+         VALUES (${bookingLegId}, ${bpId}, ${b.weight}, 10)
+      `.execute(db);
     }
 
     totalBookings++;
@@ -151,19 +124,17 @@ async function seedE2EDragTest() {
   // 5. Verify the seeded data
   console.log("\n📊 Verification:");
   for (const date of [day0, day1, day2]) {
-    const count = await db.query(
-      `SELECT COUNT(*) as cnt FROM booking_legs bl
+    const count = await sql`
+      SELECT COUNT(*) as cnt FROM booking_legs bl
        JOIN bookings b ON b.id = bl.booking_id
-       WHERE bl.leg_date = $1 AND bl.flight_id IS NULL`,
-      [date]
-    );
-    const paxCount = await db.query(
-      `SELECT COUNT(*) as cnt FROM booking_leg_passengers blp
+       WHERE bl.leg_date = ${date} AND bl.flight_id IS NULL
+    `.execute(db);
+    const paxCount = await sql`
+      SELECT COUNT(*) as cnt FROM booking_leg_passengers blp
        JOIN booking_legs bl ON bl.id = blp.booking_leg_id
-       WHERE bl.leg_date = $1 AND bl.flight_id IS NULL`,
-      [date]
-    );
-    console.log(`  ${date}: ${count.rows[0].cnt} unassigned bookings, ${paxCount.rows[0].cnt} unassigned passengers`);
+       WHERE bl.leg_date = ${date} AND bl.flight_id IS NULL
+    `.execute(db);
+    console.log(`  ${date}: ${(count.rows[0] as any).cnt} unassigned bookings, ${(paxCount.rows[0] as any).cnt} unassigned passengers`);
   }
 
   console.log(`\n✅ Seed complete!`);

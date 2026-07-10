@@ -24,25 +24,24 @@ export async function deriveCheckInTime(
   if (!aircraftId) return "08:00";
 
   // Find the previous flight for this aircraft on this date
-  const prevFlight = await db.flights.findFirst({
-    where: {
-      aircraft_id: aircraftId,
-      departure_time: {
-        gte: new Date(`${scheduleDate}T00:00:00.000Z`),
-        lt: new Date(`${scheduleDate}T23:59:59.999Z`),
-      },
-      ...(flightId ? { id: { not: flightId } } : {}),
-    },
-    orderBy: { departure_time: "desc" },
-    select: {
-      arrival_time: true,
-      destination_code: true,
-    },
-  });
+  let query = db.selectFrom("flights")
+    .select(["arrival_time", "destination_code"])
+    .where("aircraft_id", "=", aircraftId)
+    .where("departure_time", ">=", `${scheduleDate}T00:00:00.000Z`)
+    .where("departure_time", "<", `${scheduleDate}T23:59:59.999Z`)
+    .orderBy("departure_time", "desc")
+    .limit(1);
+
+  if (flightId) {
+    query = query.where("id", "<>", flightId);
+  }
+
+  const rows = await query.execute();
+  const prevFlight = rows[0] ?? null;
 
   if (!prevFlight) return "08:00";
 
-  const prevArrival = new Date(prevFlight.arrival_time);
+  const prevArrival = new Date(String(prevFlight.arrival_time));
   const prevArrivalMinutes = prevArrival.getUTCHours() * 60 + prevArrival.getUTCMinutes();
 
   // If previous flight ended at STY, turnaround = 45 min
@@ -81,29 +80,31 @@ export async function assignCheckInTimes(
       if (i === 0) {
         result.set(flight.id, "08:00");
         // Get this flight's duration from DB
-        const f = await db.flights.findUnique({
-          where: { id: flight.id },
-          select: { duration_minutes: true, arrival_time: true },
-        });
+        const fRows = await db.selectFrom("flights")
+          .select(["duration_minutes", "arrival_time"])
+          .where("id", "=", flight.id)
+          .execute();
+        const f = fRows[0] ?? null;
         if (f?.arrival_time) {
-          const arr = new Date(f.arrival_time);
+          const arr = new Date(String(f.arrival_time));
           lastArrivalMinutes = arr.getUTCHours() * 60 + arr.getUTCMinutes();
         } else if (f?.duration_minutes) {
-          lastArrivalMinutes = 8 * 60 + f.duration_minutes;
+          lastArrivalMinutes = 8 * 60 + Number(f.duration_minutes);
         }
       } else {
         const checkInMinutes = lastArrivalMinutes + 45;
         result.set(flight.id, minutesToHHMM(checkInMinutes));
 
-        const f = await db.flights.findUnique({
-          where: { id: flight.id },
-          select: { duration_minutes: true, arrival_time: true },
-        });
+        const fRows = await db.selectFrom("flights")
+          .select(["duration_minutes", "arrival_time"])
+          .where("id", "=", flight.id)
+          .execute();
+        const f = fRows[0] ?? null;
         if (f?.arrival_time) {
-          const arr = new Date(f.arrival_time);
+          const arr = new Date(String(f.arrival_time));
           lastArrivalMinutes = arr.getUTCHours() * 60 + arr.getUTCMinutes();
         } else if (f?.duration_minutes) {
-          lastArrivalMinutes = checkInMinutes + f.duration_minutes;
+          lastArrivalMinutes = checkInMinutes + Number(f.duration_minutes);
         }
       }
     }

@@ -1,11 +1,12 @@
-﻿import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, Form, useNavigation , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { requirePermission } from "../utils/permissions.server";
 import { Permission, PaymentTerms } from "../utils/constants";
 import { requireUser } from "../utils/layout.server";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import Button from "../components/Button";
@@ -33,12 +34,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
   await requirePermission(request, Permission.FINANCE_VIEW);
 
   // Fetch settings from system_settings table
-  const result = await db.query(
-    `SELECT key, value FROM system_settings`
-  );
+  const result = await sql<{ key: string; value: string }>`
+    SELECT key, value FROM system_settings
+  `.execute(kdb);
 
   const settingsMap = new Map<string, string>();
-  for (const row of result.rows as Array<{ key: string; value: string }>) {
+  for (const row of result.rows) {
     settingsMap.set(row.key, row.value);
   }
 
@@ -102,13 +103,12 @@ export async function action({ request }: ActionFunctionArgs) {
   ];
 
   for (const setting of settings) {
-    await db.query(
-      `INSERT INTO system_settings (key, value, updated_at)
-       VALUES ($1, $2, NOW())
+    await sql`
+      INSERT INTO system_settings (key, value, updated_at)
+       VALUES (${setting.key}, ${setting.value}, NOW())
        ON CONFLICT (key)
-       DO UPDATE SET value = $2, updated_at = NOW()`,
-      [setting.key, setting.value]
-    );
+       DO UPDATE SET value = ${setting.value}, updated_at = NOW()
+    `.execute(kdb);
   }
 
   return redirect("/finance/settings");

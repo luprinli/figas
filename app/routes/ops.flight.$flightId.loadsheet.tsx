@@ -4,7 +4,8 @@ import { useLoaderData, useFetcher, Link, useNavigate , useRouteError, isRouteEr
 import { useEffect, useCallback } from "react";
 import { X } from "lucide-react";
 import { loadsheetRepository, canEditLoadsheet, canEnterActualData, isImmutable } from "../utils/loadsheet/loadsheet-repository.server";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import { updateAirframeHoursFromActual, computeActualMinutes } from "../utils/airframe-hours.server";
 import { createLoadsheetFromFlight } from "../utils/loadsheet/create-loadsheet.server";
 import { countAssignedByFlightId } from "../utils/repositories/booking-leg-passenger";
@@ -76,15 +77,12 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   console.log("[LoadsheetLoader] RESPONSE — loadsheet.id:", loadsheet.id, "status:", loadsheet.status, "pax:", loadsheet.total_pax, "sectors:", sectors.length, "passengers:", passengers.length);
 
   // ── Flight metadata (number, pilot, aircraft) ───────────────────────────
-  const flight = await db.flights.findUnique({
-    where: { id: flightId },
-    select: { flight_number: true, departure_time: true, arrival_time: true },
-  });
+  const flight = (await kdb.selectFrom("flights").select(["flight_number", "departure_time", "arrival_time"]).where("id", "=", flightId).execute())[0] ?? null;
   const pilot = loadsheet.pilot_id
-    ? await db.pilots.findUnique({ where: { id: Number(loadsheet.pilot_id) }, select: { name: true } })
+    ? (await kdb.selectFrom("pilots").select("name").where("id", "=", Number(loadsheet.pilot_id)).execute())[0] ?? null
     : null;
   const aircraft = loadsheet.aircraft_id
-    ? await db.aircraft.findUnique({ where: { id: Number(loadsheet.aircraft_id) }, select: { registration: true, type: true } })
+    ? (await kdb.selectFrom("aircraft").select(["registration", "type"]).where("id", "=", Number(loadsheet.aircraft_id)).execute())[0] ?? null
     : null;
 
   // ── Passenger names + origin/destination ────────────────────────────────
@@ -92,23 +90,21 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   const passengerNames: Record<number, string> = {};
   const passengerLegData: Record<number, { origin: string; destination: string }> = {};
   if (passengerIds.length > 0) {
-    const nameRows = await db.$queryRawUnsafe<Record<string, unknown>[]>(
-      `SELECT bp.id, CONCAT(bp.first_name, ' ', bp.last_name) AS name
+    const nameRows = await sql<{ id: number | bigint; name: string }>`
+      SELECT bp.id, CONCAT(bp.first_name, ' ', bp.last_name) AS name
        FROM booking_passengers bp
-       WHERE bp.id = ANY($1::int[])`,
-      passengerIds
-    );
-    for (const r of (nameRows as Array<{ id: number | bigint; name: string }>)) {
+       WHERE bp.id = ANY(${passengerIds}::int[])
+    `.execute(kdb);
+    for (const r of nameRows.rows) {
       passengerNames[Number(r.id)] = r.name;
     }
   }
   const legIds = [...new Set(passengers.map((p) => p.booking_leg_id))];
   if (legIds.length > 0) {
-    const legRows = await db.$queryRawUnsafe<Record<string, unknown>[]>(
-      `SELECT id, origin_code, destination_code FROM booking_legs WHERE id = ANY($1::int[])`,
-      legIds
-    );
-    for (const r of (legRows as Array<{ id: number | bigint; origin_code: string; destination_code: string }>)) {
+    const legRows = await sql<{ id: number | bigint; origin_code: string; destination_code: string }>`
+      SELECT id, origin_code, destination_code FROM booking_legs WHERE id = ANY(${legIds}::int[])
+    `.execute(kdb);
+    for (const r of legRows.rows) {
       passengerLegData[Number(r.id)] = { origin: r.origin_code, destination: r.destination_code };
     }
   }
@@ -133,7 +129,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       archived_at: loadsheet.archived_at?.toString() ?? null,
     },
     flightNumber: flight?.flight_number ?? `Flight #${flightId}`,
-    departureTime: flight?.departure_time ? new Date(flight.departure_time).toISOString() : null,
+    departureTime: flight?.departure_time ? new Date(String(flight.departure_time)).toISOString() : null,
     pilotName: pilot?.name ?? "Unassigned",
     aircraftRegistration: aircraft?.registration ?? "Unassigned",
     aircraftType: aircraft?.type ?? "",
@@ -211,29 +207,29 @@ export async function action({ request, params }: ActionFunctionArgs) {
       await loadsheetRepository.updateSectorATD(sectorId, atd, ata, actualTimeMin);
 
       // Also update flight_legs.atd/ata for persistence
-      const sector = await db.loadsheet_sectors.findUnique({
-        where: { id: sectorId },
-        select: { flight_leg_id: true },
-      });
+      const sector = (await kdb.selectFrom("loadsheet_sectors").select("flight_leg_id").where("id", "=", sectorId).execute())[0] ?? null;
       if (sector?.flight_leg_id) {
-        await db.flight_legs.update({
-          where: { id: sector.flight_leg_id },
-          data: {
-            atd: atd ? new Date(`1970-01-01T${atd}:00Z`) : null,
-            ata: ata ? new Date(`1970-01-01T${ata}:00Z`) : null,
-          },
-        });
+        await kdb.updateTable("flight_legs").set({
+          atd: atd ? new Date(`1970-01-01T${atd}:00Z`) : null,
+          ata: ata ? new Date(`1970-01-01T${ata}:00Z`) : null,
+        } as any).where("id", "=", sector.flight_leg_id).execute();
 
         // Update aircraft hours using actual flight time
         if (atd && ata) {
           const actualMin = computeActualMinutes(atd, ata);
           if (actualMin > 0) {
-            const leg = await db.flight_legs.findUnique({
-              where: { id: sector.flight_leg_id },
-              select: { flight: { select: { aircraft_id: true } } },
-            });
-            if (leg?.flight?.aircraft_id) {
-              await updateAirframeHoursFromActual(leg.flight.aircraft_id, actualMin);
+            const leg = (await kdb.selectFrom("flight_legs")
+              .select(["flight_id"])
+              .where("id", "=", sector.flight_leg_id)
+              .execute())[0] ?? null;
+            if (leg?.flight_id) {
+              const flight = (await kdb.selectFrom("flights")
+                .select("aircraft_id")
+                .where("id", "=", leg.flight_id)
+                .execute())[0] ?? null;
+              if (flight?.aircraft_id) {
+                await updateAirframeHoursFromActual(flight.aircraft_id, actualMin);
+              }
             }
           }
         }

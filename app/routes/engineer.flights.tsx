@@ -3,7 +3,8 @@ import { json } from "@remix-run/node";
 import { useLoaderData, Link, useSearchParams } from "@remix-run/react";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import DataGrid from "../components/DataGrid";
 import type { Column } from "../components/DataTable";
 import EmptyState from "../components/EmptyState";
@@ -15,8 +16,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const date = url.searchParams.get("date") || new Date().toISOString().slice(0, 10);
 
-  const result = await db.query(
-    `SELECT f.id, f.flight_number, f.departure_time, f.status,
+  const result = await sql<Record<string, unknown>>`
+    SELECT f.id, f.flight_number, f.departure_time, f.status,
        ao.code AS origin_code, ad.code AS destination_code,
        a.registration AS aircraft_registration, a.type AS aircraft_type,
        COALESCE(ls.status::text, 'none') AS loadsheet_status
@@ -25,10 +26,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
  JOIN aerodromes ad ON ad.id = f.destination_aerodrome_id
  LEFT JOIN aircraft a ON a.id = f.aircraft_id
  LEFT JOIN loadsheets ls ON ls.flight_id = f.id
- WHERE f.departure_time::date = $1
- ORDER BY f.departure_time ASC`,
-    [date]
-  );
+ WHERE f.departure_time::date = ${date}
+ ORDER BY f.departure_time ASC
+  `.execute(kdb);
 
   return json({ flights: result.rows, date });
 }

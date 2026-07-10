@@ -1,8 +1,9 @@
-﻿import { json, type LoaderFunctionArgs } from "@remix-run/node";
+import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { useLoaderData, Link, useSearchParams, useNavigation , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { useState, useMemo } from "react";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import { requireUser } from "../utils/layout.server";
 import { getUserPermissions } from "../utils/permissions.server";
 import DataTable from "../components/DataTable";
@@ -38,53 +39,74 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const isPilot = permissions.includes("flight:view") && !permissions.includes("schedule:create");
   const isOps = permissions.includes("schedule:create") || permissions.includes("schedule:edit") || permissions.includes("schedule:view");
 
-  let pilotFilter = "";
   let pilotId: number | null = null;
+  let pilotFilter = false;
 
   if (isPilot) {
-    const pilot = await db.$queryRawUnsafe<Array<{ id: number }>>(
-      `SELECT id FROM pilots WHERE user_id = $1 LIMIT 1`, Number(userId)
-    );
-    if (pilot.length > 0) {
-      pilotId = pilot[0].id;
+    const pilotResult = await sql<{ id: number }>`
+      SELECT id FROM pilots WHERE user_id = ${Number(userId)} LIMIT 1
+    `.execute(kdb);
+    if (pilotResult.rows.length > 0) {
+      pilotId = pilotResult.rows[0].id;
       if (view !== "all") {
-        pilotFilter = "AND f.pilot_id = $2";
+        pilotFilter = true;
       }
     }
   }
 
   const showAll = view === "all" || isOps;
 
-  const query = `
-    SELECT
-      f.id AS flight_id,
-      f.flight_number,
-      f.origin_code,
-      f.destination_code,
-      f.departure_time,
-      a.registration AS aircraft_registration,
-      a.type AS aircraft_type,
-      p.name AS pilot_name,
-      p.id AS pilot_id,
-      ls.status AS loadsheet_status,
-      ls.id AS loadsheet_id,
-      COALESCE(ls.total_pax, 0) AS total_pax
-    FROM flights f
-    INNER JOIN loadsheets ls ON ls.flight_id = f.id
-    LEFT JOIN aircraft a ON a.id = f.aircraft_id
-    LEFT JOIN pilots p ON p.id = f.pilot_id
-    WHERE f.departure_time::date = $1
-      AND f.schedule_id IS NOT NULL
-    ${pilotFilter}
-    ORDER BY f.departure_time ASC
-  `;
+  let result;
+  if (pilotFilter && pilotId) {
+    result = await sql<Record<string, unknown>>`
+      SELECT
+        f.id AS flight_id,
+        f.flight_number,
+        f.origin_code,
+        f.destination_code,
+        f.departure_time,
+        a.registration AS aircraft_registration,
+        a.type AS aircraft_type,
+        p.name AS pilot_name,
+        p.id AS pilot_id,
+        ls.status AS loadsheet_status,
+        ls.id AS loadsheet_id,
+        COALESCE(ls.total_pax, 0) AS total_pax
+      FROM flights f
+      INNER JOIN loadsheets ls ON ls.flight_id = f.id
+      LEFT JOIN aircraft a ON a.id = f.aircraft_id
+      LEFT JOIN pilots p ON p.id = f.pilot_id
+      WHERE f.departure_time::date = ${date}
+        AND f.schedule_id IS NOT NULL
+        AND f.pilot_id = ${pilotId}
+      ORDER BY f.departure_time ASC
+    `.execute(kdb);
+  } else {
+    result = await sql<Record<string, unknown>>`
+      SELECT
+        f.id AS flight_id,
+        f.flight_number,
+        f.origin_code,
+        f.destination_code,
+        f.departure_time,
+        a.registration AS aircraft_registration,
+        a.type AS aircraft_type,
+        p.name AS pilot_name,
+        p.id AS pilot_id,
+        ls.status AS loadsheet_status,
+        ls.id AS loadsheet_id,
+        COALESCE(ls.total_pax, 0) AS total_pax
+      FROM flights f
+      INNER JOIN loadsheets ls ON ls.flight_id = f.id
+      LEFT JOIN aircraft a ON a.id = f.aircraft_id
+      LEFT JOIN pilots p ON p.id = f.pilot_id
+      WHERE f.departure_time::date = ${date}
+        AND f.schedule_id IS NOT NULL
+      ORDER BY f.departure_time ASC
+    `.execute(kdb);
+  }
 
-  const params: unknown[] = [date];
-  if (pilotFilter && pilotId) params.push(pilotId);
-
-  const result = await db.query(query, params);
-
-  const flights = (result.rows as Array<Record<string, unknown>>).map((r) => ({
+  const flights = result.rows.map((r) => ({
     flight_id: Number(r.flight_id),
     flight_number: String(r.flight_number),
     origin_code: String(r.origin_code),

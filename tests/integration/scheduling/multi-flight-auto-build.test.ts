@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { sql } from "kysely";
 import {
   handleAutoBuild,
   handlePreviewBuild,
@@ -41,7 +42,7 @@ describe("Multi-Flight Auto-Build (>12 bookings)", () => {
         schedule_date: scheduleDate,
         created_by: testUserId,
       });
-      const dateStr = formatDateOnly(schedule.schedule_date);
+      const dateStr = formatDateOnly(new Date(schedule.schedule_date));
 
       // Create 3 booking legs (STY→MPA) with 5 passengers each = 15 total
       const bookingLegIds: number[] = [];
@@ -50,7 +51,7 @@ describe("Multi-Flight Auto-Build (>12 bookings)", () => {
           booking_id: 1,
           origin_code: "STY",
           destination_code: "MPA",
-          leg_date: scheduleDate,
+          leg_date: new Date(scheduleDate),
           leg_sequence: i + 1,
           flight_id: null,
           status: "pending",
@@ -81,14 +82,20 @@ describe("Multi-Flight Auto-Build (>12 bookings)", () => {
 
         // Verify booking legs are now assigned
         for (const blId of bookingLegIds) {
-          const leg = await db.booking_legs.findUnique({ where: { id: blId } });
+          const leg = (await db
+            .selectFrom("booking_legs")
+            .selectAll()
+            .where("id", "=", blId)
+            .execute())[0] ?? null;
           expect(leg?.flight_id).not.toBeNull();
         }
 
         // Verify passenger flight_leg_id is populated
-        const passengerLinks = await db.booking_leg_passengers.findMany({
-          where: { booking_leg_id: { in: bookingLegIds } },
-        });
+        const passengerLinks = await db
+          .selectFrom("booking_leg_passengers")
+          .selectAll()
+          .where("booking_leg_id", "in", bookingLegIds)
+          .execute();
         const assignedCount = passengerLinks.filter((p) => p.flight_leg_id !== null).length;
         expect(assignedCount).toBe(15);
       }
@@ -103,14 +110,14 @@ describe("Multi-Flight Auto-Build (>12 bookings)", () => {
         schedule_date: scheduleDate,
         created_by: testUserId,
       });
-      const dateStr = formatDateOnly(schedule.schedule_date);
+      const dateStr = formatDateOnly(new Date(schedule.schedule_date));
 
       // 2 booking legs: one with 7 passengers, one with 5 = 12 total (STY→MPA)
       const leg1 = await createTestBookingLeg({
         booking_id: 1,
         origin_code: "STY",
         destination_code: "MPA",
-        leg_date: scheduleDate,
+        leg_date: new Date(scheduleDate),
         leg_sequence: 1,
         flight_id: null,
         status: "pending",
@@ -129,7 +136,7 @@ describe("Multi-Flight Auto-Build (>12 bookings)", () => {
         booking_id: 1,
         origin_code: "STY",
         destination_code: "MPA",
-        leg_date: scheduleDate,
+        leg_date: new Date(scheduleDate),
         leg_sequence: 2,
         flight_id: null,
         status: "pending",
@@ -166,14 +173,14 @@ describe("Multi-Flight Auto-Build (>12 bookings)", () => {
         schedule_date: scheduleDate,
         created_by: testUserId,
       });
-      const dateStr = formatDateOnly(schedule.schedule_date);
+      const dateStr = formatDateOnly(new Date(schedule.schedule_date));
 
       // Create a booking leg with 9 total passengers
       const leg = await createTestBookingLeg({
         booking_id: 1,
         origin_code: "STY",
         destination_code: "MPA",
-        leg_date: scheduleDate,
+        leg_date: new Date(scheduleDate),
         leg_sequence: 1,
         flight_id: null,
         status: "pending",
@@ -195,15 +202,18 @@ describe("Multi-Flight Auto-Build (>12 bookings)", () => {
       // Mark the first 2 passengers as assigned (simulate partial assignment)
       if (passengerIds.length >= 2) {
         // Get a valid aircraft ID from the database
-        const existingAircraft = await db.aircraft.findFirst({
-          where: { is_active: true },
-          select: { id: true },
-        });
+        const existingAircraft = (await db
+          .selectFrom("aircraft")
+          .select("id")
+          .where("is_active", "=", true)
+          .limit(1)
+          .execute())[0] ?? null;
         const aircraftId = existingAircraft?.id ?? 1;
         const uniqueSuffix = Date.now() % 100000;
 
-        const tempFlight = await db.flights.create({
-          data: {
+        const tempFlight = (await db
+          .insertInto("flights")
+          .values({
             flight_number: `FIG${String(uniqueSuffix).padStart(5, "0")}`,
             aircraft_id: aircraftId,
             origin_aerodrome_id: 1,
@@ -213,10 +223,12 @@ describe("Multi-Flight Auto-Build (>12 bookings)", () => {
             status: "scheduled",
             schedule_id: schedule.id,
             created_by: testUserId,
-          },
-        });
-        const tempLeg = await db.flight_legs.create({
-          data: {
+          } as any)
+          .returningAll()
+          .execute())[0];
+        const tempLeg = (await db
+          .insertInto("flight_legs")
+          .values({
             flight_id: tempFlight.id,
             leg_number: 1,
             origin_code: "STY",
@@ -224,15 +236,13 @@ describe("Multi-Flight Auto-Build (>12 bookings)", () => {
             etd: new Date(`${dateStr}T10:00:00Z`),
             eta: new Date(`${dateStr}T12:00:00Z`),
             status: "scheduled",
-          },
-        });
+          } as any)
+          .returningAll()
+          .execute())[0];
 
-        await db.$executeRawUnsafe(
-          `UPDATE booking_leg_passengers SET flight_leg_id = $1 WHERE id IN ($2, $3)`,
-          tempLeg.id,
-          passengerIds[0],
-          passengerIds[1]
-        );
+        await sql`
+          UPDATE booking_leg_passengers SET flight_leg_id = ${tempLeg.id} WHERE id IN (${passengerIds[0]}, ${passengerIds[1]})
+        `.execute(db);
       }
 
       const result = await handlePreviewBuild(dateStr);
@@ -262,7 +272,7 @@ describe("Multi-Flight Auto-Build (>12 bookings)", () => {
         schedule_date: scheduleDate,
         created_by: testUserId,
       });
-      const dateStr = formatDateOnly(schedule.schedule_date);
+      const dateStr = formatDateOnly(new Date(schedule.schedule_date));
 
       // 4 booking legs × 6 passengers = 24 total
       const bookingLegIds: number[] = [];
@@ -271,7 +281,7 @@ describe("Multi-Flight Auto-Build (>12 bookings)", () => {
           booking_id: 1,
           origin_code: "STY",
           destination_code: "MPA",
-          leg_date: scheduleDate,
+          leg_date: new Date(scheduleDate),
           leg_sequence: i + 1,
           flight_id: null,
           status: "pending",
@@ -302,7 +312,11 @@ describe("Multi-Flight Auto-Build (>12 bookings)", () => {
 
         // All booking legs should be assigned
         for (const blId of bookingLegIds) {
-          const leg = await db.booking_legs.findUnique({ where: { id: blId } });
+          const leg = (await db
+            .selectFrom("booking_legs")
+            .selectAll()
+            .where("id", "=", blId)
+            .execute())[0] ?? null;
           expect(leg?.flight_id).not.toBeNull();
         }
       }
@@ -317,19 +331,22 @@ describe("Multi-Flight Auto-Build (>12 bookings)", () => {
         schedule_date: scheduleDate,
         created_by: testUserId,
       });
-      const dateStr = formatDateOnly(schedule.schedule_date);
+      const dateStr = formatDateOnly(new Date(schedule.schedule_date));
 
       // Get a valid aircraft ID from the database
-      const existingAircraft = await db.aircraft.findFirst({
-        where: { is_active: true },
-        select: { id: true },
-      });
+      const existingAircraft = (await db
+        .selectFrom("aircraft")
+        .select("id")
+        .where("is_active", "=", true)
+        .limit(1)
+        .execute())[0] ?? null;
       const aircraftId = existingAircraft?.id ?? 1;
       const uniqueSuffix = (Date.now() % 100000) + 1;
 
       // Create flight + leg first
-      const flight = await db.flights.create({
-        data: {
+      const flight = (await db
+        .insertInto("flights")
+        .values({
           flight_number: `FIG${String(uniqueSuffix).padStart(5, "0")}`,
           aircraft_id: aircraftId,
           origin_aerodrome_id: 1,
@@ -339,10 +356,12 @@ describe("Multi-Flight Auto-Build (>12 bookings)", () => {
           status: "scheduled",
           schedule_id: schedule.id,
           created_by: testUserId,
-        },
-      });
-      const flightLeg = await db.flight_legs.create({
-        data: {
+        } as any)
+        .returningAll()
+        .execute())[0];
+      const flightLeg = (await db
+        .insertInto("flight_legs")
+        .values({
           flight_id: flight.id,
           leg_number: 1,
           origin_code: "STY",
@@ -350,15 +369,16 @@ describe("Multi-Flight Auto-Build (>12 bookings)", () => {
           etd: new Date(`${dateStr}T10:00:00Z`),
           eta: new Date(`${dateStr}T12:00:00Z`),
           status: "scheduled",
-        },
-      });
+        } as any)
+        .returningAll()
+        .execute())[0];
 
       // Create booking leg with flight_id already set
       const leg = await createTestBookingLeg({
         booking_id: 1,
         origin_code: "STY",
         destination_code: "MPA",
-        leg_date: scheduleDate,
+        leg_date: new Date(scheduleDate),
         leg_sequence: 1,
         flight_id: flight.id,
         status: "pending",
@@ -378,11 +398,9 @@ describe("Multi-Flight Auto-Build (>12 bookings)", () => {
 
       // Assign ALL passengers to the flight leg
       for (const pid of passengerIds) {
-        await db.$executeRawUnsafe(
-          `UPDATE booking_leg_passengers SET flight_leg_id = $1 WHERE id = $2`,
-          flightLeg.id,
-          pid
-        );
+        await sql`
+          UPDATE booking_leg_passengers SET flight_leg_id = ${flightLeg.id} WHERE id = ${pid}
+        `.execute(db);
       }
 
       // Now preview-build should find no unassigned passengers

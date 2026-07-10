@@ -3,7 +3,8 @@ import type { LoaderData } from "./shared";
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { requirePermission, hasPermission } from "../../utils/permissions.server";
-import { db } from "../../utils/db.server";
+import { kdb } from "../../utils/db.server.kysely";
+import { sql } from "kysely";
 import { scheduleRepository } from "../../utils/repositories/schedule";
 import { findManifestsByFlightId, findUnassignedByDate } from "../../utils/repositories/booking-leg-passenger";
 import { convertBigInts } from "../../utils/bigint";
@@ -28,8 +29,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
   let unassignedBookings: UnassignedBookingRow[] = [];
 
   if (schedule && schedule.status !== "cancelled" && schedule.status !== "completed") {
-    const flightsResult = await db.query(
-      `SELECT f.id, f.flight_number, f.departure_time, f.arrival_time, f.status,
+    const flightsResult = await sql<Record<string, unknown>>`
+      SELECT f.id, f.flight_number, f.departure_time, f.arrival_time, f.status,
               f.sort_order,
               f.duration_minutes,
               f.check_in_time,
@@ -50,28 +51,26 @@ export async function loader({ request }: LoaderFunctionArgs) {
        LEFT JOIN aircraft a ON a.id = f.aircraft_id
        LEFT JOIN pilots p ON p.id = f.pilot_id
         LEFT JOIN pilot_assignments pa ON pa.flight_id = f.id AND pa.status = 'confirmed'
-        WHERE f.schedule_id = $1
+        WHERE f.schedule_id = ${schedule.id}
           AND EXISTS (
             SELECT 1 FROM booking_leg_passengers blp
             JOIN flight_legs fl2 ON fl2.id = blp.flight_leg_id
             WHERE fl2.flight_id = f.id
           )
-        ORDER BY f.departure_time, f.id`,
-      [schedule.id]
-    );
+        ORDER BY f.departure_time, f.id
+    `.execute(kdb);
     flights = convertBigInts(flightsResult.rows) as unknown as FlightSummaryRow[];
 
     const flightIds = flights.map((f) => f.id);
     if (flightIds.length > 0) {
       // flight_legs uses origin_code/destination_code as varchar directly (not FK)
-      const legsResult = await db.query(
-        `SELECT fl.id, fl.flight_id, fl.leg_number AS leg_sequence, fl.etd AS departure_time, fl.eta AS arrival_time, fl.status,
+      const legsResult = await sql<Record<string, unknown>>`
+        SELECT fl.id, fl.flight_id, fl.leg_number AS leg_sequence, fl.etd AS departure_time, fl.eta AS arrival_time, fl.status,
                 fl.origin_code, fl.destination_code, fl.distance_nm, fl.heading
          FROM flight_legs fl
-         WHERE fl.flight_id = ANY($1::int[])
-         ORDER BY fl.flight_id, fl.leg_number`,
-        [flightIds]
-      );
+         WHERE fl.flight_id = ANY(${flightIds}::int[])
+         ORDER BY fl.flight_id, fl.leg_number
+      `.execute(kdb);
       flightLegs = convertBigInts(legsResult.rows) as unknown as FlightLegRow[];
 
       const manifestsResult = await findManifestsByFlightId(flightIds);
@@ -92,21 +91,21 @@ export async function loader({ request }: LoaderFunctionArgs) {
   ]);
 
   // Load available pilots for the pilot assignment dropdown
-  const pilots = await db.pilots.findMany({
-    where: { is_active: true },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
+  const pilots = await kdb.selectFrom("pilots")
+    .select(["id", "name"])
+    .where("is_active", "=", true)
+    .orderBy("name", "asc")
+    .execute();
   const availablePilots: PilotOption[] = pilots
     .filter((p) => p.name !== null)
     .map((p) => ({ id: p.id, name: p.name! }));
 
   // Load available aircraft for the aircraft assignment dropdown
-  const aircraft = await db.aircraft.findMany({
-    where: { is_active: true },
-    select: { id: true, registration: true, type: true, seat_count: true },
-    orderBy: { registration: "asc" },
-  });
+  const aircraft = await kdb.selectFrom("aircraft")
+    .select(["id", "registration", "type", "seat_count"])
+    .where("is_active", "=", true)
+    .orderBy("registration", "asc")
+    .execute();
   const availableAircraft: AircraftOption[] = aircraft.map((a) => ({
     id: a.id,
     registration: a.registration,
@@ -115,10 +114,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
   }));
 
   // Load aerodrome names for display
-  const aerodromesResult = await db.query(
-    `SELECT id, code, name FROM aerodromes WHERE is_active = true`
-  );
-  const aerodromeRows = aerodromesResult.rows as { id: number; code: string; name: string }[];
+  const aerodromesResult = await sql<{ id: number; code: string; name: string }>`
+    SELECT id, code, name FROM aerodromes WHERE is_active = true
+  `.execute(kdb);
+  const aerodromeRows = aerodromesResult.rows;
   const aerodromeNames: Record<string, string> = {};
   const aerodromes: { id: number; code: string; name: string }[] = [];
   for (const a of aerodromeRows) {

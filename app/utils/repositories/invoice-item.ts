@@ -1,5 +1,4 @@
-import { db } from "../db.server";
-import type { InvoiceItemType } from "../../../generated/prisma/client";
+import { kdb } from "../db.server";
 
 export interface InvoiceItemRow {
   id: string;
@@ -15,6 +14,28 @@ export interface InvoiceItemRow {
   created_at: string;
 }
 
+function dec(v: unknown): number | null {
+  if (v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function toRow(r: Record<string, unknown>): InvoiceItemRow {
+  return {
+    id: String(r.id ?? ""),
+    invoice_id: String(r.invoice_id ?? ""),
+    description: String(r.description ?? ""),
+    quantity: Number(r.quantity ?? 0),
+    unit_price_gbp: dec(r.unit_price_gbp) ?? 0,
+    line_total_gbp: dec(r.line_total_gbp) ?? 0,
+    type: String(r.type ?? ""),
+    reference_type: r.reference_type != null ? String(r.reference_type) : null,
+    reference_id: r.reference_id != null ? String(r.reference_id) : null,
+    sort_order: Number(r.sort_order ?? 0),
+    created_at: String(r.created_at ?? ""),
+  };
+}
+
 export const invoiceItemRepository = {
   async create(params: {
     invoice_id: string;
@@ -26,30 +47,35 @@ export const invoiceItemRepository = {
     reference_id?: string;
     sort_order?: number;
   }): Promise<InvoiceItemRow> {
-    return db.invoice_items.create({
-      data: {
+    const rows = await kdb
+      .insertInto("invoice_items")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .values({
         invoice_id: params.invoice_id,
         description: params.description,
         quantity: params.quantity ?? 1,
-        unit_price_gbp: params.unit_price_gbp,
-        type: params.type as InvoiceItemType,
-        reference_type: params.reference_type ?? null,
-        reference_id: params.reference_id ?? null,
+        unit_price_gbp: String(params.unit_price_gbp),
+        type: params.type,
+        reference_type: params.reference_type ?? undefined,
+        reference_id: params.reference_id ?? undefined,
         sort_order: params.sort_order ?? 0,
-      },
-    }) as unknown as InvoiceItemRow;
+      } as any)
+      .returningAll()
+      .execute();
+    return toRow(rows[0] as unknown as Record<string, unknown>);
   },
 
   async findByInvoice(invoiceId: string): Promise<InvoiceItemRow[]> {
-    return db.invoice_items.findMany({
-      where: { invoice_id: invoiceId },
-      orderBy: { sort_order: "asc" },
-    }) as unknown as InvoiceItemRow[];
+    const rows = await kdb
+      .selectFrom("invoice_items")
+      .selectAll()
+      .where("invoice_id", "=", invoiceId)
+      .orderBy("sort_order asc")
+      .execute();
+    return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
   },
 
   async delete(id: string): Promise<void> {
-    await db.invoice_items.delete({
-      where: { id },
-    });
+    await kdb.deleteFrom("invoice_items").where("id", "=", id).execute();
   },
 };

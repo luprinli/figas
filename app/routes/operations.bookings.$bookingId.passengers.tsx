@@ -1,10 +1,11 @@
-﻿import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, Link , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import DataTable from "../components/DataTable";
 import type { Column } from "../components/DataTable";
 import EmptyState from "../components/EmptyState";
@@ -16,29 +17,27 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => [
 export async function loader({ request, params }: LoaderFunctionArgs) {
     await requirePermission(request, Permission.BOOKING_VIEW);
 
-    const booking = await db.$queryRawUnsafe<Array<{ id: number; booking_reference: string }>>(
-        `SELECT id, booking_reference FROM bookings WHERE id = $1`,
-        [Number(params.bookingId)]
-    );
+    const bookingResult = await sql<{ id: number; booking_reference: string }>`
+        SELECT id, booking_reference FROM bookings WHERE id = ${Number(params.bookingId)}
+    `.execute(kdb);
 
-    if (booking.length === 0) {
+    if (bookingResult.rows.length === 0) {
         throw new Response("Booking not found", { status: 404 });
     }
 
-    const passengers = await db.query(
-        `SELECT blp.id, bp.first_name, bp.last_name, bl.origin_code, bl.destination_code,
+    const passengersResult = await sql<Record<string, unknown>>`
+        SELECT blp.id, bp.first_name, bp.last_name, bl.origin_code, bl.destination_code,
        blp.clothed_weight_kg, blp.baggage_weight_kg, blp.seat_number, blp.checked_in
  FROM booking_leg_passengers blp
  JOIN booking_legs bl ON bl.id = blp.booking_leg_id
  JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
- WHERE bl.booking_id = $1
- ORDER BY blp.id`,
-        [Number(params.bookingId)]
-    );
+ WHERE bl.booking_id = ${Number(params.bookingId)}
+ ORDER BY blp.id
+    `.execute(kdb);
 
     return json({
-        bookingRef: booking[0].booking_reference,
-        passengers: passengers.rows,
+        bookingRef: bookingResult.rows[0].booking_reference,
+        passengers: passengersResult.rows,
     });
 }
 

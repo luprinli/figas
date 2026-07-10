@@ -6,6 +6,7 @@ import { handleStripeSuccess } from "../utils/services/payment.service";
 import { stripePaymentRepository } from "../utils/repositories/stripe-payment";
 import { bookingRepository } from "../utils/repositories/booking";
 import { db } from "../utils/db.server";
+import { sql } from "kysely";
 import { PaymentStatus } from "../utils/constants";
 import { webhookEventRepository } from "../utils/repositories/webhook-event";
 
@@ -142,10 +143,9 @@ export async function action({ request }: ActionFunctionArgs) {
         try {
           const stripePayment = await stripePaymentRepository.findByPaymentIntentId(dispute.charge);
           if (stripePayment?.payment?.booking_id) {
-            await db.$queryRawUnsafe(
-              `UPDATE payments SET status = 'disputed', notes = COALESCE(notes, '') || $1 WHERE id = $2`,
-              [`\nDispute created: ${dispute.id} (${dispute.reason}) — £${(dispute.amount / 100).toFixed(2)}`, stripePayment.payment_id]
-            );
+            await sql`
+              UPDATE payments SET status = 'disputed', notes = COALESCE(notes, '') || ${`\nDispute created: ${dispute.id} (${dispute.reason}) — £${(dispute.amount / 100).toFixed(2)}`} WHERE id = ${stripePayment.payment_id}
+            `.execute(db);
             console.log(`Marked payment ${stripePayment.payment_id} as disputed`);
           }
         } catch (err) {
@@ -160,12 +160,11 @@ export async function action({ request }: ActionFunctionArgs) {
 
         try {
           const stripePayment = await stripePaymentRepository.findByPaymentIntentId(dispute.charge);
-          if (stripePayment?.payment?.booking_id) {
+            if (stripePayment?.payment?.booking_id) {
             const newStatus = dispute.status === "won" ? "succeeded" : "refunded";
-            await db.$queryRawUnsafe(
-              `UPDATE payments SET status = $1, notes = COALESCE(notes, '') || $2 WHERE id = $3`,
-              [newStatus, `\nDispute ${dispute.id} ${dispute.status}`, stripePayment.payment_id]
-            );
+            await sql`
+              UPDATE payments SET status = ${newStatus}, notes = COALESCE(notes, '') || ${`\nDispute ${dispute.id} ${dispute.status}`} WHERE id = ${stripePayment.payment_id}
+            `.execute(db);
           }
         } catch (err) {
           console.error("Failed to process dispute closure:", err);
@@ -180,10 +179,9 @@ export async function action({ request }: ActionFunctionArgs) {
         try {
           const stripePayment = await stripePaymentRepository.findByPaymentIntentId(charge.id);
           if (stripePayment?.payment?.booking_id) {
-            await db.$queryRawUnsafe(
-              `UPDATE payments SET status = 'refunded', notes = COALESCE(notes, '') || $1 WHERE id = $2`,
-              [`\nRefunded: £${(charge.amount_refunded / 100).toFixed(2)}`, stripePayment.payment_id]
-            );
+            await sql`
+              UPDATE payments SET status = 'refunded', notes = COALESCE(notes, '') || ${`\nRefunded: £${(charge.amount_refunded / 100).toFixed(2)}`} WHERE id = ${stripePayment.payment_id}
+            `.execute(db);
             if (stripePayment.payment.booking_id) {
               await bookingRepository.updatePayment(stripePayment.payment.booking_id, {
                 payment_status: PaymentStatus.REFUNDED,

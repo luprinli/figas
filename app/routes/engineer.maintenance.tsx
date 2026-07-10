@@ -1,10 +1,11 @@
-﻿import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import DataGrid from "../components/DataGrid";
 import type { Column } from "../components/DataTable";
 import EmptyState from "../components/EmptyState";
@@ -15,15 +16,15 @@ export const meta: MetaFunction = () => [{ title: "Maintenance Log - FIGAS" }];
 export async function loader({ request }: LoaderFunctionArgs) {
     await requirePermission(request, Permission.MAINTENANCE_VIEW);
 
-    const records = await db.query(
-        `SELECT ah.id, ah.aircraft_id, SPLIT_PART(ah.total_hours, ':', 1)::int::int4 AS total_hours,
+    const records = await sql<Record<string, unknown>>`
+        SELECT ah.id, ah.aircraft_id, SPLIT_PART(ah.total_hours, ':', 1)::int::int4 AS total_hours,
        ah.last_reading_date, ah.next_check_date, ah.next_check_type,
        a.registration, a.type
  FROM airframe_hours ah
  JOIN aircraft a ON a.id = ah.aircraft_id
  ORDER BY ah.last_reading_date DESC
- LIMIT 100`
-    );
+ LIMIT 100
+    `.execute(kdb);
 
     return json({ records: records.rows });
 }

@@ -1,8 +1,9 @@
-﻿import type { ActionFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, Form, Link , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import { notificationRepository } from "../utils/repositories/notification";
 import DataTable from "../components/DataTable";
 import type { Column } from "../components/DataTable";
@@ -11,16 +12,16 @@ export const meta: MetaFunction = () => [{ title: "Notifications - FIGAS" }];
 
 export async function loader() {
 
-  const result = await db.query(
-    `SELECT n.*,
+  const result = await sql<Record<string, unknown>>`
+    SELECT n.*,
             f.flight_number,
             b.booking_reference
      FROM notifications n
      LEFT JOIN flights f ON f.id = n.flight_id
      LEFT JOIN bookings b ON b.id = n.booking_id
      ORDER BY n.created_at DESC
-     LIMIT 100`
-  );
+     LIMIT 100
+  `.execute(kdb);
 
   const notifications = result.rows;
 
@@ -37,10 +38,9 @@ export async function action({ request }: ActionFunctionArgs) {
     const notification = await notificationRepository.findById(notificationId);
     if (notification) {
       // Mark as pending to trigger resend
-      await db.query(
-        "UPDATE notifications SET status = 'pending', updated_at = NOW() WHERE id = $1",
-        [notificationId]
-      );
+      await sql`
+        UPDATE notifications SET status = ${"pending"}, updated_at = NOW() WHERE id = ${notificationId}
+      `.execute(kdb);
     }
   }
 

@@ -1,10 +1,11 @@
-﻿import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, Link , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import DataGrid from "../components/DataGrid";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission, DEFAULT_PAGE_SIZE } from "../utils/constants";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import { requireUser } from "../utils/layout.server";
 import PageHeader from "../components/PageHeader";
 import type { Column } from "../components/DataTable";
@@ -41,37 +42,49 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const status = url.searchParams.get("status") || null;
   const offset = (page - 1) * DEFAULT_PAGE_SIZE;
 
-  let whereClause = "";
-  const params: unknown[] = [];
-
-  if (status) {
-    whereClause = "WHERE i.status = $1";
-    params.push(status);
-  }
-
   // Count total
-  const countResult = await db.query(
-    `SELECT COUNT(*)::int AS total FROM invoices i ${whereClause}`,
-    params
-  );
-  const total = Number(countResult.rows[0]?.total ?? 0);
+  let total: number;
+  if (status) {
+    const countResult = await sql<{ total: number }>`
+      SELECT COUNT(*)::int AS total FROM invoices i WHERE i.status = ${status}
+    `.execute(kdb);
+    total = Number(countResult.rows[0]?.total ?? 0);
+  } else {
+    const countResult = await sql<{ total: number }>`
+      SELECT COUNT(*)::int AS total FROM invoices i
+    `.execute(kdb);
+    total = Number(countResult.rows[0]?.total ?? 0);
+  }
   const totalPages = Math.max(1, Math.ceil(total / DEFAULT_PAGE_SIZE));
 
   // Fetch page
-  const dataParams = [...params, DEFAULT_PAGE_SIZE, offset];
-  const dataResult = await db.query(
-    `SELECT i.id, i.invoice_number, b.booking_reference,
-            o.name AS organization_name,
-            i.issue_date, i.due_date, i.total_gbp, i.status
-     FROM invoices i
-     LEFT JOIN bookings b ON b.id = i.booking_id
-     LEFT JOIN organizations o ON o.id = i.organization_id
-     ${whereClause}
-     ORDER BY i.created_at DESC
-     LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-    dataParams
-  );
-  const invoices = dataResult.rows as unknown as InvoiceRow[];
+  let invoices: InvoiceRow[];
+  if (status) {
+    const dataResult = await sql<InvoiceRow>`
+      SELECT i.id, i.invoice_number, b.booking_reference,
+              o.name AS organization_name,
+              i.issue_date, i.due_date, i.total_gbp, i.status
+       FROM invoices i
+       LEFT JOIN bookings b ON b.id = i.booking_id
+       LEFT JOIN organizations o ON o.id = i.organization_id
+       WHERE i.status = ${status}
+       ORDER BY i.created_at DESC
+       LIMIT ${DEFAULT_PAGE_SIZE} OFFSET ${offset}
+    `.execute(kdb);
+    invoices = dataResult.rows as unknown as InvoiceRow[];
+  } else {
+    const dataResult = await sql<InvoiceRow>`
+      SELECT i.id, i.invoice_number, b.booking_reference,
+              o.name AS organization_name,
+              i.issue_date, i.due_date, i.total_gbp, i.status
+       FROM invoices i
+       LEFT JOIN bookings b ON b.id = i.booking_id
+       LEFT JOIN organizations o ON o.id = i.organization_id
+       ORDER BY i.created_at DESC
+       LIMIT ${DEFAULT_PAGE_SIZE} OFFSET ${offset}
+    `.execute(kdb);
+    invoices = dataResult.rows as unknown as InvoiceRow[];
+  }
 
   return json<InvoicesData>({
     invoices,

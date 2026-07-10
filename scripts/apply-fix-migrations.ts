@@ -9,6 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { db } from "../app/utils/db.server";
+import { sql } from "kysely";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,23 +38,21 @@ async function main() {
       continue;
     }
 
-    const sql = fs.readFileSync(filePath, "utf-8");
+    const fileSql = fs.readFileSync(filePath, "utf-8");
     console.log(`  Applying ${file}...`);
 
     try {
       // Split by semicolons and execute each statement separately
-      // to handle errors per-statement
-      const statements = sql
+      const statements = fileSql
         .split(";")
         .map((s) => s.trim())
         .filter((s) => s.length > 0 && !s.startsWith("--"));
 
       for (const stmt of statements) {
         try {
-          await db.$executeRawUnsafe(stmt + ";");
+          await sql`${sql.raw(stmt + ";")}`.execute(db);
         } catch (err: unknown) {
-      // Ignore "already exists" errors for safe operations
-      const msg = (err as { message?: string })?.message || "";
+          const msg = (err as { message?: string })?.message || "";
           if (
             msg.includes("already exists") ||
             msg.includes("duplicate key") ||
@@ -68,12 +67,10 @@ async function main() {
       console.log(`  ✔ ${file}`);
     } catch (err: unknown) {
       console.error(`  ✘ ${file} – FAILED: ${(err as Error).message}`);
-      // Don't exit — try the next one
     }
   }
 
   console.log("\n✅ Fix migrations applied.\n");
-  await db.$disconnect();
 }
 
 main().catch((err) => {

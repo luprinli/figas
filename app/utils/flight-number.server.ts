@@ -1,4 +1,5 @@
-import type { Prisma } from "../../generated/prisma/client";
+import type { Kysely } from "kysely";
+import type { DB } from "../../generated/kysely/database";
 
 /**
  * Generate the next flight number for a given schedule date.
@@ -10,34 +11,30 @@ import type { Prisma } from "../../generated/prisma/client";
  * same date prefix, which is resilient to deleted rows (unlike COUNT(*)).
  *
  * @param date - The schedule date (Date or ISO string). UTC components are used.
- * @param tx - Optional Prisma transaction client for atomicity within a transaction.
+ * @param tx - Optional Kysely transaction or database client for atomicity within a transaction.
  */
 export async function generateFlightNumber(
   date: string | Date,
-  tx?: Prisma.TransactionClient
+  tx?: Kysely<DB>
 ): Promise<string> {
   const d = typeof date === "string" ? new Date(date) : date;
   const day = String(d.getUTCDate()).padStart(2, "0");
   const month = String(d.getUTCMonth() + 1).padStart(2, "0");
   const prefix = `FIG${day}${month}`;
 
-  const client = tx ?? (await import("./db.server").then((m) => m.db));
-  const lastFlight = await (tx
-    ? (tx as unknown as { flights: { findFirst: (...args: unknown[]) => unknown } }).flights.findFirst({
-        where: { flight_number: { startsWith: prefix } },
-        orderBy: { flight_number: "desc" },
-        select: { flight_number: true },
-      })
-    : (client as unknown as { flights: { findFirst: (...args: unknown[]) => unknown } }).flights.findFirst({
-        where: { flight_number: { startsWith: prefix } },
-        orderBy: { flight_number: "desc" },
-        select: { flight_number: true },
-      }));
+  const resolved = tx ?? (await import("./db.server").then((m) => m.db));
+  const rows = await resolved!
+    .selectFrom("flights")
+    .select(["flight_number"])
+    .where("flight_number", "like", `${prefix}%`)
+    .orderBy("flight_number", "desc")
+    .limit(1)
+    .execute();
 
   let nextNum = 1;
-  if (lastFlight) {
+  if (rows.length > 0 && rows[0].flight_number) {
     const suffix = parseInt(
-      (lastFlight as { flight_number: string }).flight_number.slice(-2),
+      String(rows[0].flight_number).slice(-2),
       10
     );
     if (!isNaN(suffix)) nextNum = suffix + 1;
@@ -51,31 +48,27 @@ export async function generateFlightNumber(
  * Example: FIG-20260619-001
  *
  * @param date - The schedule date in YYYY-MM-DD format
- * @param tx - Optional Prisma transaction client
+ * @param tx - Optional Kysely transaction client
  */
 export async function generateAutoBuildFlightNumber(
   date: string,
-  tx?: Prisma.TransactionClient
+  tx?: Kysely<DB>
 ): Promise<string> {
   const cleanDate = date.replace(/-/g, "");
   const prefix = `FIG-${cleanDate}-`;
 
-  const client = tx ?? (await import("./db.server").then((m) => m.db));
-  const lastFlight = await (tx
-    ? (tx as unknown as { flights: { findFirst: (...args: unknown[]) => unknown } }).flights.findFirst({
-        where: { flight_number: { startsWith: prefix } },
-        orderBy: { flight_number: "desc" },
-        select: { flight_number: true },
-      })
-    : (client as unknown as { flights: { findFirst: (...args: unknown[]) => unknown } }).flights.findFirst({
-        where: { flight_number: { startsWith: prefix } },
-        orderBy: { flight_number: "desc" },
-        select: { flight_number: true },
-      }));
+  const resolved = tx ?? (await import("./db.server").then((m) => m.db));
+  const rows = await resolved!
+    .selectFrom("flights")
+    .select(["flight_number"])
+    .where("flight_number", "like", `${prefix}%`)
+    .orderBy("flight_number", "desc")
+    .limit(1)
+    .execute();
 
   let nextNum = 1;
-  if (lastFlight) {
-    const suffix = (lastFlight as { flight_number: string }).flight_number.slice(-3);
+  if (rows.length > 0 && rows[0].flight_number) {
+    const suffix = String(rows[0].flight_number).slice(-3);
     const parsed = parseInt(suffix, 10);
     if (!isNaN(parsed)) nextNum = parsed + 1;
   }

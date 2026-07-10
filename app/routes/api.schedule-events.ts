@@ -1,5 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { db } from "../utils/db.server";
+import { sql } from "kysely";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
@@ -19,14 +20,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
       async function poll() {
         if (closed) return;
         try {
-          const rows = await db.$queryRawUnsafe<Array<{ flight_count: number; assigned_count: number }>>(
-            `SELECT
-           COALESCE((SELECT COUNT(*) FROM flights WHERE schedule_id = $1), 0)::int AS flight_count,
+          const result = await sql<{ flight_count: number; assigned_count: number }>`
+            SELECT
+           COALESCE((SELECT COUNT(*) FROM flights WHERE schedule_id = ${scheduleId}), 0)::int AS flight_count,
            COALESCE((SELECT COUNT(*) FROM booking_leg_passengers blp
              JOIN booking_legs bl ON bl.id = blp.booking_leg_id
-             WHERE bl.flight_id IN (SELECT id FROM flights WHERE schedule_id = $1)), 0)::int AS assigned_count`,
-            [scheduleId]
-          );
+             WHERE bl.flight_id IN (SELECT id FROM flights WHERE schedule_id = ${scheduleId})), 0)::int AS assigned_count
+          `.execute(db);
+          const rows = result.rows;
 
           if (rows.length > 0) {
             const current = JSON.stringify({

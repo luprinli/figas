@@ -1,34 +1,24 @@
 import { db } from "../app/utils/db.server";
+import { sql } from "kysely";
 
 async function main() {
-  // Check ALL booking legs with their leg_dates
-  const allDates = await db.query(
-    `SELECT DISTINCT leg_date FROM booking_legs ORDER BY leg_date`
-  );
+  const allDates = await sql`SELECT DISTINCT leg_date FROM booking_legs ORDER BY leg_date`.execute(db);
   console.log("All distinct leg_dates in booking_legs:");
   for (const r of allDates.rows) {
-    const cnt = await db.query(
-      `SELECT COUNT(*)::int as c FROM booking_legs WHERE leg_date = $1::date AND flight_id IS NULL`,
-      [r.leg_date]
-    );
-    const total = await db.query(
-      `SELECT COUNT(*)::int as c FROM booking_legs WHERE leg_date = $1::date`,
-      [r.leg_date]
-    );
-    console.log(`${r.leg_date} | total: ${total.rows[0].c} | unassigned: ${cnt.rows[0].c}`);
+    const legDate = (r as any).leg_date;
+    const cnt = await sql`SELECT COUNT(*)::int as c FROM booking_legs WHERE leg_date = ${legDate}::date AND flight_id IS NULL`.execute(db);
+    const total = await sql`SELECT COUNT(*)::int as c FROM booking_legs WHERE leg_date = ${legDate}::date`.execute(db);
+    console.log(`${legDate} | total: ${(total.rows[0] as any).c} | unassigned: ${(cnt.rows[0] as any).c}`);
   }
 
-  // Check schedules
-  const sched = await db.query(`SELECT COUNT(*)::int as c FROM schedules`);
-  console.log("\nTotal schedules:", sched.rows[0].c);
+  const sched = await sql`SELECT COUNT(*)::int as c FROM schedules`.execute(db);
+  console.log("\nTotal schedules:", (sched.rows[0] as any).c);
 
-  // Check bookings
-  const recentBookings = await db.query(
-    `SELECT id, booking_reference, created_at FROM bookings ORDER BY created_at DESC LIMIT 5`
-  );
+  const recentBookings = await sql`SELECT id, booking_reference, created_at FROM bookings ORDER BY created_at DESC LIMIT 5`.execute(db);
   console.log("\nRecent bookings:");
   for (const r of recentBookings.rows) {
-    console.log(r.id, r.booking_reference, r.created_at);
+    const row = r as any;
+    console.log(row.id, row.booking_reference, row.created_at);
   }
 }
 

@@ -1,4 +1,4 @@
-﻿import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, Form, useNavigation , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
@@ -13,7 +13,8 @@ import {
   voidInvoice,
   recordPaymentAgainstInvoice,
 } from "../utils/services/invoice.service";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import PageHeader from "../components/PageHeader";
 import Button from "../components/Button";
 import Card from "../components/Card";
@@ -73,24 +74,23 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   let paymentTimeline: PaymentTimelineEvent[] = [];
 
   if (bookingId) {
-    const eventsResult = await db.query(
-      `SELECT p.id, p.amount_gbp, p.status, p.payment_method, p.created_at,
-              u.name AS actor_name
-       FROM payments p
-       LEFT JOIN users u ON u.id = p.processed_by
-       WHERE p.booking_id = $1
-       ORDER BY p.created_at DESC`,
-      [bookingId]
-    );
-
-    paymentTimeline = (eventsResult.rows as Array<{
+    const eventsResult = await sql<{
       id: string;
       amount_gbp: number;
       status: string;
       payment_method: string;
       created_at: string;
       actor_name: string | null;
-    }>).map((row) => ({
+    }>`
+      SELECT p.id, p.amount_gbp, p.status, p.payment_method, p.created_at,
+              u.name AS actor_name
+       FROM payments p
+       LEFT JOIN users u ON u.id = p.processed_by
+       WHERE p.booking_id = ${bookingId}
+       ORDER BY p.created_at DESC
+    `.execute(kdb);
+
+    paymentTimeline = eventsResult.rows.map((row) => ({
       id: row.id,
       type: row.status === "refunded" || row.status === "partially_refunded" ? "refund" : "payment",
       status: row.status,
@@ -141,21 +141,20 @@ export async function action({ request, params }: ActionFunctionArgs) {
       }
 
       // Get the booking_id from the invoice
-      const invoice = await db.$queryRawUnsafe<Array<{ booking_id: number }>>(
-        `SELECT booking_id FROM invoices WHERE id = $1`, [invoiceId]
-      );
-      if (invoice.length === 0) {
+      const invoiceResult = await sql<{ booking_id: number }>`
+        SELECT booking_id FROM invoices WHERE id = ${invoiceId}
+      `.execute(kdb);
+      if (invoiceResult.rows.length === 0) {
         return json({ error: "Invoice not found" }, { status: 404 });
       }
 
       // Create a payment record first
-      const paymentResult = await db.query(
-        `INSERT INTO payments (booking_id, amount, amount_gbp, status, method, processed_by, transaction_reference)
-         VALUES ($1, $2, $3, 'paid', $4, $5, $6)
-         RETURNING id`,
-        [invoice[0].booking_id, amountGbp, amountGbp, method, userId, reference]
-      );
-      const paymentId = String((paymentResult.rows[0] as { id: string }).id);
+      const paymentResult = await sql<{ id: string }>`
+        INSERT INTO payments (booking_id, amount, amount_gbp, status, method, processed_by, transaction_reference)
+         VALUES (${invoiceResult.rows[0].booking_id}, ${amountGbp}, ${amountGbp}, ${"paid"}, ${method}, ${userId}, ${reference})
+         RETURNING id
+      `.execute(kdb);
+      const paymentId = paymentResult.rows[0].id;
 
       const result = await recordPaymentAgainstInvoice({
         invoiceId,

@@ -1,10 +1,11 @@
-﻿import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import DataGrid from "../components/DataGrid";
 import type { Column } from "../components/DataTable";
 import EmptyState from "../components/EmptyState";
@@ -15,12 +16,12 @@ export const meta: MetaFunction = () => [{ title: "Aircraft Fleet - FIGAS" }];
 export async function loader({ request }: LoaderFunctionArgs) {
     const user = await requirePermission(request, Permission.MAINTENANCE_VIEW);
 
-    const aircraft = await db.query(
-        `SELECT id, registration, type, is_active,
+    const aircraft = await sql<Record<string, unknown>>`
+        SELECT id, registration, type, is_active,
        COALESCE((SELECT SUM(SPLIT_PART(total_hours, ':', 1)::int) FROM airframe_hours WHERE aircraft_id = a.id), 0)::int4 AS total_hours
  FROM aircraft a
- ORDER BY registration`
-    );
+ ORDER BY registration
+    `.execute(kdb);
 
     return json({ user, aircraft: aircraft.rows });
 }

@@ -3,6 +3,7 @@
  * or missing tables.
  */
 import { db } from "../app/utils/db.server";
+import { sql } from "kysely";
 
 async function main() {
   console.log("🔧 Applying remaining fix migrations...\n");
@@ -19,7 +20,7 @@ async function main() {
   console.log("  Applying schema mismatch fixes...");
   for (const stmt of schemaFixes) {
     try {
-      await db.$executeRawUnsafe(stmt);
+      await sql`${sql.raw(stmt)}`.execute(db);
       console.log(`    ✔ ${stmt.substring(0, 80)}...`);
     } catch (err: unknown) {
       console.log(`    ↪ ${(err as Error).message.substring(0, 80)}`);
@@ -27,19 +28,17 @@ async function main() {
   }
 
   // 2. fix-flight-leg-status-enum.sql — create enum and alter column
-  //    Using raw SQL via db.query() which may handle PL/pgSQL better
   console.log("\n  Applying flight leg status enum fix...");
-  
+
   // First check if the enum type already exists
-  const enumCheck = await db.query(`
+  const enumCheck = await sql`
     SELECT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'flight_leg_status') as exists
-  `);
-  const enumExists = enumCheck.rows[0]?.exists;
-  
+  `.execute(db);
+  const enumExists = (enumCheck.rows[0] as any)?.exists;
+
   if (!enumExists) {
-    // Create the enum type using a simpler approach
     try {
-      await db.$executeRawUnsafe(`CREATE TYPE flight_leg_status AS ENUM ('scheduled', 'active', 'completed', 'cancelled')`);
+      await sql`CREATE TYPE flight_leg_status AS ENUM ('scheduled', 'active', 'completed', 'cancelled')`.execute(db);
       console.log("    ✔ Created flight_leg_status enum type");
     } catch (err: unknown) {
       if ((err as Error).message?.includes("already exists")) {
@@ -54,20 +53,19 @@ async function main() {
 
   // Alter the column
   try {
-    // Check if the column exists and its current type
-    const colCheck = await db.query(`
+    const colCheck = await sql`
       SELECT data_type FROM information_schema.columns 
       WHERE table_name = 'flight_legs' AND column_name = 'status'
-    `);
-    
+    `.execute(db);
+
     if (colCheck.rows.length > 0) {
-      const currentType = colCheck.rows[0].data_type;
+      const currentType = (colCheck.rows[0] as any).data_type;
       if (currentType !== 'flight_leg_status' && currentType !== 'USER-DEFINED') {
-        await db.$executeRawUnsafe(`
+        await sql`
           ALTER TABLE flight_legs
             ALTER COLUMN status TYPE flight_leg_status USING status::flight_leg_status,
             ALTER COLUMN status SET DEFAULT 'scheduled'
-        `);
+        `.execute(db);
         console.log("    ✔ Altered flight_legs.status to use enum type");
       } else {
         console.log("    ↪ Column already uses enum type");
@@ -77,10 +75,10 @@ async function main() {
     console.log(`    ↪ ${(err as Error).message.substring(0, 120)}`);
   }
 
-  // 3. Create schedule_audit table (needed by Prisma schema)
+  // 3. Create schedule_audit table
   console.log("\n  Creating schedule_audit table...");
   try {
-    await db.$executeRawUnsafe(`
+    await sql`
       CREATE TABLE IF NOT EXISTS schedule_audit (
         id SERIAL PRIMARY KEY,
         schedule_id INTEGER NOT NULL REFERENCES schedules(id) ON DELETE CASCADE,
@@ -91,19 +89,17 @@ async function main() {
         new_values JSONB,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       )
-    `);
+    `.execute(db);
     console.log("    ✔ Created schedule_audit table");
-    
-    // Create indexes
-    await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_schedule_audit_schedule_id ON schedule_audit(schedule_id)`);
-    await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_schedule_audit_changed_by ON schedule_audit(changed_by)`);
+
+    await sql`CREATE INDEX IF NOT EXISTS idx_schedule_audit_schedule_id ON schedule_audit(schedule_id)`.execute(db);
+    await sql`CREATE INDEX IF NOT EXISTS idx_schedule_audit_changed_by ON schedule_audit(changed_by)`.execute(db);
     console.log("    ✔ Created schedule_audit indexes");
   } catch (err: unknown) {
     console.log(`    ↪ ${(err as Error).message.substring(0, 120)}`);
   }
 
   console.log("\n✅ Remaining fix migrations applied.\n");
-  await db.$disconnect();
 }
 
 main().catch((err) => {

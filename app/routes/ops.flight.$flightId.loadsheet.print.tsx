@@ -4,7 +4,8 @@ import { useLoaderData , useRouteError, isRouteErrorResponse } from "@remix-run/
 import { loadsheetRepository } from "../utils/loadsheet/loadsheet-repository.server";
 import { createLoadsheetFromFlight } from "../utils/loadsheet/create-loadsheet.server";
 import { requireUser } from "../utils/layout.server";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 
 function formatTime(val: unknown): string | null {
   if (!val) return null;
@@ -43,35 +44,31 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     sectors = await loadsheetRepository.findSectors(loadsheet.id);
   }
 
-  const flight = await db.flights.findUnique({
-    where: { id: flightId },
-    select: { flight_number: true, departure_time: true },
-  });
+  const flight = (await kdb.selectFrom("flights").select(["flight_number", "departure_time"]).where("id", "=", flightId).execute())[0] ?? null;
   const pilot = loadsheet.pilot_id
-    ? await db.pilots.findUnique({ where: { id: Number(loadsheet.pilot_id) }, select: { name: true } })
+    ? (await kdb.selectFrom("pilots").select("name").where("id", "=", Number(loadsheet.pilot_id)).execute())[0] ?? null
     : null;
   const aircraft = loadsheet.aircraft_id
-    ? await db.aircraft.findUnique({ where: { id: Number(loadsheet.aircraft_id) }, select: { registration: true, type: true } })
+    ? (await kdb.selectFrom("aircraft").select(["registration", "type"]).where("id", "=", Number(loadsheet.aircraft_id)).execute())[0] ?? null
     : null;
 
   const passengerIds = passengers.map((p) => p.booking_passenger_id);
   const passengerNames: Record<number, string> = {};
   const passengerLegData: Record<number, { origin: string; destination: string }> = {};
   if (passengerIds.length > 0) {
-    const nameRows = await db.$queryRawUnsafe<Record<string, unknown>[]>(
-      `SELECT bp.id, CONCAT(bp.first_name, ' ', bp.last_name) AS name FROM booking_passengers bp WHERE bp.id = ANY($1::int[])`,
-      passengerIds
-    );
-    for (const r of (nameRows as Array<{ id: number | bigint; name: string }>)) {
+    const nameRows = await sql<{ id: number | bigint; name: string }>`
+      SELECT bp.id, CONCAT(bp.first_name, ' ', bp.last_name) AS name FROM booking_passengers bp WHERE bp.id = ANY(${passengerIds}::int[])
+    `.execute(kdb);
+    for (const r of nameRows.rows) {
       passengerNames[Number(r.id)] = r.name;
     }
   }
   const legIds = [...new Set(passengers.map((p) => p.booking_leg_id))];
   if (legIds.length > 0) {
-    const legRows = await db.$queryRawUnsafe<Record<string, unknown>[]>(
-      `SELECT id, origin_code, destination_code FROM booking_legs WHERE id = ANY($1::int[])`, legIds
-    );
-    for (const r of (legRows as Array<{ id: number | bigint; origin_code: string; destination_code: string }>)) {
+    const legRows = await sql<{ id: number | bigint; origin_code: string; destination_code: string }>`
+      SELECT id, origin_code, destination_code FROM booking_legs WHERE id = ANY(${legIds}::int[])
+    `.execute(kdb);
+    for (const r of legRows.rows) {
       passengerLegData[Number(r.id)] = { origin: r.origin_code, destination: r.destination_code };
     }
   }
@@ -85,7 +82,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   if (stopCodes[stopCodes.length - 1] !== "STY") stopCodes.push("STY");
 
   const depDate = flight?.departure_time
-    ? new Date(flight.departure_time).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+    ? new Date(String(flight.departure_time)).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
     : new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
   return json({

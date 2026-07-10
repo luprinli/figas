@@ -1,4 +1,5 @@
-import { db } from "../db.server";
+import { kdb } from "../db.server";
+import { sql } from "kysely";
 
 export interface BookingRow {
   id: number;
@@ -55,13 +56,94 @@ export interface ActivityItem {
   description: string;
 }
 
-
 function generateReference(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   let ref = "";
   for (let i = 0; i < 3; i++) ref += chars[Math.floor(Math.random() * chars.length)];
   for (let i = 0; i < 5; i++) ref += Math.floor(Math.random() * 10).toString();
   return ref;
+}
+
+function toBookingRow(r: Record<string, unknown>): BookingRow {
+  return {
+    id: Number(r.id),
+    user_id: Number(r.user_id),
+    booking_reference: String(r.booking_reference ?? ""),
+    status: String(r.status ?? ""),
+    organization_id: r.organization_id != null ? Number(r.organization_id) : null,
+    is_organization_billing: Boolean(r.is_organization_billing),
+    total_amount: r.total_amount != null ? Number(r.total_amount) : null,
+    total_amount_gbp: r.total_amount_gbp != null ? Number(r.total_amount_gbp) : null,
+    payment_status: String(r.payment_status ?? ""),
+    payment_method: r.payment_method != null ? String(r.payment_method) : null,
+    payment_date: r.payment_date != null ? String(r.payment_date) : null,
+    payment_due_date: r.payment_due_date != null ? String(r.payment_due_date) : null,
+    payment_terms: r.payment_terms != null ? String(r.payment_terms) : null,
+    notes: r.notes != null ? String(r.notes) : null,
+    booking_source: String(r.booking_source ?? ""),
+    created_by: r.created_by != null ? Number(r.created_by) : null,
+    cancelled_at: r.cancelled_at != null ? String(r.cancelled_at) : null,
+    cancelled_by: r.cancelled_by != null ? Number(r.cancelled_by) : null,
+    cancellation_reason: r.cancellation_reason != null ? String(r.cancellation_reason) : null,
+    stripe_session_id: r.stripe_session_id != null ? String(r.stripe_session_id) : null,
+    invoice_id: r.invoice_id != null ? String(r.invoice_id) : null,
+    created_at: String(r.created_at ?? ""),
+    updated_at: String(r.updated_at ?? ""),
+  };
+}
+
+function formatLegDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return String(dateStr);
+    return d.toISOString().split("T")[0];
+  } catch {
+    return String(dateStr);
+  }
+}
+
+async function fetchFirstLegAndPassenger(
+  bookingId: number
+): Promise<{
+  firstLeg: { origin_code: string; destination_code: string; leg_date: string; flight_id: number | null } | null;
+  passenger: { first_name: string; last_name: string; email: string; phone: string | null } | null;
+}> {
+  const [legRows, passengerRows] = await Promise.all([
+    kdb
+      .selectFrom("booking_legs")
+      .select(["origin_code", "destination_code", "leg_date", "flight_id"])
+      .where("booking_id", "=", bookingId)
+      .where("leg_sequence", "=", 1)
+      .limit(1)
+      .execute(),
+    kdb
+      .selectFrom("booking_passengers")
+      .select(["first_name", "last_name", "email", "phone"])
+      .where("booking_id", "=", bookingId)
+      .orderBy("id asc")
+      .limit(1)
+      .execute(),
+  ]);
+
+  return {
+    firstLeg: legRows[0]
+      ? {
+          origin_code: String(legRows[0].origin_code ?? ""),
+          destination_code: String(legRows[0].destination_code ?? ""),
+          leg_date: formatLegDate(String(legRows[0].leg_date ?? "")),
+          flight_id: legRows[0].flight_id != null ? Number(legRows[0].flight_id) : null,
+        }
+      : null,
+    passenger: passengerRows[0]
+      ? {
+          first_name: String(passengerRows[0].first_name ?? ""),
+          last_name: String(passengerRows[0].last_name ?? ""),
+          email: String(passengerRows[0].email ?? ""),
+          phone: passengerRows[0].phone != null ? String(passengerRows[0].phone) : null,
+        }
+      : null,
+  };
 }
 
 export const bookingRepository = {
@@ -74,12 +156,12 @@ export const bookingRepository = {
       created_by?: number;
     }
   ): Promise<BookingRow> {
-    // Retry up to 10 times on reference collision
     for (let attempt = 0; attempt < 10; attempt++) {
       const reference = generateReference();
       try {
-        const result = await db.bookings.create({
-          data: {
+        const rows = await kdb
+          .insertInto("bookings")
+          .values({
             user_id: userId,
             booking_reference: reference,
             status: "pending",
@@ -87,13 +169,13 @@ export const bookingRepository = {
             is_organization_billing: isOrganizationBilling,
             booking_source: options?.booking_source ?? "customer_direct",
             created_by: options?.created_by ?? null,
-          },
-        });
-        return result as unknown as BookingRow;
+          } as any)
+          .returningAll()
+          .execute();
+        return toBookingRow(rows[0] as unknown as Record<string, unknown>);
       } catch (err: unknown) {
-        const prismaErr = err as { code?: string };
-        // P2002 is Prisma's unique constraint violation code
-        if (prismaErr.code === "P2002") continue;
+        const pgErr = err as { code?: string; constraint?: string };
+        if (pgErr.code === "23505" || pgErr.constraint?.includes("booking_reference")) continue;
         throw err;
       }
     }
@@ -101,24 +183,30 @@ export const bookingRepository = {
   },
 
   async findById(id: number): Promise<BookingRow | null> {
-    const result = await db.bookings.findUnique({
-      where: { id },
-    });
-    return (result as unknown as BookingRow) ?? null;
+    const rows = await kdb
+      .selectFrom("bookings")
+      .selectAll()
+      .where("id", "=", id)
+      .execute();
+    return rows.length > 0 ? toBookingRow(rows[0] as unknown as Record<string, unknown>) : null;
   },
 
   async findByReference(reference: string): Promise<BookingRow | null> {
-    const result = await db.bookings.findUnique({
-      where: { booking_reference: reference },
-    });
-    return (result as unknown as BookingRow) ?? null;
+    const rows = await kdb
+      .selectFrom("bookings")
+      .selectAll()
+      .where("booking_reference", "=", reference)
+      .execute();
+    return rows.length > 0 ? toBookingRow(rows[0] as unknown as Record<string, unknown>) : null;
   },
 
   async updateStatus(id: number, status: string): Promise<void> {
-    await db.bookings.update({
-      where: { id },
-      data: { status, updated_at: new Date() },
-    });
+    const now = new Date().toISOString();
+    await kdb
+      .updateTable("bookings")
+      .set({ status, updated_at: now } as any)
+      .where("id", "=", id)
+      .execute();
   },
 
   async updatePayment(
@@ -134,52 +222,62 @@ export const bookingRepository = {
     if (data.payment_method !== undefined) updateData.payment_method = data.payment_method;
     if (data.payment_status !== undefined) updateData.payment_status = data.payment_status;
     if (Object.keys(updateData).length === 0) return;
-    updateData.updated_at = new Date();
-    await db.bookings.update({
-      where: { id },
-      data: updateData,
-    });
+    updateData.updated_at = new Date().toISOString();
+    await kdb
+      .updateTable("bookings")
+      .set(updateData as any)
+      .where("id", "=", id)
+      .execute();
   },
 
   async cancel(id: number, cancelledBy: number, reason?: string): Promise<void> {
-    await db.bookings.update({
-      where: { id },
-      data: {
+    const now = new Date().toISOString();
+    await kdb
+      .updateTable("bookings")
+      .set({
         status: "cancelled",
-        cancelled_at: new Date(),
+        cancelled_at: now,
         cancelled_by: cancelledBy,
         cancellation_reason: reason ?? null,
-        updated_at: new Date(),
-      },
-    });
+        updated_at: now,
+      } as any)
+      .where("id", "=", id)
+      .execute();
   },
 
   async findUpcomingByUserId(userId: number): Promise<Array<{ booking: BookingRow; firstLeg: { origin_code: string; destination_code: string; leg_date: string } | null }>> {
-    const rows = await db.bookings.findMany({
-      where: { user_id: userId },
-      include: {
-        booking_legs: {
-          where: { leg_sequence: 1 },
-          select: { origin_code: true, destination_code: true, leg_date: true },
-          take: 1,
-        },
-      },
-      orderBy: { created_at: "desc" },
-      take: 5,
-    });
-    return rows.map((row) => ({
-      booking: row as unknown as BookingRow,
-      firstLeg: row.booking_legs[0]
-        ? {
-            origin_code: row.booking_legs[0].origin_code,
-            destination_code: row.booking_legs[0].destination_code,
-            leg_date: row.booking_legs[0].leg_date.toISOString().split("T")[0],
-          }
-        : null,
-    }));
-  },
+    const rows = await kdb
+      .selectFrom("bookings")
+      .selectAll()
+      .where("user_id", "=", userId)
+      .orderBy("created_at desc")
+      .limit(5)
+      .execute();
 
-  // ── Operations-wide methods ──────────────────────────────────────────────────
+    const results = await Promise.all(
+      rows.map(async (row) => {
+        const legRows = await kdb
+          .selectFrom("booking_legs")
+          .select(["origin_code", "destination_code", "leg_date"])
+          .where("booking_id", "=", Number(row.id))
+          .where("leg_sequence", "=", 1)
+          .limit(1)
+          .execute();
+
+        return {
+          booking: toBookingRow(row as unknown as Record<string, unknown>),
+          firstLeg: legRows[0]
+            ? {
+                origin_code: String(legRows[0].origin_code ?? ""),
+                destination_code: String(legRows[0].destination_code ?? ""),
+                leg_date: formatLegDate(String(legRows[0].leg_date ?? "")),
+              }
+            : null,
+        };
+      })
+    );
+    return results;
+  },
 
   async findAll(page = 1, pageSize = 20): Promise<{
     bookings: Array<{ booking: BookingRow; firstLeg: { origin_code: string; destination_code: string; leg_date: string; flight_id: number | null } | null; passenger: { first_name: string; last_name: string; email: string; phone: string | null } | null }>;
@@ -188,50 +286,30 @@ export const bookingRepository = {
     totalPages: number;
   }> {
     const offset = (page - 1) * pageSize;
-    const [totalCount, rows] = await Promise.all([
-      db.bookings.count(),
-      db.bookings.findMany({
-        skip: offset,
-        take: pageSize,
-        include: {
-          booking_legs: {
-            where: { leg_sequence: 1 },
-            select: { origin_code: true, destination_code: true, leg_date: true, flight_id: true },
-            take: 1,
-          },
-          booking_passengers: {
-            select: { first_name: true, last_name: true, email: true, phone: true },
-            orderBy: { id: "asc" },
-            take: 1,
-          },
-        },
-        orderBy: { created_at: "desc" },
-      }),
+    const [countResult, rows] = await Promise.all([
+      kdb.selectFrom("bookings").select(kdb.fn.countAll<number>().as("cnt")).execute(),
+      kdb
+        .selectFrom("bookings")
+        .selectAll()
+        .orderBy("created_at desc")
+        .offset(offset)
+        .limit(pageSize)
+        .execute(),
     ]);
-    return {
-      bookings: rows.map((row) => ({
-        booking: row as unknown as BookingRow,
-        firstLeg: row.booking_legs[0]
-          ? {
-              origin_code: row.booking_legs[0].origin_code,
-              destination_code: row.booking_legs[0].destination_code,
-              leg_date: row.booking_legs[0].leg_date.toISOString().split("T")[0],
-              flight_id: row.booking_legs[0].flight_id,
-            }
-          : null,
-        passenger: row.booking_passengers[0]
-          ? {
-              first_name: row.booking_passengers[0].first_name,
-              last_name: row.booking_passengers[0].last_name,
-              email: row.booking_passengers[0].email ?? "",
-              phone: row.booking_passengers[0].phone,
-            }
-          : null,
-      })),
-      totalCount,
-      page,
-      totalPages: Math.ceil(totalCount / pageSize),
-    };
+    const totalCount = Number(countResult[0]?.cnt ?? 0);
+
+    const bookings = await Promise.all(
+      rows.map(async (row) => {
+        const { firstLeg, passenger } = await fetchFirstLegAndPassenger(Number(row.id));
+        return {
+          booking: toBookingRow(row as unknown as Record<string, unknown>),
+          firstLeg,
+          passenger,
+        };
+      })
+    );
+
+    return { bookings, totalCount, page, totalPages: Math.ceil(totalCount / pageSize) };
   },
 
   async findByStatus(status: string, page = 1, pageSize = 20): Promise<{
@@ -242,64 +320,39 @@ export const bookingRepository = {
   }> {
     const offset = (page - 1) * pageSize;
 
-    // Map simplified categories to actual DB status queries
-    let where: Record<string, unknown>;
+    let statusFilter;
     if (status === "upcoming") {
-      where = { status: { notIn: ["completed", "cancelled"] } };
+      statusFilter = sql`status NOT IN ('completed', 'cancelled')`;
     } else if (status === "completed") {
-      where = { status: "completed" };
+      statusFilter = sql`status = 'completed'`;
     } else if (status === "cancelled") {
-      where = { status: "cancelled" };
+      statusFilter = sql`status = 'cancelled'`;
     } else {
-      where = { status };
+      statusFilter = sql`status = ${status}`;
     }
 
-    const [totalCount, rows] = await Promise.all([
-      db.bookings.count({ where }),
-      db.bookings.findMany({
-        where,
-        skip: offset,
-        take: pageSize,
-        include: {
-          booking_legs: {
-            where: { leg_sequence: 1 },
-            select: { origin_code: true, destination_code: true, leg_date: true, flight_id: true },
-            take: 1,
-          },
-          booking_passengers: {
-            select: { first_name: true, last_name: true, email: true, phone: true },
-            orderBy: { id: "asc" },
-            take: 1,
-          },
-        },
-        orderBy: { created_at: "desc" },
-      }),
+    const [countRows, dataRows] = await Promise.all([
+      sql`SELECT COUNT(*)::int AS cnt FROM bookings WHERE ${statusFilter}`.execute(kdb),
+      sql`SELECT * FROM bookings
+        WHERE ${statusFilter}
+        ORDER BY created_at DESC
+        LIMIT ${pageSize} OFFSET ${offset}`.execute(kdb),
     ]);
 
-    return {
-      bookings: rows.map((row) => ({
-        booking: row as unknown as BookingRow,
-        firstLeg: row.booking_legs[0]
-          ? {
-              origin_code: row.booking_legs[0].origin_code,
-              destination_code: row.booking_legs[0].destination_code,
-              leg_date: row.booking_legs[0].leg_date.toISOString().split("T")[0],
-              flight_id: row.booking_legs[0].flight_id,
-            }
-          : null,
-        passenger: row.booking_passengers[0]
-          ? {
-              first_name: row.booking_passengers[0].first_name,
-              last_name: row.booking_passengers[0].last_name,
-              email: row.booking_passengers[0].email ?? "",
-              phone: row.booking_passengers[0].phone,
-            }
-          : null,
-      })),
-      totalCount,
-      page,
-      totalPages: Math.ceil(totalCount / pageSize),
-    };
+    const totalCount = Number((countRows.rows[0] as { cnt: number | bigint } | undefined)?.cnt ?? 0);
+
+    const bookings = await Promise.all(
+      (dataRows.rows as Record<string, unknown>[]).map(async (row) => {
+        const { firstLeg, passenger } = await fetchFirstLegAndPassenger(Number(row.id));
+        return {
+          booking: toBookingRow(row as unknown as Record<string, unknown>),
+          firstLeg,
+          passenger,
+        };
+      }),
+    );
+
+    return { bookings, totalCount, page, totalPages: Math.ceil(totalCount / pageSize) };
   },
 
   async findBySource(source: string, page = 1, pageSize = 20): Promise<{
@@ -309,51 +362,35 @@ export const bookingRepository = {
     totalPages: number;
   }> {
     const offset = (page - 1) * pageSize;
-    const [totalCount, rows] = await Promise.all([
-      db.bookings.count({ where: { booking_source: source } }),
-      db.bookings.findMany({
-        where: { booking_source: source },
-        skip: offset,
-        take: pageSize,
-        include: {
-          booking_legs: {
-            where: { leg_sequence: 1 },
-            select: { origin_code: true, destination_code: true, leg_date: true, flight_id: true },
-            take: 1,
-          },
-          booking_passengers: {
-            select: { first_name: true, last_name: true, email: true, phone: true },
-            orderBy: { id: "asc" },
-            take: 1,
-          },
-        },
-        orderBy: { created_at: "desc" },
-      }),
+    const [countResult, rows] = await Promise.all([
+      kdb
+        .selectFrom("bookings")
+        .select(kdb.fn.countAll<number>().as("cnt"))
+        .where("booking_source", "=", source)
+        .execute(),
+      kdb
+        .selectFrom("bookings")
+        .selectAll()
+        .where("booking_source", "=", source)
+        .orderBy("created_at desc")
+        .offset(offset)
+        .limit(pageSize)
+        .execute(),
     ]);
-    return {
-      bookings: rows.map((row) => ({
-        booking: row as unknown as BookingRow,
-        firstLeg: row.booking_legs[0]
-          ? {
-              origin_code: row.booking_legs[0].origin_code,
-              destination_code: row.booking_legs[0].destination_code,
-              leg_date: row.booking_legs[0].leg_date.toISOString().split("T")[0],
-              flight_id: row.booking_legs[0].flight_id,
-            }
-          : null,
-        passenger: row.booking_passengers[0]
-          ? {
-              first_name: row.booking_passengers[0].first_name,
-              last_name: row.booking_passengers[0].last_name,
-              email: row.booking_passengers[0].email ?? "",
-              phone: row.booking_passengers[0].phone,
-            }
-          : null,
-      })),
-      totalCount,
-      page,
-      totalPages: Math.ceil(totalCount / pageSize),
-    };
+    const totalCount = Number(countResult[0]?.cnt ?? 0);
+
+    const bookings = await Promise.all(
+      rows.map(async (row) => {
+        const { firstLeg, passenger } = await fetchFirstLegAndPassenger(Number(row.id));
+        return {
+          booking: toBookingRow(row as unknown as Record<string, unknown>),
+          firstLeg,
+          passenger,
+        };
+      })
+    );
+
+    return { bookings, totalCount, page, totalPages: Math.ceil(totalCount / pageSize) };
   },
 
   async findUnassigned(page = 1, pageSize = 20): Promise<{
@@ -363,59 +400,68 @@ export const bookingRepository = {
     totalPages: number;
   }> {
     const offset = (page - 1) * pageSize;
-    const [totalCount, rows] = await Promise.all([
-      db.bookings.count({
-        where: {
-          status: { notIn: ["cancelled", "completed"] },
-          booking_legs: { some: { flight_id: null } },
-        },
-      }),
-      db.bookings.findMany({
-        where: {
-          status: { notIn: ["cancelled", "completed"] },
-          booking_legs: { some: { flight_id: null } },
-        },
-        skip: offset,
-        take: pageSize,
-        distinct: ["id"],
-        include: {
-          booking_legs: {
-            where: { flight_id: null },
-            select: { origin_code: true, destination_code: true, leg_date: true },
-            take: 1,
-          },
-          booking_passengers: {
-            select: { first_name: true, last_name: true, email: true, phone: true },
-            orderBy: { id: "asc" },
-            take: 1,
-          },
-        },
-        orderBy: { created_at: "desc" },
-      }),
+
+    const [countRows, dataRows] = await Promise.all([
+      sql`
+        SELECT COUNT(DISTINCT b.id)::int AS cnt
+        FROM bookings b
+        INNER JOIN booking_legs bl ON bl.booking_id = b.id
+        WHERE b.status NOT IN ('cancelled', 'completed')
+          AND bl.flight_id IS NULL
+      `.execute(kdb),
+      sql`
+        SELECT DISTINCT b.*
+        FROM bookings b
+        INNER JOIN booking_legs bl ON bl.booking_id = b.id
+        WHERE b.status NOT IN ('cancelled', 'completed')
+          AND bl.flight_id IS NULL
+        ORDER BY b.created_at DESC
+        LIMIT ${pageSize} OFFSET ${offset}
+      `.execute(kdb),
     ]);
-    return {
-      bookings: rows.map((row) => ({
-        booking: row as unknown as BookingRow,
-        firstLeg: row.booking_legs[0]
-          ? {
-              origin_code: row.booking_legs[0].origin_code,
-              destination_code: row.booking_legs[0].destination_code,
-              leg_date: row.booking_legs[0].leg_date.toISOString().split("T")[0],
-            }
-          : null,
-        passenger: row.booking_passengers[0]
-          ? {
-              first_name: row.booking_passengers[0].first_name,
-              last_name: row.booking_passengers[0].last_name,
-              email: row.booking_passengers[0].email ?? "",
-              phone: row.booking_passengers[0].phone,
-            }
-          : null,
-      })),
-      totalCount,
-      page,
-      totalPages: Math.ceil(totalCount / pageSize),
-    };
+
+    const totalCount = Number((countRows.rows[0] as { cnt: number | bigint } | undefined)?.cnt ?? 0);
+
+    const bookings = await Promise.all(
+      (dataRows.rows as Record<string, unknown>[]).map(async (row) => {
+        const legRows = await kdb
+          .selectFrom("booking_legs")
+          .select(["origin_code", "destination_code", "leg_date"])
+          .where("booking_id", "=", Number(row.id))
+          .where("flight_id", "is", null)
+          .limit(1)
+          .execute();
+
+        const passengerRows = await kdb
+          .selectFrom("booking_passengers")
+          .select(["first_name", "last_name", "email", "phone"])
+          .where("booking_id", "=", Number(row.id))
+          .orderBy("id asc")
+          .limit(1)
+          .execute();
+
+        return {
+          booking: toBookingRow(row as unknown as Record<string, unknown>),
+          firstLeg: legRows[0]
+            ? {
+                origin_code: String(legRows[0].origin_code ?? ""),
+                destination_code: String(legRows[0].destination_code ?? ""),
+                leg_date: formatLegDate(String(legRows[0].leg_date ?? "")),
+              }
+            : null,
+          passenger: passengerRows[0]
+            ? {
+                first_name: String(passengerRows[0].first_name ?? ""),
+                last_name: String(passengerRows[0].last_name ?? ""),
+                email: String(passengerRows[0].email ?? ""),
+                phone: passengerRows[0].phone != null ? String(passengerRows[0].phone) : null,
+              }
+            : null,
+        };
+      })
+    );
+
+    return { bookings, totalCount, page, totalPages: Math.ceil(totalCount / pageSize) };
   },
 
   async search(query: string, page = 1, pageSize = 20): Promise<{
@@ -426,40 +472,52 @@ export const bookingRepository = {
   }> {
     const pattern = `%${query}%`;
     const offset = (page - 1) * pageSize;
-    // ILIKE search across booking_reference and passenger fields - use raw query for ILIKE support
+
     const [countResult, dataResult] = await Promise.all([
-      db.$queryRawUnsafe(
-        `SELECT COUNT(DISTINCT b.id) as cnt
-         FROM bookings b
-         LEFT JOIN booking_passengers p ON p.booking_id = b.id
-         WHERE b.booking_reference ILIKE $1 OR p.first_name ILIKE $1 OR p.last_name ILIKE $1 OR p.email ILIKE $1 OR p.phone ILIKE $1`,
-        pattern
-      ) as Promise<Record<string, unknown>[]>,
-      db.$queryRawUnsafe(
-        `SELECT DISTINCT b.*, bl.origin_code, bl.destination_code, bl.leg_date, bl.flight_id,
+      sql`
+        SELECT COUNT(DISTINCT b.id) as cnt
+        FROM bookings b
+        LEFT JOIN booking_passengers p ON p.booking_id = b.id
+        WHERE b.booking_reference ILIKE ${pattern}
+           OR p.first_name ILIKE ${pattern}
+           OR p.last_name ILIKE ${pattern}
+           OR p.email ILIKE ${pattern}
+           OR p.phone ILIKE ${pattern}
+      `.execute(kdb),
+      sql`
+        SELECT DISTINCT b.*, bl.origin_code, bl.destination_code, bl.leg_date, bl.flight_id,
                 p.first_name AS passenger_first_name, p.last_name AS passenger_last_name,
                 p.email AS passenger_email, p.phone AS passenger_phone
-         FROM bookings b
-         LEFT JOIN booking_legs bl ON bl.booking_id = b.id AND bl.leg_sequence = 1
-         LEFT JOIN booking_passengers p ON p.booking_id = b.id
-         WHERE b.booking_reference ILIKE $1 OR p.first_name ILIKE $1 OR p.last_name ILIKE $1 OR p.email ILIKE $1 OR p.phone ILIKE $1
-         ORDER BY b.created_at DESC
-         LIMIT $2 OFFSET $3`,
-        pattern, pageSize, offset
-      ) as Promise<Record<string, unknown>[]>,
+        FROM bookings b
+        LEFT JOIN booking_legs bl ON bl.booking_id = b.id AND bl.leg_sequence = 1
+        LEFT JOIN booking_passengers p ON p.booking_id = b.id
+        WHERE b.booking_reference ILIKE ${pattern}
+           OR p.first_name ILIKE ${pattern}
+           OR p.last_name ILIKE ${pattern}
+           OR p.email ILIKE ${pattern}
+           OR p.phone ILIKE ${pattern}
+        ORDER BY b.created_at DESC
+        LIMIT ${pageSize} OFFSET ${offset}
+      `.execute(kdb),
     ]);
-    const totalCount = Number((countResult[0] as { cnt: string | bigint })?.cnt ?? 0);
+
+    const totalCount = Number((countResult.rows[0] as { cnt: number | bigint } | undefined)?.cnt ?? 0);
     return {
-      bookings: dataResult.map((row: Record<string, unknown>) => ({
-        booking: row as unknown as BookingRow,
+      bookings: (dataResult.rows as Record<string, unknown>[]).map((row: Record<string, unknown>) => ({
+        booking: toBookingRow(row),
         firstLeg: row.origin_code
-          ? { origin_code: row.origin_code as string, destination_code: row.destination_code as string, leg_date: row.leg_date as string, flight_id: (row.flight_id as number) ?? null }
+          ? {
+              origin_code: row.origin_code as string,
+              destination_code: row.destination_code as string,
+              leg_date: formatLegDate(row.leg_date as string),
+              flight_id: (row.flight_id as number) ?? null,
+            }
           : null,
         passenger: row.passenger_first_name
           ? {
               first_name: row.passenger_first_name as string,
               last_name: row.passenger_last_name as string,
-              email: row.passenger_email as string,
+              email: (row.passenger_email as string) ?? "",
               phone: row.passenger_phone as string | null,
             }
           : null,
@@ -477,68 +535,71 @@ export const bookingRepository = {
     totalPages: number;
   }> {
     const offset = (page - 1) * pageSize;
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const [totalCount, rows] = await Promise.all([
-      db.bookings.count({
-        where: {
-          booking_legs: {
-            some: {
-              leg_date: { gte: start, lte: end },
-            },
-          },
-        },
-      }),
-      db.bookings.findMany({
-        where: {
-          booking_legs: {
-            some: {
-              leg_date: { gte: start, lte: end },
-            },
-          },
-        },
-        skip: offset,
-        take: pageSize,
-        distinct: ["id"],
-        include: {
-          booking_legs: {
-            where: { leg_date: { gte: start, lte: end } },
-            select: { origin_code: true, destination_code: true, leg_date: true, flight_id: true },
-            take: 1,
-          },
-          booking_passengers: {
-            select: { first_name: true, last_name: true, email: true, phone: true },
-            orderBy: { id: "asc" },
-            take: 1,
-          },
-        },
-        orderBy: { created_at: "desc" },
-      }),
+
+    const [countRows, dataRows] = await Promise.all([
+      sql`
+        SELECT COUNT(DISTINCT b.id)::int AS cnt
+        FROM bookings b
+        INNER JOIN booking_legs bl ON bl.booking_id = b.id
+        WHERE bl.leg_date >= ${startDate}::date
+          AND bl.leg_date <= ${endDate}::date
+      `.execute(kdb),
+      sql`
+        SELECT DISTINCT b.*
+        FROM bookings b
+        INNER JOIN booking_legs bl ON bl.booking_id = b.id
+        WHERE bl.leg_date >= ${startDate}::date
+          AND bl.leg_date <= ${endDate}::date
+        ORDER BY b.created_at DESC
+        LIMIT ${pageSize} OFFSET ${offset}
+      `.execute(kdb),
     ]);
-    return {
-      bookings: rows.map((row) => ({
-        booking: row as unknown as BookingRow,
-        firstLeg: row.booking_legs[0]
-          ? {
-              origin_code: row.booking_legs[0].origin_code,
-              destination_code: row.booking_legs[0].destination_code,
-              leg_date: row.booking_legs[0].leg_date.toISOString().split("T")[0],
-              flight_id: row.booking_legs[0].flight_id,
-            }
-          : null,
-        passenger: row.booking_passengers[0]
-          ? {
-              first_name: row.booking_passengers[0].first_name,
-              last_name: row.booking_passengers[0].last_name,
-              email: row.booking_passengers[0].email ?? "",
-              phone: row.booking_passengers[0].phone,
-            }
-          : null,
-      })),
-      totalCount,
-      page,
-      totalPages: Math.ceil(totalCount / pageSize),
-    };
+
+    const totalCount = Number((countRows.rows[0] as { cnt: number | bigint } | undefined)?.cnt ?? 0);
+
+    const bookings = await Promise.all(
+      (dataRows.rows as Record<string, unknown>[]).map(async (row) => {
+        const bid = Number(row.id);
+        const legRows = await kdb
+          .selectFrom("booking_legs")
+          .select(["origin_code", "destination_code", "leg_date", "flight_id"])
+          .where("booking_id", "=", bid)
+          .where("leg_date", ">=", startDate)
+          .where("leg_date", "<=", endDate)
+          .limit(1)
+          .execute();
+
+        const passengerRows = await kdb
+          .selectFrom("booking_passengers")
+          .select(["first_name", "last_name", "email", "phone"])
+          .where("booking_id", "=", bid)
+          .orderBy("id asc")
+          .limit(1)
+          .execute();
+
+        return {
+          booking: toBookingRow(row),
+          firstLeg: legRows[0]
+            ? {
+                origin_code: String(legRows[0].origin_code ?? ""),
+                destination_code: String(legRows[0].destination_code ?? ""),
+                leg_date: formatLegDate(String(legRows[0].leg_date ?? "")),
+                flight_id: legRows[0].flight_id != null ? Number(legRows[0].flight_id) : null,
+              }
+            : null,
+          passenger: passengerRows[0]
+            ? {
+                first_name: String(passengerRows[0].first_name ?? ""),
+                last_name: String(passengerRows[0].last_name ?? ""),
+                email: String(passengerRows[0].email ?? ""),
+                phone: passengerRows[0].phone != null ? String(passengerRows[0].phone) : null,
+              }
+            : null,
+        };
+      })
+    );
+
+    return { bookings, totalCount, page, totalPages: Math.ceil(totalCount / pageSize) };
   },
 
   async findByUserIdAndDateRange(userId: number, startDate: string, endDate: string, page = 1, pageSize = 20): Promise<{
@@ -548,109 +609,115 @@ export const bookingRepository = {
     totalPages: number;
   }> {
     const offset = (page - 1) * pageSize;
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const [totalCount, rows] = await Promise.all([
-      db.bookings.count({
-        where: {
-          user_id: userId,
-          booking_legs: {
-            some: {
-              leg_date: { gte: start, lte: end },
-            },
-          },
-        },
-      }),
-      db.bookings.findMany({
-        where: {
-          user_id: userId,
-          booking_legs: {
-            some: {
-              leg_date: { gte: start, lte: end },
-            },
-          },
-        },
-        skip: offset,
-        take: pageSize,
-        distinct: ["id"],
-        include: {
-          booking_legs: {
-            where: { leg_date: { gte: start, lte: end } },
-            select: { origin_code: true, destination_code: true, leg_date: true },
-            take: 1,
-          },
-        },
-        orderBy: { created_at: "desc" },
-      }),
+
+    const [countRows, dataRows] = await Promise.all([
+      sql`
+        SELECT COUNT(DISTINCT b.id)::int AS cnt
+        FROM bookings b
+        INNER JOIN booking_legs bl ON bl.booking_id = b.id
+        WHERE b.user_id = ${userId}
+          AND bl.leg_date >= ${startDate}::date
+          AND bl.leg_date <= ${endDate}::date
+      `.execute(kdb),
+      sql`
+        SELECT DISTINCT b.*
+        FROM bookings b
+        INNER JOIN booking_legs bl ON bl.booking_id = b.id
+        WHERE b.user_id = ${userId}
+          AND bl.leg_date >= ${startDate}::date
+          AND bl.leg_date <= ${endDate}::date
+        ORDER BY b.created_at DESC
+        LIMIT ${pageSize} OFFSET ${offset}
+      `.execute(kdb),
     ]);
-    return {
-      bookings: rows.map((row) => {
-        const rowWithLegs = row as unknown as typeof row & { booking_legs: Array<{ origin_code: string; destination_code: string; leg_date: Date }> };
+
+    const totalCount = Number((countRows.rows[0] as { cnt: number | bigint } | undefined)?.cnt ?? 0);
+
+    const bookings = await Promise.all(
+      (dataRows.rows as Record<string, unknown>[]).map(async (row) => {
+        const bid = Number(row.id);
+        const legRows = await kdb
+          .selectFrom("booking_legs")
+          .select(["origin_code", "destination_code", "leg_date"])
+          .where("booking_id", "=", bid)
+          .where("leg_date", ">=", startDate)
+          .where("leg_date", "<=", endDate)
+          .limit(1)
+          .execute();
+
         return {
-          booking: row as unknown as BookingRow,
-          firstLeg: rowWithLegs.booking_legs[0]
+          booking: toBookingRow(row),
+          firstLeg: legRows[0]
             ? {
-                origin_code: rowWithLegs.booking_legs[0].origin_code,
-                destination_code: rowWithLegs.booking_legs[0].destination_code,
-                leg_date: rowWithLegs.booking_legs[0].leg_date.toISOString().split("T")[0],
+                origin_code: String(legRows[0].origin_code ?? ""),
+                destination_code: String(legRows[0].destination_code ?? ""),
+                leg_date: formatLegDate(String(legRows[0].leg_date ?? "")),
               }
             : null,
         };
-      }),
-      totalCount,
-      page,
-      totalPages: Math.ceil(totalCount / pageSize),
-    };
+      })
+    );
+
+    return { bookings, totalCount, page, totalPages: Math.ceil(totalCount / pageSize) };
   },
 
   async findByFlightId(flightId: number): Promise<Array<{ booking: BookingRow; firstLeg: { origin_code: string; destination_code: string; leg_date: string } | null }>> {
-    const rows = await db.bookings.findMany({
-      where: {
-        booking_legs: { some: { flight_id: flightId } },
-      },
-      include: {
-        booking_legs: {
-          select: { origin_code: true, destination_code: true, leg_date: true },
-          take: 1,
-        },
-      },
-      orderBy: { created_at: "desc" },
-    });
-    return rows.map((row) => ({
-      booking: row as unknown as BookingRow,
-      firstLeg: row.booking_legs[0]
-        ? {
-            origin_code: row.booking_legs[0].origin_code,
-            destination_code: row.booking_legs[0].destination_code,
-            leg_date: row.booking_legs[0].leg_date.toISOString().split("T")[0],
-          }
-        : null,
-    }));
+    const rows = await kdb
+      .selectFrom("bookings as b")
+      .innerJoin("booking_legs as bl", "bl.booking_id", "b.id")
+      .selectAll("b")
+      .where("bl.flight_id", "=", flightId)
+      .orderBy("b.created_at desc")
+      .execute();
+
+    const results = await Promise.all(
+      rows.map(async (row) => {
+        const legRows = await kdb
+          .selectFrom("booking_legs")
+          .select(["origin_code", "destination_code", "leg_date"])
+          .where("booking_id", "=", Number(row.id))
+          .limit(1)
+          .execute();
+
+        return {
+          booking: toBookingRow(row as unknown as Record<string, unknown>),
+          firstLeg: legRows[0]
+            ? {
+                origin_code: String(legRows[0].origin_code ?? ""),
+                destination_code: String(legRows[0].destination_code ?? ""),
+                leg_date: formatLegDate(String(legRows[0].leg_date ?? "")),
+              }
+            : null,
+        };
+      })
+    );
+    return results;
   },
-  // ── Booking Information Surfacing methods ─────────────────────────────────────
 
   async getHoursInStatus(bookingId: number): Promise<number> {
-    const result = await db.bookings.findUnique({
-      where: { id: bookingId },
-      select: { updated_at: true },
-    });
-    if (!result) return 0;
-    const updatedAt = new Date(result.updated_at);
+    const rows = await kdb
+      .selectFrom("bookings")
+      .select("updated_at")
+      .where("id", "=", bookingId)
+      .execute();
+    if (rows.length === 0) return 0;
+    const updatedAt = new Date(String(rows[0].updated_at));
     const now = new Date();
     const diffMs = now.getTime() - updatedAt.getTime();
     return Math.round(diffMs / (1000 * 60 * 60));
   },
 
   async getDaysUntilDeparture(bookingId: number): Promise<number | null> {
-    const earliestLeg = await db.booking_legs.findFirst({
-      where: { booking_id: bookingId },
-      orderBy: { leg_date: "asc" },
-      select: { leg_date: true },
-    });
-    if (!earliestLeg) return null;
-    const legDate = new Date(earliestLeg.leg_date);
+    const rows = await kdb
+      .selectFrom("booking_legs")
+      .select("leg_date")
+      .where("booking_id", "=", bookingId)
+      .orderBy("leg_date asc")
+      .limit(1)
+      .execute();
+    if (rows.length === 0) return null;
+    const legDate = new Date(String(rows[0].leg_date));
     const now = new Date();
-    // Zero out time components for date-only comparison
     const legDateOnly = new Date(legDate.getFullYear(), legDate.getMonth(), legDate.getDate());
     const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const diffMs = legDateOnly.getTime() - nowDateOnly.getTime();
@@ -661,18 +728,15 @@ export const bookingRepository = {
     const offset = (page - 1) * pageSize;
 
     const [countResult, dataResult] = await Promise.all([
-      db.$queryRawUnsafe(
-        `SELECT COUNT(*) as cnt FROM (
+      sql`
+        SELECT COUNT(*) as cnt FROM (
           SELECT b.id
           FROM bookings b
           WHERE
-            -- Stuck (no update in > 48 hours) and not in a terminal state
             (b.updated_at < NOW() - INTERVAL '48 hours' AND b.status NOT IN ('cancelled', 'completed'))
             OR
-            -- Overdue payments
             (b.payment_status = 'pending' AND b.payment_due_date IS NOT NULL AND b.payment_due_date < CURRENT_DATE)
             OR
-            -- Approaching departure without flight assignment (upcoming bookings with no flight within 2 days)
             (b.status NOT IN ('cancelled', 'completed')
              AND EXISTS (
                SELECT 1 FROM booking_legs bl
@@ -682,52 +746,46 @@ export const bookingRepository = {
                  AND bl.leg_date >= CURRENT_DATE
              ))
             OR
-            -- Recently cancelled (within last hour)
             (b.status = 'cancelled' AND b.cancelled_at IS NOT NULL AND b.cancelled_at >= NOW() - INTERVAL '1 hour')
-        ) sub`
-      ) as Promise<Record<string, unknown>[]>,
-      db.$queryRawUnsafe(
-        `SELECT DISTINCT b.*, bl.origin_code, bl.destination_code, bl.leg_date,
+        ) sub
+      `.execute(kdb),
+      sql`
+        SELECT DISTINCT b.*, bl.origin_code, bl.destination_code, bl.leg_date,
                 p.first_name AS passenger_first_name, p.last_name AS passenger_last_name,
                 p.email AS passenger_email, p.phone AS passenger_phone
-         FROM bookings b
-         LEFT JOIN booking_legs bl ON bl.booking_id = b.id AND bl.leg_sequence = 1
-         LEFT JOIN LATERAL (
-           SELECT first_name, last_name, email, phone
-           FROM booking_passengers
-           WHERE booking_id = b.id
-           ORDER BY id
-           LIMIT 1
-         ) p ON true
-         WHERE
-           -- Stuck (no update in > 48 hours) and not in a terminal state
-           (b.updated_at < NOW() - INTERVAL '48 hours' AND b.status NOT IN ('cancelled', 'completed'))
-           OR
-           -- Overdue payments
-           (b.payment_status = 'pending' AND b.payment_due_date IS NOT NULL AND b.payment_due_date < CURRENT_DATE)
-           OR
-           -- Approaching departure without flight assignment
-           (b.status NOT IN ('cancelled', 'completed')
-            AND EXISTS (
-              SELECT 1 FROM booking_legs bl2
-              WHERE bl2.booking_id = b.id
-                AND bl2.flight_id IS NULL
-                AND bl2.leg_date <= CURRENT_DATE + INTERVAL '2 days'
-                AND bl2.leg_date >= CURRENT_DATE
-            ))
-           OR
-           -- Recently cancelled
-           (b.status = 'cancelled' AND b.cancelled_at IS NOT NULL AND b.cancelled_at >= NOW() - INTERVAL '1 hour')
-         ORDER BY b.created_at DESC
-         LIMIT $1 OFFSET $2`,
-        pageSize, offset
-      ) as Promise<Record<string, unknown>[]>,
+        FROM bookings b
+        LEFT JOIN booking_legs bl ON bl.booking_id = b.id AND bl.leg_sequence = 1
+        LEFT JOIN LATERAL (
+          SELECT first_name, last_name, email, phone
+          FROM booking_passengers
+          WHERE booking_id = b.id
+          ORDER BY id
+          LIMIT 1
+        ) p ON true
+        WHERE
+          (b.updated_at < NOW() - INTERVAL '48 hours' AND b.status NOT IN ('cancelled', 'completed'))
+          OR
+          (b.payment_status = 'pending' AND b.payment_due_date IS NOT NULL AND b.payment_due_date < CURRENT_DATE)
+          OR
+          (b.status NOT IN ('cancelled', 'completed')
+           AND EXISTS (
+             SELECT 1 FROM booking_legs bl2
+             WHERE bl2.booking_id = b.id
+               AND bl2.flight_id IS NULL
+               AND bl2.leg_date <= CURRENT_DATE + INTERVAL '2 days'
+               AND bl2.leg_date >= CURRENT_DATE
+           ))
+          OR
+          (b.status = 'cancelled' AND b.cancelled_at IS NOT NULL AND b.cancelled_at >= NOW() - INTERVAL '1 hour')
+        ORDER BY b.created_at DESC
+        LIMIT ${pageSize} OFFSET ${offset}
+      `.execute(kdb),
     ]);
 
-    const totalCount = Number((countResult[0] as { cnt: string | bigint })?.cnt ?? 0);
+    const totalCount = Number((countResult.rows[0] as { cnt: number | bigint } | undefined)?.cnt ?? 0);
     return {
-      bookings: dataResult.map((row: Record<string, unknown>) => ({
-        booking: row as unknown as BookingRow,
+      bookings: (dataResult.rows as Record<string, unknown>[]).map((row: Record<string, unknown>) => ({
+        booking: toBookingRow(row),
         firstLeg: row.origin_code
           ? { origin_code: row.origin_code as string, destination_code: row.destination_code as string, leg_date: row.leg_date as string }
           : null,
@@ -748,72 +806,79 @@ export const bookingRepository = {
 
   async getPipelineCounts(): Promise<Record<string, number>> {
     const [total, upcoming, completed, cancelled] = await Promise.all([
-      db.bookings.count(),
-      db.bookings.count({
-        where: { status: { notIn: ["completed", "cancelled"] } },
-      }),
-      db.bookings.count({
-        where: { status: "completed" },
-      }),
-      db.bookings.count({
-        where: { status: "cancelled" },
-      }),
+      kdb.selectFrom("bookings").select(kdb.fn.countAll<number>().as("cnt")).execute(),
+      kdb
+        .selectFrom("bookings")
+        .select(kdb.fn.countAll<number>().as("cnt"))
+        .where("status", "not in", ["completed", "cancelled"])
+        .execute(),
+      kdb
+        .selectFrom("bookings")
+        .select(kdb.fn.countAll<number>().as("cnt"))
+        .where("status", "=", "completed")
+        .execute(),
+      kdb
+        .selectFrom("bookings")
+        .select(kdb.fn.countAll<number>().as("cnt"))
+        .where("status", "=", "cancelled")
+        .execute(),
     ]);
-    return { total, upcoming, completed, cancelled };
+    return {
+      total: Number(total[0]?.cnt ?? 0),
+      upcoming: Number(upcoming[0]?.cnt ?? 0),
+      completed: Number(completed[0]?.cnt ?? 0),
+      cancelled: Number(cancelled[0]?.cnt ?? 0),
+    };
   },
 
   async findFlightsWithCapacity(): Promise<Array<{ id: number; flightNumber: string; route: string; availableSeats: number }>> {
-    // Step 1: Fetch scheduled flights with aircraft info
-    const flights = await db.flights.findMany({
-      where: { status: "scheduled" },
-      include: {
-        aircraft: {
-          select: { seat_count: true },
-        },
-      },
-      orderBy: { departure_time: "asc" },
-    });
+    const flights = await kdb
+      .selectFrom("flights as f")
+      .innerJoin("aircraft as a", "a.id", "f.aircraft_id")
+      .select([
+        "f.id",
+        "f.flight_number",
+        "f.origin_code",
+        "f.destination_code",
+        "a.seat_count",
+      ])
+      .where("f.status", "=", "scheduled")
+      .orderBy("f.departure_time asc")
+      .execute();
 
-    // Step 2: For each flight, count assigned passengers (non-cancelled bookings)
     const results = await Promise.all(
       flights.map(async (flight) => {
-        const seatCount = flight.aircraft?.seat_count ?? 0;
+        const seatCount = flight.seat_count;
+        const originCode = String(flight.origin_code ?? "");
+        const destCode = String(flight.destination_code ?? "");
 
-        // Count distinct booking_passengers for this flight via booking_legs
-        const assignedResult = await db.booking_legs.findMany({
-          where: {
-            flight_id: flight.id,
-            booking: { status: { not: "cancelled" } },
-          },
-          select: {
-            booking: {
-              select: {
-                booking_passengers: {
-                  select: { id: true },
-                },
-              },
-            },
-          },
-        });
+        const bookingLegs = await kdb
+          .selectFrom("booking_legs as bl")
+          .innerJoin("bookings as b", "b.id", "bl.booking_id")
+          .select("bl.booking_id")
+          .where("bl.flight_id", "=", Number(flight.id))
+          .where("b.status", "!=", "cancelled")
+          .execute();
 
-        // Count unique passenger IDs across all booking legs for this flight
-        const passengerIds = new Set<number>();
-        for (const leg of assignedResult) {
-          for (const p of leg.booking.booking_passengers) {
-            passengerIds.add(p.id);
-          }
+        const uniqueBookingIds = [...new Set(bookingLegs.map((bl) => bl.booking_id))];
+
+        let totalPassengers = 0;
+        for (const bookingId of uniqueBookingIds) {
+          const countResult = await kdb
+            .selectFrom("booking_passengers")
+            .select(kdb.fn.countAll<number>().as("cnt"))
+            .where("booking_id", "=", bookingId)
+            .execute();
+          totalPassengers += Number(countResult[0]?.cnt ?? 0);
         }
-        const seatsTaken = passengerIds.size;
-        const availableSeats = seatCount - seatsTaken;
 
+        const availableSeats = seatCount - totalPassengers;
         if (availableSeats <= 0) return null;
 
-        const originCode = flight.origin_code ?? "";
-        const destCode = flight.destination_code ?? "";
         return {
-          id: flight.id,
-          flightNumber: flight.flight_number,
-          route: `${originCode} → ${destCode}`,
+          id: Number(flight.id),
+          flightNumber: String(flight.flight_number ?? ""),
+          route: `${originCode} -> ${destCode}`,
           availableSeats,
         };
       })
@@ -823,54 +888,43 @@ export const bookingRepository = {
   },
 
   async findAgentPortfolio(agentUserId: number): Promise<ClientGroup[]> {
-    const rows = await db.bookings.findMany({
-      where: {
-        booking_source: "booking_agent",
-        created_by: agentUserId,
-      },
-      include: {
-        booking_legs: {
-          where: { leg_sequence: 1 },
-          select: { origin_code: true, destination_code: true, leg_date: true },
-          take: 1,
-        },
-        booking_passengers: {
-          select: { first_name: true, last_name: true, email: true },
-          orderBy: { id: "asc" },
-          take: 1,
-        },
-      },
-      orderBy: { created_at: "desc" },
-    });
-
-    // Sort in application code by passenger name (Prisma doesn't support ordering by nested relation fields in findMany)
-    rows.sort((a, b) => {
-      const aPassenger = (a as unknown as { booking_passengers: Array<{ first_name: string; last_name: string }> }).booking_passengers[0];
-      const bPassenger = (b as unknown as { booking_passengers: Array<{ first_name: string; last_name: string }> }).booking_passengers[0];
-      const aLastName = aPassenger?.last_name ?? "";
-      const bLastName = bPassenger?.last_name ?? "";
-      const lastNameCmp = aLastName.localeCompare(bLastName);
-      if (lastNameCmp !== 0) return lastNameCmp;
-      const aFirstName = aPassenger?.first_name ?? "";
-      const bFirstName = bPassenger?.first_name ?? "";
-      return aFirstName.localeCompare(bFirstName);
-    });
+    const rows = await kdb
+      .selectFrom("bookings as b")
+      .selectAll("b")
+      .where("b.booking_source", "=", "booking_agent")
+      .where("b.created_by", "=", agentUserId)
+      .orderBy("b.created_at desc")
+      .execute();
 
     const groups = new Map<string, ClientGroup>();
 
     for (const row of rows) {
-      const rowWithIncludes = row as unknown as {
-        booking_passengers: Array<{ first_name: string; last_name: string; email: string }>;
-        booking_legs: Array<{ origin_code: string; destination_code: string; leg_date: Date }>;
-        payment_status: string;
-      };
-      const passenger = rowWithIncludes.booking_passengers[0];
-      const firstName = passenger?.first_name ?? "";
-      const lastName = passenger?.last_name ?? "";
-      const clientEmail = passenger?.email ?? "";
+      const bookingId = Number(row.id);
+
+      const [passengerRows, legRows] = await Promise.all([
+        kdb
+          .selectFrom("booking_passengers")
+          .select(["first_name", "last_name", "email"])
+          .where("booking_id", "=", bookingId)
+          .orderBy("id asc")
+          .limit(1)
+          .execute(),
+        kdb
+          .selectFrom("booking_legs")
+          .select(["origin_code", "destination_code", "leg_date"])
+          .where("booking_id", "=", bookingId)
+          .where("leg_sequence", "=", 1)
+          .limit(1)
+          .execute(),
+      ]);
+
+      const passenger = passengerRows[0];
+      const firstName = passenger ? String(passenger.first_name ?? "") : "";
+      const lastName = passenger ? String(passenger.last_name ?? "") : "";
+      const clientEmail = passenger ? String(passenger.email ?? "") : "";
       const clientName = `${firstName} ${lastName}`.trim() || "Unknown Client";
 
-      const leg = rowWithIncludes.booking_legs[0];
+      const leg = legRows[0];
 
       if (!groups.has(clientName)) {
         groups.set(clientName, {
@@ -882,95 +936,112 @@ export const bookingRepository = {
 
       const group = groups.get(clientName)!;
       group.bookings.push({
-        booking: row as unknown as BookingRow,
+        booking: toBookingRow(row as unknown as Record<string, unknown>),
         firstLeg: leg
-          ? { origin_code: leg.origin_code, destination_code: leg.destination_code, leg_date: leg.leg_date.toISOString().split("T")[0] }
+          ? {
+              origin_code: String(leg.origin_code ?? ""),
+              destination_code: String(leg.destination_code ?? ""),
+              leg_date: formatLegDate(String(leg.leg_date ?? "")),
+            }
           : null,
-        paymentStatus: rowWithIncludes.payment_status ?? "pending",
+        paymentStatus: String(row.payment_status ?? "pending"),
       });
     }
 
-    return Array.from(groups.values());
+    const result = Array.from(groups.values());
+    result.sort((a, b) => {
+      const aLast = a.clientName.split(" ").pop() ?? "";
+      const bLast = b.clientName.split(" ").pop() ?? "";
+      const cmp = aLast.localeCompare(bLast);
+      if (cmp !== 0) return cmp;
+      return a.clientName.localeCompare(b.clientName);
+    });
+    return result;
   },
 
   async findRecentActivity(agentUserId: number, limit = 20): Promise<ActivityItem[]> {
-    // Calculate date 30 days ago
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Step 1: Fetch audit_log entries for bookings by this agent
-    const auditRows = await db.audit_log.findMany({
-      where: {
-        entity_type: "booking",
-        created_at: { gte: thirtyDaysAgo },
-      },
-      orderBy: { created_at: "desc" },
-      take: limit,
-    });
+    const auditRows = await kdb
+      .selectFrom("audit_log")
+      .selectAll()
+      .where("entity_type", "=", "booking")
+      .where("created_at", ">=", thirtyDaysAgo.toISOString())
+      .orderBy("created_at desc")
+      .limit(limit)
+      .execute();
 
     if (auditRows.length === 0) return [];
 
-    // Step 2: Collect unique booking IDs and fetch related bookings
     const bookingIds = [...new Set(auditRows.map((r) => r.entity_id).filter((id): id is number => id !== null))];
 
-    const bookings = await db.bookings.findMany({
-      where: {
-        id: { in: bookingIds },
-        booking_source: "booking_agent",
-        created_by: agentUserId,
-      },
-      include: {
-        booking_passengers: {
-          select: { first_name: true, last_name: true },
-          orderBy: { id: "asc" },
-          take: 1,
-        },
-      },
-    });
+    const bookingRows = await kdb
+      .selectFrom("bookings")
+      .selectAll()
+      .where("id", "in", bookingIds)
+      .where("booking_source", "=", "booking_agent")
+      .where("created_by", "=", agentUserId)
+      .execute();
 
-    // Step 3: Build a lookup map
-    const bookingMap = new Map(bookings.map((b) => [b.id, b]));
+    const bookingMap = new Map(bookingRows.map((b) => [b.id, b]));
+    const passengerMap = new Map<number, { first_name: string; last_name: string }>();
 
-    // Step 4: Filter audit rows to only those matching the agent's bookings, then map
+    for (const booking of bookingRows) {
+      const pRows = await kdb
+        .selectFrom("booking_passengers")
+        .select(["first_name", "last_name"])
+        .where("booking_id", "=", Number(booking.id))
+        .orderBy("id asc")
+        .limit(1)
+        .execute();
+      passengerMap.set(Number(booking.id), {
+        first_name: String(pRows[0]?.first_name ?? ""),
+        last_name: String(pRows[0]?.last_name ?? ""),
+      });
+    }
+
     return auditRows
-      .filter((row) => row.entity_id !== null && bookingMap.has(row.entity_id))
+      .filter((row) => row.entity_id != null && bookingMap.has(row.entity_id))
       .map((row) => {
         const action = row.action;
         const newValues = row.new_values as Record<string, unknown> | null;
-        const booking = bookingMap.get(row.entity_id!);
-        const passenger = booking?.booking_passengers[0];
+        const booking = bookingMap.get(row.entity_id as number);
+        const passenger = passengerMap.get(row.entity_id as number);
 
         let type: ActivityItem["type"] = "status_change";
         let description = "";
+        const ref = booking ? String(booking.booking_reference ?? "") : "N/A";
+        const clientName = `${passenger?.first_name ?? ""} ${passenger?.last_name ?? ""}`.trim() || "Unknown";
 
         switch (action) {
           case "create":
             type = "new_booking";
-            description = `Booking ${booking?.booking_reference ?? "N/A"} created`;
+            description = `Booking ${ref} created`;
             break;
           case "cancel":
             type = "cancellation";
-            description = `Booking ${booking?.booking_reference ?? "N/A"} cancelled`;
+            description = `Booking ${ref} cancelled`;
             break;
           case "payment":
             type = "payment";
-            description = `Payment received for ${booking?.booking_reference ?? "N/A"}`;
+            description = `Payment received for ${ref}`;
             break;
           case "update_status":
             type = "status_change";
             description = newValues?.status
               ? `Status changed to ${newValues.status}`
-              : `Booking ${booking?.booking_reference ?? "N/A"} updated`;
+              : `Booking ${ref} updated`;
             break;
           default:
-            description = `Booking ${booking?.booking_reference ?? "N/A"} ${action}`;
+            description = `Booking ${ref} ${action}`;
         }
 
         return {
           type,
-          bookingRef: booking?.booking_reference ?? "",
-          clientName: `${passenger?.first_name ?? ""} ${passenger?.last_name ?? ""}`.trim() || "Unknown",
-          timestamp: row.created_at.toISOString(),
+          bookingRef: ref,
+          clientName,
+          timestamp: String(row.created_at ?? ""),
           description,
         };
       });

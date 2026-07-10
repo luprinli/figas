@@ -1,9 +1,10 @@
-﻿import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, Link, useNavigation, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import DashboardCard from "../components/DashboardCard";
 import Skeleton from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
@@ -16,14 +17,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
     const today = new Date().toISOString().slice(0, 10);
 
-    const pilot = await db.$queryRawUnsafe<{ id: number }[]>(
-        `SELECT id FROM pilots WHERE user_id = $1 LIMIT 1`, Number(user.id)
-    );
-    const pilotId = pilot.length > 0 ? pilot[0].id : 0;
+    const pilotResult = await sql<{ id: number }>`
+        SELECT id FROM pilots WHERE user_id = ${Number(user.id)} LIMIT 1
+    `.execute(kdb);
+    const pilotId = pilotResult.rows.length > 0 ? (pilotResult.rows[0] as { id: number }).id : 0;
 
     const [flightsResult, scheduleResult] = await Promise.all([
-        db.query(
-            `SELECT f.id, f.flight_number, f.departure_time, f.arrival_time, f.status,
+        sql<Record<string, unknown>>`
+            SELECT f.id, f.flight_number, f.departure_time, f.arrival_time, f.status,
               ao.code AS origin_code, ad.code AS destination_code,
               a.registration AS aircraft_registration, a.type AS aircraft_type,
               COALESCE((SELECT COUNT(*) FROM booking_legs bl WHERE bl.flight_id = f.id), 0) AS passenger_count
@@ -32,25 +33,23 @@ export async function loader({ request }: LoaderFunctionArgs) {
        JOIN aerodromes ao ON ao.id = f.origin_aerodrome_id
        JOIN aerodromes ad ON ad.id = f.destination_aerodrome_id
        JOIN aircraft a ON a.id = f.aircraft_id
-       WHERE pa.pilot_id = $1 AND f.departure_time::date = $2
-       ORDER BY f.departure_time`,
-            [pilotId, today]
-        ),
-        db.query(
-            `SELECT s.id, s.schedule_date, s.status
+       WHERE pa.pilot_id = ${pilotId} AND f.departure_time::date = ${today}
+       ORDER BY f.departure_time
+        `.execute(kdb),
+        sql<Record<string, unknown>>`
+            SELECT s.id, s.schedule_date, s.status
        FROM schedules s
        JOIN pilot_assignments pa ON pa.schedule_id = s.id
-       WHERE pa.pilot_id = $1 AND s.schedule_date >= $2
+       WHERE pa.pilot_id = ${pilotId} AND s.schedule_date >= ${today}
        ORDER BY s.schedule_date
-       LIMIT 5`,
-            [pilotId, today]
-        ),
+       LIMIT 5
+        `.execute(kdb),
     ]);
 
     return json({
         user,
-        flights: flightsResult.rows as Array<Record<string, unknown>>,
-        schedules: scheduleResult.rows as Array<Record<string, unknown>>,
+        flights: flightsResult.rows,
+        schedules: scheduleResult.rows,
         today,
     });
 }

@@ -9,7 +9,8 @@ import { Form, Link, useActionData, useNavigation , useRouteError, isRouteErrorR
 
 import { commitSession, getSession } from "../session.server";
 import { getUserIdentity, redirectToRoleHome } from "../utils/auth.server";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import { verifyPassword } from "../utils/password.server";
 
 import Button from "../components/Button";
@@ -50,10 +51,11 @@ export async function action({ request }: ActionFunctionArgs) {
     );
   }
 
-  const user = (await db.queryOne(
-    "SELECT id, email, name, password, role FROM users WHERE email = $1",
-    [email.toLowerCase().trim()]
-  )) as { id: number; email: string; name: string; password: string; role: string } | null;
+  const result = await sql<{ id: number; email: string; name: string; password: string; role: string }>`
+    SELECT id, email, name, password, role FROM users WHERE email = ${email.toLowerCase().trim()}
+  `.execute(kdb);
+
+  const user = result.rows[0] ?? null;
 
   if (!user) {
     return json({ error: "Invalid credentials" }, { status: 401 });

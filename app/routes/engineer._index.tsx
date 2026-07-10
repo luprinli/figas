@@ -1,9 +1,10 @@
-﻿import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, Link, useNavigation, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import DashboardCard from "../components/DashboardCard";
 import ProgressBar from "../components/ProgressBar";
 import Skeleton from "../components/Skeleton";
@@ -17,34 +18,34 @@ export async function loader({ request }: LoaderFunctionArgs) {
     const user = await requirePermission(request, Permission.MAINTENANCE_VIEW);
 
     const [aircraftResult, airframeHoursResult, openDefectsResult] = await Promise.all([
-        db.query(
-            `SELECT id, registration, type, is_active,
+        sql<Record<string, unknown>>`
+            SELECT id, registration, type, is_active,
               COALESCE((SELECT SUM(SPLIT_PART(total_hours, ':', 1)::int) FROM airframe_hours WHERE aircraft_id = a.id), 0)::int4 AS total_hours,
               COALESCE((SELECT last_reading_date FROM airframe_hours WHERE aircraft_id = a.id ORDER BY last_reading_date DESC LIMIT 1), NULL) AS last_recorded
        FROM aircraft a
-       ORDER BY registration`
-        ),
-        db.query(
-            `SELECT ah.id, ah.aircraft_id, SPLIT_PART(ah.total_hours, ':', 1)::int::int4 AS total_hours, ah.last_reading_date AS recorded_at,
+       ORDER BY registration
+        `.execute(kdb),
+        sql<Record<string, unknown>>`
+            SELECT ah.id, ah.aircraft_id, SPLIT_PART(ah.total_hours, ':', 1)::int::int4 AS total_hours, ah.last_reading_date AS recorded_at,
               a.registration
        FROM airframe_hours ah
        JOIN aircraft a ON a.id = ah.aircraft_id
         ORDER BY ah.last_reading_date DESC
-        LIMIT 10`
-        ),
+        LIMIT 10
+        `.execute(kdb),
         // Open defect count
-        db.query(
-            `SELECT aircraft_id, COUNT(*)::int AS open_defects
+        sql<{ aircraft_id: number; open_defects: number }>`
+            SELECT aircraft_id, COUNT(*)::int AS open_defects
              FROM defects WHERE deferral_status != 'closed'
-             GROUP BY aircraft_id`
-        ),
+             GROUP BY aircraft_id
+        `.execute(kdb),
     ]);
 
     return json({
         user,
-        aircraft: aircraftResult.rows as Array<Record<string, unknown>>,
-        airframeHours: airframeHoursResult.rows as Array<Record<string, unknown>>,
-        openDefects: openDefectsResult.rows as Array<{ aircraft_id: number; open_defects: number }>,
+        aircraft: aircraftResult.rows,
+        airframeHours: airframeHoursResult.rows,
+        openDefects: openDefectsResult.rows,
     });
 }
 

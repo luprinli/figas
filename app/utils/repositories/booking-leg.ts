@@ -1,4 +1,7 @@
-import { db } from "../db.server";
+import { kdb } from "../db.server.kysely";
+import { sql } from "kysely";
+import type { Kysely } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 
 export interface BookingLegRow {
   id: number;
@@ -17,20 +20,43 @@ export interface BookingLegRow {
   updated_at: string;
 }
 
+function toRow(r: Record<string, unknown>): BookingLegRow {
+  return {
+    id: Number(r.id),
+    booking_id: Number(r.booking_id),
+    flight_id: r.flight_id != null ? Number(r.flight_id) : null,
+    origin_code: String(r.origin_code ?? ""),
+    destination_code: String(r.destination_code ?? ""),
+    leg_date: String(r.leg_date ?? ""),
+    departure_date: r.departure_date != null ? String(r.departure_date) : null,
+    preferred_time: r.preferred_time != null ? String(r.preferred_time) : null,
+    preferred_time_start: r.preferred_time_start != null ? String(r.preferred_time_start) : null,
+    preferred_time_end: r.preferred_time_end != null ? String(r.preferred_time_end) : null,
+    leg_sequence: Number(r.leg_sequence),
+    status: String(r.status ?? ""),
+    created_at: String(r.created_at ?? ""),
+    updated_at: String(r.updated_at ?? ""),
+  };
+}
+
 export const bookingLegRepository = {
   async findByBookingId(bookingId: number): Promise<BookingLegRow[]> {
-    const legs = await db.booking_legs.findMany({
-      where: { booking_id: bookingId },
-      orderBy: { leg_sequence: "asc" },
-    });
-    return legs as unknown as BookingLegRow[];
+    const rows = await kdb
+      .selectFrom("booking_legs")
+      .selectAll()
+      .where("booking_id", "=", bookingId)
+      .orderBy("leg_sequence asc")
+      .execute();
+    return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
   },
 
   async findById(id: number): Promise<BookingLegRow | null> {
-    const leg = await db.booking_legs.findUnique({
-      where: { id },
-    });
-    return (leg as unknown as BookingLegRow) ?? null;
+    const rows = await kdb
+      .selectFrom("booking_legs")
+      .selectAll()
+      .where("id", "=", id)
+      .execute();
+    return rows.length > 0 ? toRow(rows[0] as unknown as Record<string, unknown>) : null;
   },
 
   async create(data: {
@@ -49,46 +75,53 @@ export const bookingLegRepository = {
         `Origin and destination must be different: ${data.origin_code} → ${data.destination_code}`
       );
     }
-    const leg = await db.booking_legs.create({
-      data: {
+    const rows = await kdb
+      .insertInto("booking_legs")
+      .values({
         booking_id: data.booking_id,
         origin_code: data.origin_code,
         destination_code: data.destination_code,
-        leg_date: new Date(data.leg_date),
-        departure_date: data.departure_date ? new Date(data.departure_date) : null,
-        preferred_time: data.preferred_time ?? null,
-        preferred_time_start: data.preferred_time_start ?? null,
-        preferred_time_end: data.preferred_time_end ?? null,
+        leg_date: data.leg_date,
+        departure_date: data.departure_date ?? undefined,
+        preferred_time: data.preferred_time ?? undefined,
+        preferred_time_start: data.preferred_time_start ?? undefined,
+        preferred_time_end: data.preferred_time_end ?? undefined,
         leg_sequence: data.leg_sequence,
-      },
-    });
-    return leg as unknown as BookingLegRow;
+      } as any)
+      .returningAll()
+      .execute();
+    return toRow(rows[0] as unknown as Record<string, unknown>);
   },
 
-  async assignFlight(id: number, flightId: number, client?: typeof db): Promise<void> {
-    const c = client ?? db;
-    await c.booking_legs.update({
-      where: { id },
-      data: { flight_id: flightId },
-    });
+  async assignFlight(id: number, flightId: number, client?: Kysely<DB>): Promise<void> {
+    const c = client ?? kdb;
+    await c
+      .updateTable("booking_legs")
+      .set({ flight_id: flightId } as any)
+      .where("id", "=", id)
+      .execute();
   },
 
-  async updateStatus(id: number, status: string, client?: typeof db): Promise<void> {
-    const c = client ?? db;
-    await c.booking_legs.update({
-      where: { id },
-      data: { status },
-    });
+  async updateStatus(id: number, status: string, client?: Kysely<DB>): Promise<void> {
+    const c = client ?? kdb;
+    await c
+      .updateTable("booking_legs")
+      .set({ status } as any)
+      .where("id", "=", id)
+      .execute();
   },
 
   async findByBookingIds(ids: number[]): Promise<Map<number, BookingLegRow[]>> {
     if (ids.length === 0) return new Map();
-    const legs = await db.booking_legs.findMany({
-      where: { booking_id: { in: ids } },
-      orderBy: [{ booking_id: "asc" }, { leg_sequence: "asc" }],
-    });
+    const rows = await kdb
+      .selectFrom("booking_legs")
+      .selectAll()
+      .where("booking_id", "in", ids)
+      .orderBy(sql`booking_id asc, leg_sequence asc`)
+      .execute();
     const map = new Map<number, BookingLegRow[]>();
-    for (const row of legs as unknown as BookingLegRow[]) {
+    for (const r of rows) {
+      const row = toRow(r as unknown as Record<string, unknown>);
       const existing = map.get(row.booking_id) ?? [];
       existing.push(row);
       map.set(row.booking_id, existing);
@@ -97,61 +130,50 @@ export const bookingLegRepository = {
   },
 
   async findUnassignedLegs(): Promise<BookingLegRow[]> {
-    const rows = await db.$queryRawUnsafe<
-      Array<{
-        id: number; booking_id: number; flight_id: number | null;
-        origin_code: string; destination_code: string; leg_date: string;
-        departure_date: string | null; preferred_time: string | null;
-        preferred_time_start: string | null; preferred_time_end: string | null;
-        leg_sequence: number; status: string;
-        created_at: string; updated_at: string;
-      }>
-    >(
-      `SELECT id, booking_id, flight_id, origin_code, destination_code,
-              leg_date, departure_date, preferred_time, preferred_time_start,
-              preferred_time_end, leg_sequence, status, created_at, updated_at
-       FROM (
-         SELECT DISTINCT bl.id, bl.booking_id, bl.flight_id,
-                bl.origin_code, bl.destination_code,
-                bl.leg_date::text AS leg_date,
-                bl.departure_date::text AS departure_date,
-                bl.preferred_time, bl.preferred_time_start,
-                bl.preferred_time_end, bl.leg_sequence, bl.status,
-                bl.created_at::text AS created_at,
-                bl.updated_at::text AS updated_at
-         FROM booking_legs bl
-         JOIN booking_leg_passengers blp ON blp.booking_leg_id = bl.id
-         JOIN bookings b ON b.id = bl.booking_id
-         WHERE blp.flight_leg_id IS NULL
-           AND b.status NOT IN ('cancelled', 'completed')
-       ) sub
-       ORDER BY sub.leg_date, sub.leg_sequence`
-    );
-    return rows.map((r) => ({
-      id: Number(r.id),
-      booking_id: Number(r.booking_id),
-      flight_id: r.flight_id ? Number(r.flight_id) : null,
-      origin_code: r.origin_code,
-      destination_code: r.destination_code,
-      leg_date: String(r.leg_date),
-      departure_date: r.departure_date ? String(r.departure_date) : null,
-      preferred_time: r.preferred_time ? String(r.preferred_time) : null,
-      preferred_time_start: r.preferred_time_start ? String(r.preferred_time_start) : null,
-      preferred_time_end: r.preferred_time_end ? String(r.preferred_time_end) : null,
-      leg_sequence: Number(r.leg_sequence),
-      status: r.status,
-      created_at: String(r.created_at),
-      updated_at: String(r.updated_at),
-    })) as unknown as BookingLegRow[];
+    const subq = kdb
+      .selectFrom("booking_legs as bl")
+      .innerJoin("booking_leg_passengers as blp", "blp.booking_leg_id", "bl.id")
+      .innerJoin("bookings as b", "b.id", "bl.booking_id")
+      .select([
+        "bl.id",
+        "bl.booking_id",
+        "bl.flight_id",
+        "bl.origin_code",
+        "bl.destination_code",
+        "bl.leg_date",
+        "bl.departure_date",
+        "bl.preferred_time",
+        "bl.preferred_time_start",
+        "bl.preferred_time_end",
+        "bl.leg_sequence",
+        "bl.status",
+        "bl.created_at",
+        "bl.updated_at",
+      ])
+      .where("blp.flight_leg_id", "is", null)
+      .where("b.status", "not in", ["cancelled", "completed"])
+      .distinct()
+      .as("sub");
+
+    const rows = await kdb
+      .selectFrom(subq)
+      .selectAll()
+      .orderBy(sql`leg_date asc, leg_sequence asc`)
+      .execute();
+
+    return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
   },
 
   async delete(id: number): Promise<void> {
-    await db.booking_legs.delete({ where: { id } });
+    await kdb.deleteFrom("booking_legs").where("id", "=", id).execute();
   },
 
   async countByFlightId(flightId: number): Promise<number> {
-    return db.booking_legs.count({
-      where: { flight_id: flightId },
-    });
+    const result = await kdb
+      .selectFrom("booking_legs")
+      .select(kdb.fn.countAll<number>().as("count"))
+      .where("flight_id", "=", flightId)
+      .execute();
+    return Number(result[0]?.count ?? 0);
   },
 };

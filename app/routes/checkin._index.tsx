@@ -1,8 +1,9 @@
-﻿import type { MetaFunction } from "@remix-run/node";
+import type { MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { Link, useLoaderData, useNavigation, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import { checkinRepository } from "../utils/repositories/checkin";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import DataGrid from "../components/DataGrid";
 import type { Column } from "../components/DataTable";
 import EmptyState from "../components/EmptyState";
@@ -17,8 +18,8 @@ export async function loader() {
 
   const [pendingResult, flightsResult, recentResult] = await Promise.all([
     checkinRepository.findPending(),
-    db.query(
-      `SELECT f.id, f.flight_number, f.departure_time, f.status,
+    sql<Record<string, unknown>>`
+      SELECT f.id, f.flight_number, f.departure_time, f.status,
          ao.code AS origin_code, ad.code AS destination_code,
          a.registration,
          COUNT(blp.id) FILTER (WHERE blp.checked_in = true)::int AS checked_in_count,
@@ -29,13 +30,12 @@ export async function loader() {
        LEFT JOIN aircraft a ON a.id = f.aircraft_id
        LEFT JOIN booking_legs bl ON bl.flight_id = f.id
        LEFT JOIN booking_leg_passengers blp ON blp.booking_leg_id = bl.id
-       WHERE f.departure_time::date = $1
+       WHERE f.departure_time::date = ${today}
        GROUP BY f.id, f.flight_number, f.departure_time, f.status, ao.code, ad.code, a.registration
-       ORDER BY f.departure_time ASC`,
-      [today]
-    ),
-    db.query(
-      `SELECT blp.id, blp.checked_in, blp.checked_in_at,
+       ORDER BY f.departure_time ASC
+    `.execute(kdb),
+    sql<Record<string, unknown>>`
+      SELECT blp.id, blp.checked_in, blp.checked_in_at,
          blp.clothed_weight_kg, blp.baggage_weight_kg, blp.seat_number,
          bp.first_name, bp.last_name,
          bl.origin_code, bl.destination_code,
@@ -44,19 +44,18 @@ export async function loader() {
        JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
        JOIN booking_legs bl ON bl.id = blp.booking_leg_id
        JOIN bookings b ON b.id = bl.booking_id
-       WHERE blp.checked_in = true AND blp.checked_in_at::date = $1
+       WHERE blp.checked_in = true AND blp.checked_in_at::date = ${today}
        ORDER BY blp.checked_in_at DESC
-       LIMIT 20`,
-      [today]
-    ),
+       LIMIT 20
+    `.execute(kdb),
   ]);
 
   const pendingCount = pendingResult.length;
-  const flights = flightsResult.rows as Array<Record<string, unknown>>;
+  const flights = flightsResult.rows;
   const totalFlights = flights.length;
   const checkedInTotal = flights.reduce((s: number, f: Record<string, unknown>) => s + Number(f.checked_in_count ?? 0), 0);
   const passengerTotal = flights.reduce((s: number, f: Record<string, unknown>) => s + Number(f.total_passengers ?? 0), 0);
-  const recent = recentResult.rows as Array<Record<string, unknown>>;
+  const recent = recentResult.rows;
 
   return json({ pendingCount, flights, today, totalFlights, checkedInTotal, passengerTotal, recent });
 }

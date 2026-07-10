@@ -16,7 +16,7 @@
  *   node --env-file .env --import tsx prisma/seed-realistic-bookings.ts --execute
  */
 
-import { db } from "../app/utils/db.server";
+import { kdb } from "../app/utils/db.server";
 import { isNoFlyDay } from "../app/utils/services/no-fly.service";
 
 // ---------------------------------------------------------------------------
@@ -26,9 +26,9 @@ import { isNoFlyDay } from "../app/utils/services/no-fly.service";
 interface FlightInfo {
   id: number;
   flight_number: string;
-  departure_time: Date;
-  origin_code: string | null;
-  destination_code: string | null;
+  departure_time: string;
+  origin_code: string | undefined | null;
+  destination_code: string | undefined | null;
 }
 
 interface UserInfo {
@@ -272,34 +272,34 @@ async function main(): Promise<void> {
 
   const [aerodromes, existingFlights, users, organisations, faresRaw, existingBookings] =
     await Promise.all([
-      db.aerodromes.findMany({
-        where: { is_active: true },
-        select: { code: true, name: true, city: true, is_active: true },
-        orderBy: { code: "asc" },
-      }),
-      db.flights.findMany({
-        select: { id: true, flight_number: true, departure_time: true, origin_code: true, destination_code: true },
-        orderBy: { departure_time: "desc" },
-        take: 500,
-      }),
-      db.users.findMany({
-        where: { is_active: true },
-        select: { id: true, name: true, role: true, email: true, is_active: true },
-      }),
-      db.organizations.findMany({
-        where: { is_active: true },
-        select: { id: true, name: true },
-      }),
-      db.fare_routes.findMany({
-        where: { is_active: true },
-        select: { origin_code: true, destination_code: true, base_fare_gbp: true },
-        orderBy: [{ origin_code: "asc" }, { destination_code: "asc" }],
-      }),
-      db.bookings.findMany({
-        select: { booking_reference: true },
-        orderBy: { id: "desc" },
-        take: 200,
-      }),
+      kdb.selectFrom("aerodromes")
+        .select(["code", "name", "city", "is_active"])
+        .where("is_active", "=", true)
+        .orderBy("code asc")
+        .execute(),
+      kdb.selectFrom("flights")
+        .select(["id", "flight_number", "departure_time", "origin_code", "destination_code"])
+        .orderBy("departure_time desc")
+        .limit(500)
+        .execute(),
+      kdb.selectFrom("users")
+        .select(["id", "name", "role", "email", "is_active"])
+        .where("is_active", "=", true)
+        .execute(),
+      kdb.selectFrom("organizations")
+        .select(["id", "name"])
+        .where("is_active", "=", true)
+        .execute(),
+      kdb.selectFrom("fare_routes")
+        .select(["origin_code", "destination_code", "base_fare_gbp"])
+        .where("is_active", "=", true)
+        .orderBy(["origin_code asc", "destination_code asc"])
+        .execute(),
+      kdb.selectFrom("bookings")
+        .select("booking_reference")
+        .orderBy("id desc")
+        .limit(200)
+        .execute(),
     ]);
 
   const activeCodes = aerodromes.map((a) => a.code);
@@ -621,7 +621,7 @@ async function main(): Promise<void> {
       `Run with --execute to write these bookings to the database.\n` +
       `${"—".repeat(70)}\n`,
     );
-    await db.$disconnect();
+    await kdb.destroy();
     return;
   }
 
@@ -635,10 +635,10 @@ async function main(): Promise<void> {
 
   for (const booking of generatedBookings) {
     try {
-      await db.$transaction(async (tx) => {
+      await kdb.transaction().execute(async (tx) => {
         // 1. Create booking
-        const createdBooking = await tx.bookings.create({
-          data: {
+        const createdBooking = (await tx.insertInto("bookings")
+          .values({
             booking_reference: booking.booking_reference,
             user_id: booking.user_id,
             status: booking.status,
@@ -649,14 +649,15 @@ async function main(): Promise<void> {
             payment_status: "pending",
             payment_terms: "due_on_receipt",
             created_by: booking.user_id,
-          },
-        });
+          } as any)
+          .returningAll()
+          .execute())[0];
 
         // 2. Create booking legs
         const createdLegs: { id: number; leg_sequence: number }[] = [];
         for (const leg of booking.legs) {
-          const createdLeg = await tx.booking_legs.create({
-            data: {
+          const createdLeg = (await tx.insertInto("booking_legs")
+            .values({
               booking_id: createdBooking.id,
               flight_id: leg.flight_id,
               origin_code: leg.origin_code,
@@ -664,8 +665,9 @@ async function main(): Promise<void> {
               leg_date: dateStrToDate(leg.leg_date),
               leg_sequence: leg.leg_sequence,
               status: leg.flight_id ? "assigned" : "pending",
-            },
-          });
+            } as any)
+            .returningAll()
+            .execute())[0];
           createdLegs.push({ id: createdLeg.id, leg_sequence: leg.leg_sequence });
         }
 
@@ -673,16 +675,17 @@ async function main(): Promise<void> {
         const createdPassengers: { id: number; index: number }[] = [];
         for (let pi = 0; pi < booking.passengers.length; pi++) {
           const passenger = booking.passengers[pi];
-          const createdPassenger = await tx.booking_passengers.create({
-            data: {
+          const createdPassenger = (await tx.insertInto("booking_passengers")
+            .values({
               booking_id: createdBooking.id,
               user_id: booking.user_id,
               first_name: passenger.first_name,
               last_name: passenger.last_name,
               clothed_body_weight_kg: passenger.clothed_body_weight_kg,
               nationality: passenger.nationality,
-            },
-          });
+            } as any)
+            .returningAll()
+            .execute())[0];
           createdPassengers.push({ id: createdPassenger.id, index: pi });
         }
 
@@ -690,16 +693,16 @@ async function main(): Promise<void> {
         for (const leg of createdLegs) {
           for (const pax of createdPassengers) {
             const p = booking.passengers[pax.index];
-            await tx.booking_leg_passengers.create({
-              data: {
+            await tx.insertInto("booking_leg_passengers")
+              .values({
                 booking_leg_id: leg.id,
                 booking_passenger_id: pax.id,
                 clothed_weight_kg: p.clothed_body_weight_kg,
                 baggage_weight_kg: p.baggage_weight_kg,
                 freight_weight_kg: p.freight_weight_kg,
                 seat_number: null,
-              },
-            });
+              } as any)
+              .execute();
             completedLegPassengers++;
           }
         }
@@ -738,7 +741,7 @@ async function main(): Promise<void> {
     `${"=".repeat(70)}\n`,
   );
 
-  await db.$disconnect();
+  await kdb.destroy();
 }
 
 main().catch((err) => {

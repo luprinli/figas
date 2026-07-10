@@ -1,74 +1,56 @@
-﻿import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams } from "@remix-run/react";
+import { useLoaderData } from "@remix-run/react";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
-import { db } from "../utils/db.server";
-import DataTable from "../components/DataTable";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
+import DataGrid from "../components/DataGrid";
 import type { Column } from "../components/DataTable";
-import StatusBadge from "../components/StatusBadge";
 import EmptyState from "../components/EmptyState";
-import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
-import DatePicker from "../components/DatePicker";
+
+export const meta: MetaFunction = () => [{ title: "Finance Bookings - FIGAS" }];
 
 export async function loader({ request }: LoaderFunctionArgs) {
   await requirePermission(request, Permission.FINANCE_VIEW);
-  const url = new URL(request.url);
-  const date = url.searchParams.get("date") || new Date().toISOString().slice(0, 10);
 
-  const result = await db.query(
-    `SELECT b.id, b.booking_reference, b.status, b.total_amount_gbp, b.created_at,
-       COALESCE(bl.origin_code, '—') AS origin_code, COALESCE(bl.destination_code, '—') AS destination_code,
-       bp.first_name, bp.last_name
+  const result = await sql<Record<string, unknown>>`
+    SELECT b.*, u.name AS user_name
  FROM bookings b
- LEFT JOIN booking_legs bl ON bl.booking_id = b.id AND bl.leg_sequence = 1
- LEFT JOIN LATERAL (
-   SELECT first_name, last_name FROM booking_passengers WHERE booking_id = b.id LIMIT 1
- ) bp ON true
- WHERE b.created_at::date = $1
+ JOIN users u ON u.id = b.user_id
  ORDER BY b.created_at DESC
- LIMIT 100`,
-    [date]
-  );
+ LIMIT 200
+  `.execute(kdb);
 
-  return json({ bookings: result.rows, date });
+  return json({ bookings: result.rows });
 }
 
 export default function FinanceBookings() {
-  const { bookings, date } = useLoaderData<typeof loader>();
-  const [, setSearchParams] = useSearchParams();
+  const { bookings } = useLoaderData<typeof loader>();
 
   const columns: Column<Record<string, unknown>>[] = [
-    { key: "booking_reference", header: "Reference", sortable: true, render: (r) => (
-      <span className="font-medium text-slate-800 dark:text-slate-100">{r.booking_reference as string}</span>
-    )},
-    { key: "passenger", header: "Passenger", render: (r) => (
-      <span className="text-slate-600 dark:text-slate-300">{r.first_name ? `${r.first_name} ${r.last_name}` : '—'}</span>
-    )},
-    { key: "route", header: "Route", render: (r) => (
-      <span className="text-slate-600 dark:text-slate-300">{r.origin_code as string} → {r.destination_code as string}</span>
-    )},
-    { key: "status", header: "Status", sortable: true, render: (r) => <StatusBadge status={r.status as string} /> },
-    { key: "total_amount_gbp", header: "Total", sortable: true, className: "text-right", render: (r) => (
-      <span className="tabular-nums font-medium">{r.total_amount_gbp ? `£${Number(r.total_amount_gbp).toLocaleString()}` : '—'}</span>
-    )},
+    { key: "booking_reference", header: "Reference", sortable: true },
+    { key: "user_name", header: "Client", sortable: true },
+    { key: "status", header: "Status", sortable: true },
+    { key: "payment_status", header: "Payment", sortable: true },
+    { key: "total_amount_gbp", header: "Total (GBP)", sortable: true },
+    { key: "created_at", header: "Created", sortable: true },
   ];
 
   return (
     <div className="p-6 space-y-5">
-      <PageHeader title="Bookings" description="Read-only operational view — no modifications available" />
+      <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Bookings</h1>
       <Card>
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 dark:border-slate-700">
-          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Date:</span>
-          <DatePicker value={date} onChange={(d) => setSearchParams({ date: d })} label="" />
-        </div>
-        <DataTable
+        <DataGrid
           columns={columns}
           data={bookings as Record<string, unknown>[]}
           keyExtractor={(r) => String(r.id)}
-          sortable
-          emptyState={<EmptyState title="No bookings for this date" />}
+          enableSort
+          enableFilters
+          initialSortColumn="created_at"
+          initialSortDirection="desc"
+          emptyState={<EmptyState title="No bookings found" />}
         />
       </Card>
     </div>

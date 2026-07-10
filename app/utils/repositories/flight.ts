@@ -1,4 +1,7 @@
-import { db } from "../db.server";
+import { kdb } from "../db.server";
+import { sql } from "kysely";
+import type { Kysely } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 
 export interface FlightRow {
   id: number;
@@ -38,133 +41,145 @@ export interface FlightSearchResult {
   available_seats: number;
 }
 
+function toFlightSearchResult(
+  flight: Record<string, unknown>,
+  seatCount: number,
+  seatsTaken: number
+): FlightSearchResult {
+  return {
+    id: Number(flight.id),
+    flight_number: String(flight.flight_number ?? ""),
+    aircraft_id: flight.aircraft_id != null ? Number(flight.aircraft_id) : 0,
+    origin_aerodrome_id: flight.origin_aerodrome_id != null ? Number(flight.origin_aerodrome_id) : 0,
+    destination_aerodrome_id: flight.destination_aerodrome_id != null ? Number(flight.destination_aerodrome_id) : 0,
+    departure_time: String(flight.departure_time ?? ""),
+    arrival_time: String(flight.arrival_time ?? ""),
+    status: String(flight.status ?? ""),
+    origin_code: String(flight.origin_code ?? ""),
+    origin_name: String(flight.origin_name ?? ""),
+    destination_code: String(flight.destination_code ?? ""),
+    destination_name: String(flight.destination_name ?? ""),
+    aircraft_registration: String(flight.aircraft_registration ?? ""),
+    seat_count: seatCount,
+    available_seats: seatCount - seatsTaken,
+  };
+}
+
+async function buildFlightSearchResult(
+  flightRow: Record<string, unknown>,
+  flightId: number
+): Promise<FlightSearchResult | null> {
+  const originAerodrome = await kdb
+    .selectFrom("aerodromes")
+    .select(["code", "name"])
+    .where("id", "=", Number(flightRow.origin_aerodrome_id ?? 0))
+    .execute();
+
+  const destAerodrome = await kdb
+    .selectFrom("aerodromes")
+    .select(["code", "name"])
+    .where("id", "=", Number(flightRow.destination_aerodrome_id ?? 0))
+    .execute();
+
+  const aircraft = await kdb
+    .selectFrom("aircraft")
+    .select(["registration", "seat_count"])
+    .where("id", "=", Number(flightRow.aircraft_id ?? 0))
+    .execute();
+
+  if (originAerodrome.length === 0 || destAerodrome.length === 0 || aircraft.length === 0) {
+    return null;
+  }
+
+  const seatCountResult = await kdb
+    .selectFrom("seat_assignments")
+    .select(kdb.fn.countAll<number>().as("cnt"))
+    .where("flight_id", "=", flightId)
+    .execute();
+
+  const seatsTaken = Number(seatCountResult[0]?.cnt ?? 0);
+  const seatCount = aircraft[0].seat_count;
+
+  return {
+    id: Number(flightRow.id),
+    flight_number: String(flightRow.flight_number ?? ""),
+    aircraft_id: flightRow.aircraft_id != null ? Number(flightRow.aircraft_id) : 0,
+    origin_aerodrome_id: flightRow.origin_aerodrome_id != null ? Number(flightRow.origin_aerodrome_id) : 0,
+    destination_aerodrome_id: flightRow.destination_aerodrome_id != null ? Number(flightRow.destination_aerodrome_id) : 0,
+    departure_time: String(flightRow.departure_time ?? ""),
+    arrival_time: String(flightRow.arrival_time ?? ""),
+    status: String(flightRow.status ?? ""),
+    origin_code: String(originAerodrome[0].code ?? ""),
+    origin_name: String(originAerodrome[0].name ?? ""),
+    destination_code: String(destAerodrome[0].code ?? ""),
+    destination_name: String(destAerodrome[0].name ?? ""),
+    aircraft_registration: String(aircraft[0].registration ?? ""),
+    seat_count: seatCount,
+    available_seats: seatCount - seatsTaken,
+  };
+}
+
 export const flightRepository = {
   async findById(id: number): Promise<FlightSearchResult | null> {
-    // Step 1: Fetch flight with related aerodromes and aircraft
-    const flight = await db.flights.findUnique({
-      where: { id },
-      include: {
-        origin_aerodrome: {
-          select: { code: true, name: true },
-        },
-        destination_aerodrome: {
-          select: { code: true, name: true },
-        },
-        aircraft: {
-          select: { registration: true, seat_count: true },
-        },
-      },
-    });
-
-    if (!flight || !flight.origin_aerodrome || !flight.destination_aerodrome || !flight.aircraft) {
-      return null;
-    }
-
-    // Step 2: Count seat assignments for this flight
-    const seatsTaken = await db.seat_assignments.count({
-      where: { flight_id: id },
-    });
-
-    const seatCount = flight.aircraft.seat_count;
-    const availableSeats = seatCount - seatsTaken;
-
-    return {
-      id: flight.id,
-      flight_number: flight.flight_number,
-      aircraft_id: flight.aircraft_id ?? 0,
-      origin_aerodrome_id: flight.origin_aerodrome_id ?? 0,
-      destination_aerodrome_id: flight.destination_aerodrome_id ?? 0,
-      departure_time: flight.departure_time.toISOString(),
-      arrival_time: flight.arrival_time.toISOString(),
-      status: flight.status,
-      origin_code: flight.origin_aerodrome.code,
-      origin_name: flight.origin_aerodrome.name,
-      destination_code: flight.destination_aerodrome.code,
-      destination_name: flight.destination_aerodrome.name,
-      aircraft_registration: flight.aircraft.registration,
-      seat_count: seatCount,
-      available_seats: availableSeats,
-    };
+    const rows = await kdb
+      .selectFrom("flights")
+      .selectAll()
+      .where("id", "=", id)
+      .execute();
+    if (rows.length === 0) return null;
+    return buildFlightSearchResult(rows[0] as unknown as Record<string, unknown>, id);
   },
 
   async findByFlightNumber(flightNumber: string): Promise<FlightSearchResult | null> {
-    // Step 1: Fetch flight with related aerodromes and aircraft
-    const flight = await db.flights.findUnique({
-      where: { flight_number: flightNumber },
-      include: {
-        origin_aerodrome: {
-          select: { code: true, name: true },
-        },
-        destination_aerodrome: {
-          select: { code: true, name: true },
-        },
-        aircraft: {
-          select: { registration: true, seat_count: true },
-        },
-      },
-    });
-
-    if (!flight || !flight.origin_aerodrome || !flight.destination_aerodrome || !flight.aircraft) {
-      return null;
-    }
-
-    // Step 2: Count seat assignments for this flight
-    const seatsTaken = await db.seat_assignments.count({
-      where: { flight_id: flight.id },
-    });
-
-    const seatCount = flight.aircraft.seat_count;
-    const availableSeats = seatCount - seatsTaken;
-
-    return {
-      id: flight.id,
-      flight_number: flight.flight_number,
-      aircraft_id: flight.aircraft_id ?? 0,
-      origin_aerodrome_id: flight.origin_aerodrome_id ?? 0,
-      destination_aerodrome_id: flight.destination_aerodrome_id ?? 0,
-      departure_time: flight.departure_time.toISOString(),
-      arrival_time: flight.arrival_time.toISOString(),
-      status: flight.status,
-      origin_code: flight.origin_aerodrome.code,
-      origin_name: flight.origin_aerodrome.name,
-      destination_code: flight.destination_aerodrome.code,
-      destination_name: flight.destination_aerodrome.name,
-      aircraft_registration: flight.aircraft.registration,
-      seat_count: seatCount,
-      available_seats: availableSeats,
-    };
+    const rows = await kdb
+      .selectFrom("flights")
+      .selectAll()
+      .where("flight_number", "=", flightNumber)
+      .execute();
+    if (rows.length === 0) return null;
+    const flightId = Number(rows[0].id);
+    return buildFlightSearchResult(rows[0] as unknown as Record<string, unknown>, flightId);
   },
 
   async assignPilot(flightId: number, pilotId: number): Promise<void> {
-    await db.flights.update({
-      where: { id: flightId },
-      data: { pilot_id: pilotId, updated_at: new Date() },
-    });
+    const now = new Date().toISOString();
+    await kdb
+      .updateTable("flights")
+      .set({ pilot_id: pilotId, updated_at: now } as any)
+      .where("id", "=", flightId)
+      .execute();
   },
 
   async assignAircraft(flightId: number, aircraftId: number): Promise<void> {
-    await db.flights.update({
-      where: { id: flightId },
-      data: { aircraft_id: aircraftId, updated_at: new Date() },
-    });
+    const now = new Date().toISOString();
+    await kdb
+      .updateTable("flights")
+      .set({ aircraft_id: aircraftId, updated_at: now } as any)
+      .where("id", "=", flightId)
+      .execute();
   },
 
   async approveByPilot(flightId: number, pilotId: number): Promise<void> {
-    await db.flights.update({
-      where: { id: flightId, pilot_id: pilotId },
-      data: {
-        pilot_approved_at: new Date(),
+    const now = new Date().toISOString();
+    await kdb
+      .updateTable("flights")
+      .set({
+        pilot_approved_at: now,
         status: "boarding",
-        updated_at: new Date(),
-      },
-    });
+        updated_at: now,
+      } as any)
+      .where("id", "=", flightId)
+      .where("pilot_id", "=", pilotId)
+      .execute();
   },
 
   async updateStatus(flightId: number, status: string): Promise<void> {
-    await db.flights.update({
-      where: { id: flightId },
-      data: { status, updated_at: new Date() },
-    });
+    const now = new Date().toISOString();
+    await kdb
+      .updateTable("flights")
+      .set({ status, updated_at: now } as any)
+      .where("id", "=", flightId)
+      .execute();
   },
 
   async updateWeights(
@@ -178,78 +193,119 @@ export const flightRepository = {
   ): Promise<void> {
     const updateData: Record<string, unknown> = {};
     if (data.total_passenger_weight_kg !== undefined) {
-      updateData.total_passenger_weight_kg = data.total_passenger_weight_kg;
+      updateData.total_passenger_weight_kg = String(data.total_passenger_weight_kg);
     }
     if (data.total_baggage_weight_kg !== undefined) {
-      updateData.total_baggage_weight_kg = data.total_baggage_weight_kg;
+      updateData.total_baggage_weight_kg = String(data.total_baggage_weight_kg);
     }
     if (data.total_freight_weight_kg !== undefined) {
-      updateData.total_freight_weight_kg = data.total_freight_weight_kg;
+      updateData.total_freight_weight_kg = String(data.total_freight_weight_kg);
     }
     if (data.total_fuel_weight_kg !== undefined) {
-      updateData.total_fuel_weight_kg = data.total_fuel_weight_kg;
+      updateData.total_fuel_weight_kg = String(data.total_fuel_weight_kg);
     }
     if (Object.keys(updateData).length === 0) return;
-    updateData.updated_at = new Date();
-    await db.flights.update({
-      where: { id: flightId },
-      data: updateData,
-    });
+    updateData.updated_at = new Date().toISOString();
+    await kdb
+      .updateTable("flights")
+      .set(updateData as any)
+      .where("id", "=", flightId)
+      .execute();
   },
 
   async deleteFlight(id: number): Promise<void> {
-    await db.$transaction(async (tx) => {
-      await tx.flight_legs.deleteMany({
-        where: { flight_id: id },
-      });
-      await tx.flights.delete({
-        where: { id },
-      });
+    await kdb.transaction().execute(async (tx) => {
+      await tx
+        .deleteFrom("flight_legs")
+        .where("flight_id", "=", id)
+        .execute();
+      await tx
+        .deleteFrom("flights")
+        .where("id", "=", id)
+        .execute();
     });
   },
 
-  /**
-   * Find flights by schedule ID with full details (aerodrome, aircraft, pilot).
-   */
   async findByScheduleId(scheduleId: number) {
-    const flights = await db.flights.findMany({
-      where: { schedule_id: scheduleId },
-      include: {
-        origin_aerodrome: true,
-        destination_aerodrome: true,
-        aircraft: true,
-        pilot: true,
-      },
-      orderBy: [{ sort_order: { sort: "asc", nulls: "last" } }, { departure_time: "asc" }],
-    });
+    const flights = await kdb
+      .selectFrom("flights as f")
+      .leftJoin("aerodromes as ao", "ao.id", "f.origin_aerodrome_id")
+      .leftJoin("aerodromes as ad", "ad.id", "f.destination_aerodrome_id")
+      .leftJoin("aircraft as a", "a.id", "f.aircraft_id")
+      .leftJoin("pilots as p", "p.id", "f.pilot_id")
+      .select([
+        "f.id",
+        "f.flight_number",
+        "f.origin_code",
+        "f.destination_code",
+        "f.origin_aerodrome_id",
+        "f.destination_aerodrome_id",
+        "f.aircraft_id",
+        "f.pilot_id",
+        "f.departure_time",
+        "f.arrival_time",
+        "f.status",
+        "f.sort_order",
+        "f.duration_minutes",
+        "f.check_in_time",
+        "f.available_seats",
+        "f.base_fare",
+        "f.intermediate_stops",
+        "f.total_passenger_weight_kg",
+        "f.total_baggage_weight_kg",
+        "f.total_freight_weight_kg",
+        "f.total_fuel_weight_kg",
+        "f.fuel_weight",
+        "f.freight_weight",
+        "f.passenger_weight",
+        "f.crew_weight",
+        "f.baggage_weight",
+        "f.pilot_approved_at",
+        "f.schedule_id",
+        "f.pax_weight_kg",
+        "f.cargo_weight_kg",
+        "f.zero_fuel_weight_kg",
+        "f.fuel_required_l",
+        "f.fuel_on_board_l",
+        "f.created_by",
+        "f.created_at",
+        "f.updated_at",
+        "ao.code as origin_code_join",
+        "ao.name as origin_name_join",
+        "ad.code as destination_code_join",
+        "ad.name as destination_name_join",
+        "a.registration as aircraft_registration",
+        "a.type as aircraft_type",
+        "a.seat_count",
+        "p.name as pilot_name",
+      ])
+      .where("f.schedule_id", "=", scheduleId)
+      .orderBy(sql`f.sort_order asc nulls last, f.departure_time asc`)
+      .execute();
+
     return flights.map((f) => ({
       ...f,
-      origin_code: f.origin_aerodrome?.code ?? null,
-      origin_name: f.origin_aerodrome?.name ?? null,
-      destination_code: f.destination_aerodrome?.code ?? null,
-      destination_name: f.destination_aerodrome?.name ?? null,
-      aircraft_registration: f.aircraft?.registration ?? null,
-      aircraft_type: f.aircraft?.type ?? null,
-      seat_count: f.aircraft?.seat_count ?? null,
-      pilot_name: f.pilot?.name ?? null,
+      id: Number(f.id),
+      flight_number: String(f.flight_number ?? ""),
+      origin_code: (f.origin_code ?? f.origin_code_join ?? null) as string | null,
+      origin_name: f.origin_name_join != null ? String(f.origin_name_join) : null,
+      destination_code: (f.destination_code ?? f.destination_code_join ?? null) as string | null,
+      destination_name: f.destination_name_join != null ? String(f.destination_name_join) : null,
+      aircraft_registration: f.aircraft_registration != null ? String(f.aircraft_registration) : null,
+      aircraft_type: f.aircraft_type != null ? String(f.aircraft_type) : null,
+      seat_count: f.seat_count != null ? Number(f.seat_count) : null,
+      pilot_name: f.pilot_name != null ? String(f.pilot_name) : null,
     }));
   },
 };
 
-/**
- * Find a flight summary row by ID using the canonical shape expected by
- * the frontend.  Replaces 4 duplicated inline $queryRawUnsafe blocks in
- * schedule-handlers.server.ts.
- *
- * Accepts an optional Prisma transaction client for use inside tx blocks.
- */
 export async function findSummaryById(
   flightId: number,
-  client?: import("../../../generated/prisma/client").Prisma.TransactionClient
+  client?: Kysely<DB>
 ): Promise<Record<string, unknown> | null> {
-  const executor = client ?? db;
-  const rows = await executor.$queryRawUnsafe<Record<string, unknown>[]>(
-    `SELECT f.id, f.flight_number, f.departure_time, f.arrival_time, f.status,
+  const executor = client ?? kdb;
+  const rows = await sql`
+    SELECT f.id, f.flight_number, f.departure_time, f.arrival_time, f.status,
             f.sort_order,
             f.duration_minutes,
             f.check_in_time,
@@ -270,23 +326,22 @@ export async function findSummaryById(
      LEFT JOIN aircraft a ON a.id = f.aircraft_id
      LEFT JOIN pilots p ON p.id = f.pilot_id
      LEFT JOIN pilot_assignments pa ON pa.flight_id = f.id AND pa.status = 'confirmed'
-     WHERE f.id = $1`,
-    flightId
-  );
-  return rows[0] ?? null;
+     WHERE f.id = ${flightId}
+  `.execute(executor);
+  return (rows.rows[0] as unknown as Record<string, unknown>) ?? null;
 }
 
 export async function findLegsByFlightId(
   flightId: number,
-  client?: import("../../../generated/prisma/client").Prisma.TransactionClient
+  client?: Kysely<DB>
 ): Promise<Record<string, unknown>[]> {
-  const executor = client ?? db;
-  return executor.$queryRawUnsafe<Record<string, unknown>[]>(
-    `SELECT fl.id, fl.flight_id, fl.leg_number AS leg_sequence, fl.etd AS departure_time, fl.eta AS arrival_time, fl.status,
+  const executor = client ?? kdb;
+  const rows = await sql`
+    SELECT fl.id, fl.flight_id, fl.leg_number AS leg_sequence, fl.etd AS departure_time, fl.eta AS arrival_time, fl.status,
             fl.origin_code, fl.destination_code, fl.distance_nm, fl.heading
      FROM flight_legs fl
-     WHERE fl.flight_id = $1
-     ORDER BY fl.leg_number`,
-    flightId
-  );
+     WHERE fl.flight_id = ${flightId}
+     ORDER BY fl.leg_number
+  `.execute(executor);
+  return rows.rows as unknown as Record<string, unknown>[];
 }

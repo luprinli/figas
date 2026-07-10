@@ -1,76 +1,81 @@
-import { db } from "../app/utils/db.server";
+import { kdb } from "../app/utils/db.server";
 
 async function main() {
   const dateStr = process.argv[2] || "2026-06-19";
-  const schedule = await db.schedules.findFirst({
-    where: {
-      schedule_date: {
-        gte: new Date(dateStr),
-        lt: new Date(new Date(dateStr).getTime() + 86400000),
-      },
-    },
-    orderBy: { created_at: "desc" },
-  });
+  const schedule = await kdb.selectFrom("schedules")
+    .selectAll()
+    .where("schedule_date", ">=", dateStr)
+    .where("schedule_date", "<", new Date(new Date(dateStr).getTime() + 86400000).toISOString())
+    .orderBy("created_at desc")
+    .limit(1)
+    .executeTakeFirst();
 
   if (!schedule) {
     console.log(`No schedule found for ${dateStr}`);
-    await db.$disconnect();
+    await kdb.destroy();
     return;
   }
 
   console.log(`Schedule: ${schedule.id} (${schedule.status})`);
 
-  const flights = await db.flights.findMany({
-    where: { schedule_id: schedule.id },
-    select: { id: true },
-  });
+  const flights = await kdb.selectFrom("flights")
+    .select("id")
+    .where("schedule_id", "=", schedule.id)
+    .execute();
 
   if (flights.length === 0) {
     console.log("No flights to reset");
-    await db.$disconnect();
+    await kdb.destroy();
     return;
   }
 
-  // Clear flight_leg_id on passengers
-  for (const f of flights) {
-    const legs = await db.flight_legs.findMany({
-      where: { flight_id: f.id },
-      select: { id: true },
-    });
-    for (const leg of legs) {
-      await db.$executeRawUnsafe(
-        `UPDATE booking_leg_passengers SET flight_leg_id = NULL WHERE flight_leg_id = ${leg.id}`
-      );
-    }
+  const flightIds = flights.map((f) => f.id);
+
+  const legs = await kdb.selectFrom("flight_legs")
+    .select("id")
+    .where("flight_id", "in", flightIds)
+    .execute();
+
+  const legIds = legs.map((l) => l.id);
+
+  if (legIds.length > 0) {
+    // Clear flight_leg_id on passengers
+    await kdb.updateTable("booking_leg_passengers")
+      .set({ flight_leg_id: null } as any)
+      .where("flight_leg_id", "in", legIds)
+      .execute();
+
     // Delete weight balance snapshots
-    await db.weight_balance_snapshots.deleteMany({
-      where: { flight_leg_id: { in: legs.map((l) => l.id) } },
-    });
+    await kdb.deleteFrom("weight_balance_snapshots")
+      .where("flight_leg_id", "in", legIds)
+      .execute();
   }
 
   // Unassign booking legs
-  await db.booking_legs.updateMany({
-    where: { flight_id: { in: flights.map((f) => f.id) } },
-    data: { flight_id: null, status: "pending" },
-  });
+  await kdb.updateTable("booking_legs")
+    .set({ flight_id: null, status: "pending" } as any)
+    .where("flight_id", "in", flightIds)
+    .execute();
 
   // Delete flight legs
-  for (const f of flights) {
-    await db.flight_legs.deleteMany({ where: { flight_id: f.id } });
-  }
+  await kdb.deleteFrom("flight_legs")
+    .where("flight_id", "in", flightIds)
+    .execute();
 
   // Delete flights
-  await db.flights.deleteMany({ where: { schedule_id: schedule.id } });
+  await kdb.deleteFrom("flights")
+    .where("schedule_id", "=", schedule.id)
+    .execute();
 
   // Reset schedule status
-  await db.schedules.update({
-    where: { id: schedule.id },
-    data: { status: "building" },
-  });
+  await kdb.updateTable("schedules")
+    .set({ status: "building" } as any)
+    .where("id", "=", schedule.id)
+    .execute();
 
   console.log(`Reset complete: ${flights.length} flights deleted, bookings restored to unassigned pool.`);
 
-  await db.$disconnect();
+  await kdb.destroy();
 }
 
 main();

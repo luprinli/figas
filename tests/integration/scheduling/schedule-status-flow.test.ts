@@ -126,7 +126,7 @@ describe("Schedule Status Flow", () => {
       });
 
       // Create a flight with a pilot and aircraft assigned (required for publish)
-      const aircraft = await db.aircraft.findFirst({ select: { id: true } });
+      const aircraft = (await db.selectFrom("aircraft").select("id").limit(1).execute())[0] ?? null;
       const aircraftId = aircraft?.id ?? 1;
       const flight = await createTestFlight(schedule.id, {
         flight_number: `TST-P1-${Date.now().toString(36)}`,

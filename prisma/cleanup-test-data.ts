@@ -1,18 +1,5 @@
-/**
- * Cleanup Deprecated/Test/Mock Booking Data
- *
- * Identifies and optionally deletes all test, mock, seed, and broken booking
- * entries from the database.
- *
- * Usage:
- *   # Dry run (no deletes):
- *   node --env-file .env --import tsx prisma/cleanup-test-data.ts
- *
- *   # Execute deletions:
- *   node --env-file .env --import tsx prisma/cleanup-test-data.ts --execute
- */
-
 import { db } from "../app/utils/db.server";
+import { sql } from "kysely";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,14 +53,13 @@ async function main(): Promise<void> {
     (p) => `b.booking_reference LIKE '${p}'`,
   ).join(" OR ");
 
-  const byPattern = await db.$queryRawUnsafe<
-    { id: number; booking_reference: string }[]
-  >(
-    `SELECT b.id, b.booking_reference
+  const byPatternResult = await sql<{ id: number; booking_reference: string }>`
+    SELECT b.id, b.booking_reference
      FROM bookings b
-     WHERE ${patternConditions}
-     ORDER BY b.id`,
-  );
+     WHERE ${sql.raw(patternConditions)}
+     ORDER BY b.id
+  `.execute(db);
+  const byPattern = byPatternResult.rows;
 
   console.log(
     `  Found ${byPattern.length} booking(s) matching test patterns (${TEST_PATTERNS.join(", ")}).`,
@@ -83,10 +69,8 @@ async function main(): Promise<void> {
 
   console.log("Scanning for bookings with legs but no booking_passengers...");
 
-  const legsNoPassengers = await db.$queryRawUnsafe<
-    { id: number; booking_reference: string }[]
-  >(
-    `SELECT DISTINCT b.id, b.booking_reference
+  const legsNoPassengersResult = await sql<{ id: number; booking_reference: string }>`
+    SELECT DISTINCT b.id, b.booking_reference
      FROM bookings b
      WHERE EXISTS (
        SELECT 1 FROM booking_legs bl WHERE bl.booking_id = b.id
@@ -94,8 +78,9 @@ async function main(): Promise<void> {
      AND NOT EXISTS (
        SELECT 1 FROM booking_passengers bp WHERE bp.booking_id = b.id
      )
-     ORDER BY b.id`,
-  );
+     ORDER BY b.id
+  `.execute(db);
+  const legsNoPassengers = legsNoPassengersResult.rows;
 
   console.log(
     `  Found ${legsNoPassengers.length} booking(s) with legs but no passengers.`,
@@ -105,10 +90,8 @@ async function main(): Promise<void> {
 
   console.log("Scanning for bookings with passengers but no booking_legs...");
 
-  const passengersNoLegs = await db.$queryRawUnsafe<
-    { id: number; booking_reference: string }[]
-  >(
-    `SELECT DISTINCT b.id, b.booking_reference
+  const passengersNoLegsResult = await sql<{ id: number; booking_reference: string }>`
+    SELECT DISTINCT b.id, b.booking_reference
      FROM bookings b
      WHERE EXISTS (
        SELECT 1 FROM booking_passengers bp WHERE bp.booking_id = b.id
@@ -116,8 +99,9 @@ async function main(): Promise<void> {
      AND NOT EXISTS (
        SELECT 1 FROM booking_legs bl WHERE bl.booking_id = b.id
      )
-     ORDER BY b.id`,
-  );
+     ORDER BY b.id
+  `.execute(db);
+  const passengersNoLegs = passengersNoLegsResult.rows;
 
   console.log(
     `  Found ${passengersNoLegs.length} booking(s) with passengers but no legs.`,
@@ -156,7 +140,6 @@ async function main(): Promise<void> {
 
   if (targetIds.length === 0) {
     console.log("\nNo test data found. Nothing to clean up.");
-    await db.$disconnect();
     return;
   }
 
@@ -166,44 +149,38 @@ async function main(): Promise<void> {
 
   const idList = targetIds.join(", ");
 
-  const legPassengerCounts = await db.$queryRawUnsafe<
-    { booking_id: number; cnt: bigint }[]
-  >(
-    `SELECT bl.booking_id, COUNT(blp.id)::bigint AS cnt
+  const legPassengerResult = await sql<{ booking_id: number; cnt: bigint }>`
+    SELECT bl.booking_id, COUNT(blp.id)::bigint AS cnt
      FROM booking_leg_passengers blp
      JOIN booking_legs bl ON bl.id = blp.booking_leg_id
-     WHERE bl.booking_id IN (${idList})
-     GROUP BY bl.booking_id`,
-  );
+     WHERE bl.booking_id IN (${sql.raw(idList)})
+     GROUP BY bl.booking_id
+  `.execute(db);
 
-  const legCounts = await db.$queryRawUnsafe<
-    { booking_id: number; cnt: bigint }[]
-  >(
-    `SELECT booking_id, COUNT(id)::bigint AS cnt
+  const legCountsResult = await sql<{ booking_id: number; cnt: bigint }>`
+    SELECT booking_id, COUNT(id)::bigint AS cnt
      FROM booking_legs
-     WHERE booking_id IN (${idList})
-     GROUP BY booking_id`,
-  );
+     WHERE booking_id IN (${sql.raw(idList)})
+     GROUP BY booking_id
+  `.execute(db);
 
-  const passengerCounts = await db.$queryRawUnsafe<
-    { booking_id: number; cnt: bigint }[]
-  >(
-    `SELECT booking_id, COUNT(id)::bigint AS cnt
+  const passengerCountsResult = await sql<{ booking_id: number; cnt: bigint }>`
+    SELECT booking_id, COUNT(id)::bigint AS cnt
      FROM booking_passengers
-     WHERE booking_id IN (${idList})
-     GROUP BY booking_id`,
-  );
+     WHERE booking_id IN (${sql.raw(idList)})
+     GROUP BY booking_id
+  `.execute(db);
 
   const legPaxMap = new Map<number, number>();
-  for (const r of legPassengerCounts) {
+  for (const r of legPassengerResult.rows) {
     legPaxMap.set(r.booking_id, Number(r.cnt));
   }
   const legMap = new Map<number, number>();
-  for (const r of legCounts) {
+  for (const r of legCountsResult.rows) {
     legMap.set(r.booking_id, Number(r.cnt));
   }
   const paxMap = new Map<number, number>();
-  for (const r of passengerCounts) {
+  for (const r of passengerCountsResult.rows) {
     paxMap.set(r.booking_id, Number(r.cnt));
   }
 
@@ -263,7 +240,6 @@ async function main(): Promise<void> {
     console.log(
       "  Re-run with --execute to perform the actual deletion.\n",
     );
-    await db.$disconnect();
     return;
   }
 
@@ -272,48 +248,47 @@ async function main(): Promise<void> {
   console.log("\n  EXECUTING DELETION...\n");
 
   try {
-    await db.$transaction(async (tx) => {
+    await db.transaction().execute(async (tx) => {
       // 7a. Delete booking_leg_passengers for target booking_legs
-      const blpResult = await tx.booking_leg_passengers.deleteMany({
-        where: {
-          booking_leg: {
-            booking_id: { in: targetIds },
-          },
-        },
-      });
+      const blpResult = await tx
+        .deleteFrom("booking_leg_passengers")
+        .where("booking_leg_id", "in",
+          tx.selectFrom("booking_legs").select("id").where("booking_id", "in", targetIds) as any
+        )
+        .execute();
       console.log(
-        `  [1/4] Deleted ${blpResult.count} booking_leg_passengers row(s).`,
+        `  [1/4] Deleted booking_leg_passengers row(s).`,
       );
 
       // 7b. Delete booking_legs for target bookings
-      const blResult = await tx.booking_legs.deleteMany({
-        where: { booking_id: { in: targetIds } },
-      });
-      console.log(`  [2/4] Deleted ${blResult.count} booking_legs row(s).`);
+      const blResult = await tx
+        .deleteFrom("booking_legs")
+        .where("booking_id", "in", targetIds)
+        .execute();
+      console.log(`  [2/4] Deleted booking_legs row(s).`);
 
       // 7c. Delete booking_passengers for target bookings
-      const bpResult = await tx.booking_passengers.deleteMany({
-        where: { booking_id: { in: targetIds } },
-      });
+      const bpResult = await tx
+        .deleteFrom("booking_passengers")
+        .where("booking_id", "in", targetIds)
+        .execute();
       console.log(
-        `  [3/4] Deleted ${bpResult.count} booking_passengers row(s).`,
+        `  [3/4] Deleted booking_passengers row(s).`,
       );
 
       // 7d. Delete the bookings themselves
-      const bResult = await tx.bookings.deleteMany({
-        where: { id: { in: targetIds } },
-      });
-      console.log(`  [4/4] Deleted ${bResult.count} booking(s).`);
+      const bResult = await tx
+        .deleteFrom("bookings")
+        .where("id", "in", targetIds)
+        .execute();
+      console.log(`  [4/4] Deleted booking(s).`);
     });
 
     console.log("\n  DELETION COMPLETE.\n");
   } catch (err) {
     console.error("\n  DELETION FAILED:", err);
-    await db.$disconnect();
     process.exit(1);
   }
-
-  await db.$disconnect();
 }
 
 main().catch((err) => {

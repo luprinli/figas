@@ -1,4 +1,4 @@
-import { kdb } from "../db.server.kysely";
+import { kdb } from "../db.server";
 
 export interface WeightBalanceSnapshotRow {
   id: number;

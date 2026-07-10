@@ -1,10 +1,11 @@
-﻿import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import { requireUser } from "../utils/layout.server";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
@@ -46,8 +47,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
   await requirePermission(request, Permission.FINANCE_VIEW);
 
   // Aging buckets
-  const agingResult = await db.query(
-    `SELECT
+  const agingResult = await sql<{ bucket: string; count: number; total_amount: number }>`
+    SELECT
        CASE
          WHEN CURRENT_DATE - due_date::date <= 30 THEN '0-30 days'
          WHEN CURRENT_DATE - due_date::date <= 60 THEN '31-60 days'
@@ -57,14 +58,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
        COUNT(*)::int AS count,
        SUM(amount_due_gbp) AS total_amount
      FROM invoices
-     WHERE status = $1
+     WHERE status = ${"issued"}
        AND due_date < CURRENT_DATE
      GROUP BY bucket
-     ORDER BY bucket`,
-    ["issued"]
-  );
+     ORDER BY bucket
+  `.execute(kdb);
 
-  const buckets = buildAgingBuckets(agingResult.rows as Array<{ bucket: string; count: number; total_amount: number }>);
+  const buckets = buildAgingBuckets(agingResult.rows);
   const totalOverdue = Object.values(buckets).reduce((sum, b) => sum + b.total, 0);
 
   return json<AgingData>({ buckets, totalOverdue });

@@ -1,11 +1,12 @@
-﻿import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useSearchParams , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { useState } from "react";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import { requireUser } from "../utils/layout.server";
 import PageHeader from "../components/PageHeader";
 import DataTable from "../components/DataTable";
@@ -38,35 +39,58 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const dateFrom = url.searchParams.get("dateFrom") || "";
   const dateTo = url.searchParams.get("dateTo") || "";
 
-  let whereClause = "";
-  const params: unknown[] = [];
+  let rows: DailySalesRow[];
 
   if (dateFrom && dateTo) {
-    whereClause = "WHERE aje.entry_date >= $1 AND aje.entry_date <= $2 AND aje.posting_date IS NOT NULL";
-    params.push(dateFrom, dateTo);
+    const result = await sql<DailySalesRow>`
+      SELECT aje.entry_date,
+              COALESCE(SUM(ajl.debit_amount_gbp), 0) AS total_debit,
+              COALESCE(SUM(ajl.credit_amount_gbp), 0) AS total_credit
+       FROM accounting_journal_entries aje
+       JOIN accounting_journal_lines ajl ON ajl.entry_id = aje.id
+       WHERE aje.entry_date >= ${dateFrom} AND aje.entry_date <= ${dateTo} AND aje.posting_date IS NOT NULL
+       GROUP BY aje.entry_date
+       ORDER BY aje.entry_date DESC
+    `.execute(kdb);
+    rows = result.rows as unknown as DailySalesRow[];
   } else if (dateFrom) {
-    whereClause = "WHERE aje.entry_date >= $1 AND aje.posting_date IS NOT NULL";
-    params.push(dateFrom);
+    const result = await sql<DailySalesRow>`
+      SELECT aje.entry_date,
+              COALESCE(SUM(ajl.debit_amount_gbp), 0) AS total_debit,
+              COALESCE(SUM(ajl.credit_amount_gbp), 0) AS total_credit
+       FROM accounting_journal_entries aje
+       JOIN accounting_journal_lines ajl ON ajl.entry_id = aje.id
+       WHERE aje.entry_date >= ${dateFrom} AND aje.posting_date IS NOT NULL
+       GROUP BY aje.entry_date
+       ORDER BY aje.entry_date DESC
+    `.execute(kdb);
+    rows = result.rows as unknown as DailySalesRow[];
   } else if (dateTo) {
-    whereClause = "WHERE aje.entry_date <= $1 AND aje.posting_date IS NOT NULL";
-    params.push(dateTo);
+    const result = await sql<DailySalesRow>`
+      SELECT aje.entry_date,
+              COALESCE(SUM(ajl.debit_amount_gbp), 0) AS total_debit,
+              COALESCE(SUM(ajl.credit_amount_gbp), 0) AS total_credit
+       FROM accounting_journal_entries aje
+       JOIN accounting_journal_lines ajl ON ajl.entry_id = aje.id
+       WHERE aje.entry_date <= ${dateTo} AND aje.posting_date IS NOT NULL
+       GROUP BY aje.entry_date
+       ORDER BY aje.entry_date DESC
+    `.execute(kdb);
+    rows = result.rows as unknown as DailySalesRow[];
   } else {
-    whereClause = "WHERE aje.posting_date IS NOT NULL";
+    const result = await sql<DailySalesRow>`
+      SELECT aje.entry_date,
+              COALESCE(SUM(ajl.debit_amount_gbp), 0) AS total_debit,
+              COALESCE(SUM(ajl.credit_amount_gbp), 0) AS total_credit
+       FROM accounting_journal_entries aje
+       JOIN accounting_journal_lines ajl ON ajl.entry_id = aje.id
+       WHERE aje.posting_date IS NOT NULL
+       GROUP BY aje.entry_date
+       ORDER BY aje.entry_date DESC
+    `.execute(kdb);
+    rows = result.rows as unknown as DailySalesRow[];
   }
 
-  const result = await db.query(
-    `SELECT aje.entry_date,
-            COALESCE(SUM(ajl.debit_amount_gbp), 0) AS total_debit,
-            COALESCE(SUM(ajl.credit_amount_gbp), 0) AS total_credit
-     FROM accounting_journal_entries aje
-     JOIN accounting_journal_lines ajl ON ajl.entry_id = aje.id
-     ${whereClause}
-     GROUP BY aje.entry_date
-     ORDER BY aje.entry_date DESC`,
-    params
-  );
-
-  const rows = result.rows as unknown as DailySalesRow[];
   const totalDebit = rows.reduce((sum, r) => sum + Number(r.total_debit), 0);
   const totalCredit = rows.reduce((sum, r) => sum + Number(r.total_credit), 0);
   const netTotal = totalDebit - totalCredit;

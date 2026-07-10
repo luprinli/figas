@@ -1,10 +1,11 @@
-﻿import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, Link , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 
 export const meta: MetaFunction<typeof loader> = ({ data }) => [
     { title: `Schedule ${data?.schedule?.schedule_date ?? ""} - FIGAS` },
@@ -13,49 +14,48 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => [
 export async function loader({ request, params }: LoaderFunctionArgs) {
     await requirePermission(request, Permission.SCHEDULE_VIEW);
 
-    const schedule = await db.$queryRawUnsafe<Array<{
+    const scheduleResult = await sql<{
         id: number; schedule_date: string; status: string; notes: string | null;
-    }>>(
-        `SELECT id, schedule_date, status, notes FROM schedules WHERE id = $1`,
-        [Number(params.scheduleId)]
-    );
+    }>`
+        SELECT id, schedule_date, status, notes FROM schedules WHERE id = ${Number(params.scheduleId)}
+    `.execute(kdb);
 
-    if (schedule.length === 0) {
+    if (scheduleResult.rows.length === 0) {
         throw new Response("Schedule not found", { status: 404 });
     }
 
-    const flights = await db.query(
-        `SELECT f.id, f.flight_number, f.status,
+    const schedule = scheduleResult.rows[0];
+
+    const flightsResult = await sql<Record<string, unknown>>`
+        SELECT f.id, f.flight_number, f.status,
        ao.code AS origin_code, ad.code AS destination_code,
        a.registration AS aircraft_registration
  FROM flights f
  JOIN aerodromes ao ON ao.id = f.origin_aerodrome_id
  JOIN aerodromes ad ON ad.id = f.destination_aerodrome_id
  LEFT JOIN aircraft a ON a.id = f.aircraft_id
- WHERE f.schedule_id = $1
- ORDER BY f.flight_number`,
-        [Number(params.scheduleId)]
-    );
+ WHERE f.schedule_id = ${Number(params.scheduleId)}
+ ORDER BY f.flight_number
+    `.execute(kdb);
 
     // Build the true STY → … → STY route path from flight_legs (RULE 1).
     // The flight-level origin/destination aerodrome is STY↔STY for round-trip
     // sorties, so the human-readable path MUST come from the ordered legs.
-    const legs = await db.query(
-        `SELECT flight_id, leg_number, origin_code, destination_code
+    const legsResult = await sql<Record<string, unknown>>`
+        SELECT flight_id, leg_number, origin_code, destination_code
  FROM flight_legs
- WHERE flight_id IN (SELECT id FROM flights WHERE schedule_id = $1)
- ORDER BY flight_id, leg_number`,
-        [Number(params.scheduleId)]
-    );
+ WHERE flight_id IN (SELECT id FROM flights WHERE schedule_id = ${Number(params.scheduleId)})
+ ORDER BY flight_id, leg_number
+    `.execute(kdb);
     const routeByFlight = new Map<number, string[]>();
-    for (const row of legs.rows as Array<Record<string, unknown>>) {
+    for (const row of legsResult.rows) {
         const fid = Number(row.flight_id);
         const codes = routeByFlight.get(fid) ?? [];
         if (codes.length === 0) codes.push(String(row.origin_code));
         codes.push(String(row.destination_code));
         routeByFlight.set(fid, codes);
     }
-    const flightsWithRoute = (flights.rows as Array<Record<string, unknown>>).map((f) => {
+    const flightsWithRoute = flightsResult.rows.map((f) => {
         const codes = routeByFlight.get(Number(f.id)) ?? [];
         return {
             ...f,
@@ -63,7 +63,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         };
     });
 
-    return json({ schedule: schedule[0], flights: flightsWithRoute });
+    return json({ schedule, flights: flightsWithRoute });
 }
 
 export default function ScheduleDetail() {

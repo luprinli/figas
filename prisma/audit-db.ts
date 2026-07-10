@@ -9,6 +9,7 @@
  */
 
 import { db } from "../app/utils/db.server";
+import { sql } from "kysely";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -90,82 +91,55 @@ interface AuditOutput {
 async function main(): Promise<void> {
   // Run all queries in parallel where possible
   const [
-    aerodromeRows,
-    userRows,
-    orgRows,
-    bookingRefRows,
-    bookingStatusSourceRows,
-    fareRows,
-    aircraftRows,
-    scheduleRows,
+    aerodromeResult,
+    userResult,
+    orgResult,
+    bookingRefResult,
+    bookingStatusSourceResult,
+    fareResult,
+    aircraftResult,
+    scheduleResult,
   ] = await Promise.all([
-    db.$queryRawUnsafe<AerodromeRecord[]>(
-      `SELECT code, name, city, is_active FROM aerodromes ORDER BY code`,
-    ),
-    db.$queryRawUnsafe<{ id: number; name: string; role: string; is_active: boolean; email: string }[]>(
-      `SELECT id, name, role, is_active, email FROM users ORDER BY id`,
-    ),
-    db.$queryRawUnsafe<OrganizationRecord[]>(
-      `SELECT id, name, is_active FROM organizations ORDER BY id`,
-    ),
-    db.$queryRawUnsafe<{ booking_reference: string }[]>(
-      `SELECT booking_reference FROM bookings ORDER BY booking_reference`,
-    ),
-    db.$queryRawUnsafe<BookingStatusCount[]>(
-      `SELECT status, booking_source, COUNT(*)::int AS count
-       FROM bookings
-       GROUP BY status, booking_source
-       ORDER BY status, booking_source`,
-    ),
-    db.$queryRawUnsafe<FareRecord[]>(
-      `SELECT origin_code, destination_code, base_fare_gbp::text AS base_fare_gbp, is_active
-       FROM fare_routes
-       ORDER BY origin_code, destination_code`,
-    ),
-    db.$queryRawUnsafe<AircraftRecord[]>(
-      `SELECT registration, type, seat_count,
-              max_takeoff_weight_kg::text AS mtow_kg, is_active
-       FROM aircraft
-       ORDER BY registration`,
-    ),
-    db.$queryRawUnsafe<ScheduleRecord[]>(
-      `SELECT id, schedule_date::text AS schedule_date, status::text AS status
-       FROM schedules
-       ORDER BY schedule_date`,
-    ),
+    sql<AerodromeRecord>`SELECT code, name, city, is_active FROM aerodromes ORDER BY code`.execute(db),
+    sql<{ id: number; name: string; role: string; is_active: boolean; email: string }>`SELECT id, name, role, is_active, email FROM users ORDER BY id`.execute(db),
+    sql<OrganizationRecord>`SELECT id, name, is_active FROM organizations ORDER BY id`.execute(db),
+    sql<{ booking_reference: string }>`SELECT booking_reference FROM bookings ORDER BY booking_reference`.execute(db),
+    sql<BookingStatusCount>`SELECT status, booking_source, COUNT(*)::int AS count FROM bookings GROUP BY status, booking_source ORDER BY status, booking_source`.execute(db),
+    sql<FareRecord>`SELECT origin_code, destination_code, base_fare_gbp::text AS base_fare_gbp, is_active FROM fare_routes ORDER BY origin_code, destination_code`.execute(db),
+    sql<AircraftRecord>`SELECT registration, type, seat_count, max_takeoff_weight_kg::text AS mtow_kg, is_active FROM aircraft ORDER BY registration`.execute(db),
+    sql<ScheduleRecord>`SELECT id, schedule_date::text AS schedule_date, status::text AS status FROM schedules ORDER BY schedule_date`.execute(db),
   ]);
 
-  const bookingRefs = bookingRefRows.map((r) => r.booking_reference);
+  const bookingRefs = bookingRefResult.rows.map((r) => r.booking_reference);
 
   const output: AuditOutput = {
     timestamp: new Date().toISOString(),
-    aerodromes: aerodromeRows,
-    users: userRows.map((u) => ({
+    aerodromes: aerodromeResult.rows,
+    users: userResult.rows.map((u) => ({
       id: u.id,
       name: u.name,
       role: u.role,
       is_active: u.is_active,
       email_domain: extractDomain(u.email),
     })),
-    organizations: orgRows,
+    organizations: orgResult.rows,
     booking_references: bookingRefs,
-    bookings_by_status_source: bookingStatusSourceRows,
-    fares: fareRows,
-    aircraft: aircraftRows,
-    schedules: scheduleRows,
+    bookings_by_status_source: bookingStatusSourceResult.rows,
+    fares: fareResult.rows,
+    aircraft: aircraftResult.rows,
+    schedules: scheduleResult.rows,
     counts: {
-      aerodromes: aerodromeRows.length,
-      users: userRows.length,
-      organizations: orgRows.length,
+      aerodromes: aerodromeResult.rows.length,
+      users: userResult.rows.length,
+      organizations: orgResult.rows.length,
       distinct_booking_references: bookingRefs.length,
-      fares: fareRows.length,
-      aircraft: aircraftRows.length,
-      schedules: scheduleRows.length,
+      fares: fareResult.rows.length,
+      aircraft: aircraftResult.rows.length,
+      schedules: scheduleResult.rows.length,
     },
   };
 
   console.log(JSON.stringify(output, null, 2));
-  await db.$disconnect();
 }
 
 function extractDomain(email: string): string {

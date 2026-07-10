@@ -10,7 +10,8 @@ import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
 import { getSession } from "../session.server";
 import { ArrowLeft, ArrowRight, CreditCard, Pencil, Plane, Send, XCircle } from "lucide-react";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import PageLayout from "../components/PageLayout";
 import StatusBadge from "../components/StatusBadge";
 import PaymentStatusBadge from "../components/PaymentStatusBadge";
@@ -98,14 +99,13 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   // Fetch client info from the users table
   let clientInfo: ClientInfo | null = null;
   try {
-    const userResult = await db.queryOne(
-      "SELECT name, email FROM users WHERE id = $1",
-      [booking.user_id]
-    );
-    if (userResult) {
+    const userResult = await sql<{ name: string; email: string }>`
+      SELECT name, email FROM users WHERE id = ${booking.user_id}
+    `.execute(kdb);
+    if (userResult.rows[0]) {
       clientInfo = {
-        name: (userResult as { name: string }).name,
-        email: (userResult as { email: string }).email,
+        name: userResult.rows[0].name,
+        email: userResult.rows[0].email,
       };
     }
   } catch {
@@ -162,17 +162,10 @@ export async function action({ request, params }: ActionFunctionArgs) {
     try {
       const session = await getSession(request.headers.get("Cookie"));
       const userId = session.get("userId");
-      await db.query(
-        `INSERT INTO audit_log (actor_id, action, entity_type, entity_id, new_values)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [
-          Number(userId),
-          "booking.notify_client",
-          "booking",
-          bookingId,
-          JSON.stringify({ subject, message }),
-        ]
-      );
+      await sql`
+        INSERT INTO audit_log (actor_id, action, entity_type, entity_id, new_values)
+        VALUES (${Number(userId)}, ${"booking.notify_client"}, ${"booking"}, ${bookingId}, ${JSON.stringify({ subject, message })})
+      `.execute(kdb);
     } catch {
       // Non-critical — notification was still logged
     }

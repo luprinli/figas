@@ -45,13 +45,13 @@ const createdIds: { bookingLegIds: number[]; flightIds: number[]; scheduleIds: n
 afterAll(async () => {
   // Clean up in reverse dependency order
   for (const id of createdIds.bookingLegIds) {
-    await db.booking_legs.deleteMany({ where: { id } }).catch(() => {});
+    await db.deleteFrom("booking_legs").where("id", "=", id).execute();
   }
   for (const id of createdIds.flightIds) {
-    await db.flights.deleteMany({ where: { id } }).catch(() => {});
+    await db.deleteFrom("flights").where("id", "=", id).execute();
   }
   for (const id of createdIds.scheduleIds) {
-    await db.schedules.deleteMany({ where: { id } }).catch(() => {});
+    await db.deleteFrom("schedules").where("id", "=", id).execute();
   }
 });
 
@@ -111,22 +111,16 @@ describe("handleUnassignBooking()", () => {
     expect(isSuccess(result)).toBe(true);
 
     // Verify leg1 is unassigned
-    const updatedLeg1 = await db.booking_legs.findUnique({
-      where: { id: leg1.id },
-    });
-    expect(updatedLeg1?.flight_id).toBeNull();
+    const updatedLeg1Rows = await db.selectFrom("booking_legs").selectAll().where("id", "=", leg1.id).execute();
+    expect(updatedLeg1Rows[0]?.flight_id).toBeNull();
 
     // Verify leg2 is still assigned
-    const updatedLeg2 = await db.booking_legs.findUnique({
-      where: { id: leg2.id },
-    });
-    expect(updatedLeg2?.flight_id).toBe(flight.id);
+    const updatedLeg2Rows = await db.selectFrom("booking_legs").selectAll().where("id", "=", leg2.id).execute();
+    expect(updatedLeg2Rows[0]?.flight_id).toBe(flight.id);
 
     // Verify the flight still exists (since leg2 is still assigned)
-    const flightStillExists = await db.flights.findUnique({
-      where: { id: flight.id },
-    });
-    expect(flightStillExists).not.toBeNull();
+    const flightStillExists = await db.selectFrom("flights").selectAll().where("id", "=", flight.id).execute();
+    expect(flightStillExists[0]).not.toBeNull();
   });
 
   // ── Test: Unassigns last booking deletes flight ───────────────────────────
@@ -171,16 +165,12 @@ describe("handleUnassignBooking()", () => {
     expect(isSuccess(result)).toBe(true);
 
     // Verify the booking leg is unassigned
-    const updatedLeg = await db.booking_legs.findUnique({
-      where: { id: leg.id },
-    });
-    expect(updatedLeg?.flight_id).toBeNull();
+    const updatedLegRows = await db.selectFrom("booking_legs").selectAll().where("id", "=", leg.id).execute();
+    expect(updatedLegRows[0]?.flight_id).toBeNull();
 
     // Verify the flight was deleted (empty cleanup)
-    const deletedFlight = await db.flights.findUnique({
-      where: { id: flight.id },
-    });
-    expect(deletedFlight).toBeNull();
+    const deletedFlight = await db.selectFrom("flights").selectAll().where("id", "=", flight.id).execute();
+    expect(deletedFlight[0]).toBeNull();
   });
 
   // ── Test: Unassigns on no-fly day fails ───────────────────────────────────

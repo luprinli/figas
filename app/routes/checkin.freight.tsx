@@ -4,7 +4,8 @@ import { useLoaderData, Form } from "@remix-run/react";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
 import { requireUser } from "../utils/layout.server";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import DataGrid from "../components/DataGrid";
 import type { Column } from "../components/DataTable";
 import EmptyState from "../components/EmptyState";
@@ -14,13 +15,13 @@ import Button from "../components/Button";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   await requirePermission(request, Permission.CHECKIN_PROCESS);
-  const freight = await db.query(
-    `SELECT fc.*, COALESCE(f.flight_number, '—') AS flight_number
+  const freight = await sql<Record<string, unknown>>`
+    SELECT fc.*, COALESCE(f.flight_number, '—') AS flight_number
      FROM freight_consignments fc
      LEFT JOIN flights f ON f.id = fc.flight_id
-     ORDER BY fc.created_at DESC LIMIT 100`
-  );
-  const data = freight.rows as Array<Record<string, unknown>>;
+     ORDER BY fc.created_at DESC LIMIT 100
+  `.execute(kdb);
+  const data = freight.rows;
   const unassigned = data.filter((f) => f.status === 'unassigned').length;
   const assigned = data.filter((f) => f.status === 'assigned').length;
   return json({ freight: data, unassigned, assigned });
@@ -51,11 +52,10 @@ export async function action({ request }: ActionFunctionArgs) {
     const seq = String(Date.now() % 100000).padStart(5, "0");
     const waybill = `FW-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${seq}`;
 
-    await db.$queryRawUnsafe(
-      `INSERT INTO freight_consignments (consignor_name, consignee_name, description, weight_kg, length_cm, width_cm, height_cm, priority, hazardous, waybill_number, payment_mode, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-      [consignorName, consigneeName, description, weightKg, lengthCm, widthCm, heightCm, priority, hazardous, waybill, paymentMode, userId]
-    );
+    await sql`
+      INSERT INTO freight_consignments (consignor_name, consignee_name, description, weight_kg, length_cm, width_cm, height_cm, priority, hazardous, waybill_number, payment_mode, created_by)
+       VALUES (${consignorName}, ${consigneeName}, ${description}, ${weightKg}, ${lengthCm}, ${widthCm}, ${heightCm}, ${priority}, ${hazardous}, ${waybill}, ${paymentMode}, ${userId})
+    `.execute(kdb);
 
     // Display volumetric weight if dimensions provided
     if (lengthCm && widthCm && heightCm) {

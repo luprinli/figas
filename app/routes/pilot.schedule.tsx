@@ -1,10 +1,11 @@
-﻿import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import DataTable from "../components/DataTable";
 import type { Column } from "../components/DataTable";
 import EmptyState from "../components/EmptyState";
@@ -14,20 +15,19 @@ export const meta: MetaFunction = () => [{ title: "My Schedule - FIGAS" }];
 export async function loader({ request }: LoaderFunctionArgs) {
     const user = await requirePermission(request, Permission.FLIGHT_VIEW);
 
-    const pilot = await db.$queryRawUnsafe<{ id: number }[]>(
-        `SELECT id FROM pilots WHERE user_id = $1 LIMIT 1`, Number(user.id)
-    );
-    const pilotId = pilot.length > 0 ? pilot[0].id : 0;
+    const pilotResult = await sql<{ id: number }>`
+        SELECT id FROM pilots WHERE user_id = ${Number(user.id)} LIMIT 1
+    `.execute(kdb);
+    const pilotId = pilotResult.rows.length > 0 ? (pilotResult.rows[0] as { id: number }).id : 0;
 
-    const schedules = await db.query(
-        `SELECT s.id, s.schedule_date, s.status
+    const schedules = await sql<Record<string, unknown>>`
+        SELECT s.id, s.schedule_date, s.status
      FROM schedules s
      JOIN pilot_assignments pa ON pa.schedule_id = s.id
-     WHERE pa.pilot_id = $1
+     WHERE pa.pilot_id = ${pilotId}
      ORDER BY s.schedule_date DESC
-     LIMIT 50`,
-        [pilotId]
-    );
+     LIMIT 50
+    `.execute(kdb);
 
     return json({ user, schedules: schedules.rows });
 }

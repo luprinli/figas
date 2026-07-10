@@ -1,10 +1,11 @@
-﻿import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, Link , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import DataGrid from "../components/DataGrid";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission, DEFAULT_PAGE_SIZE } from "../utils/constants";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import { requireUser } from "../utils/layout.server";
 import PageHeader from "../components/PageHeader";
 import type { Column } from "../components/DataTable";
@@ -40,35 +41,45 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const status = url.searchParams.get("status") || null;
   const offset = (page - 1) * DEFAULT_PAGE_SIZE;
 
-  let whereClause = "";
-  const params: unknown[] = [];
-
-  if (status) {
-    whereClause = "WHERE p.status = $1";
-    params.push(status);
-  }
-
   // Count total
-  const countResult = await db.query(
-    `SELECT COUNT(*)::int AS total FROM payments p ${whereClause}`,
-    params
-  );
-  const total = Number(countResult.rows[0]?.total ?? 0);
+  let total: number;
+  if (status) {
+    const countResult = await sql<{ total: number }>`
+      SELECT COUNT(*)::int AS total FROM payments p WHERE p.status = ${status}
+    `.execute(kdb);
+    total = Number(countResult.rows[0]?.total ?? 0);
+  } else {
+    const countResult = await sql<{ total: number }>`
+      SELECT COUNT(*)::int AS total FROM payments p
+    `.execute(kdb);
+    total = Number(countResult.rows[0]?.total ?? 0);
+  }
   const totalPages = Math.max(1, Math.ceil(total / DEFAULT_PAGE_SIZE));
 
   // Fetch page
-  const dataParams = [...params, DEFAULT_PAGE_SIZE, offset];
-  const dataResult = await db.query(
-    `SELECT p.id, b.booking_reference, b.id AS booking_id,
-            p.amount_gbp, p.payment_method, p.status, p.created_at
-     FROM payments p
-     LEFT JOIN bookings b ON b.id = p.booking_id
-     ${whereClause}
-     ORDER BY p.created_at DESC
-     LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-    dataParams
-  );
-  const payments = dataResult.rows as unknown as PaymentRow[];
+  let payments: PaymentRow[];
+  if (status) {
+    const dataResult = await sql<PaymentRow>`
+      SELECT p.id, b.booking_reference, b.id AS booking_id,
+              p.amount_gbp, p.payment_method, p.status, p.created_at
+       FROM payments p
+       LEFT JOIN bookings b ON b.id = p.booking_id
+       WHERE p.status = ${status}
+       ORDER BY p.created_at DESC
+       LIMIT ${DEFAULT_PAGE_SIZE} OFFSET ${offset}
+    `.execute(kdb);
+    payments = dataResult.rows as unknown as PaymentRow[];
+  } else {
+    const dataResult = await sql<PaymentRow>`
+      SELECT p.id, b.booking_reference, b.id AS booking_id,
+              p.amount_gbp, p.payment_method, p.status, p.created_at
+       FROM payments p
+       LEFT JOIN bookings b ON b.id = p.booking_id
+       ORDER BY p.created_at DESC
+       LIMIT ${DEFAULT_PAGE_SIZE} OFFSET ${offset}
+    `.execute(kdb);
+    payments = dataResult.rows as unknown as PaymentRow[];
+  }
 
   return json<PaymentsData>({
     payments,

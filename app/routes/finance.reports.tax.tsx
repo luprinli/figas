@@ -3,7 +3,8 @@ import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import PageHeader from "../components/PageHeader";
 import DataTable from "../components/DataTable";
 import type { Column } from "../components/DataTable";
@@ -12,12 +13,12 @@ import EmptyState from "../components/EmptyState";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   await requirePermission(request, Permission.FINANCE_VIEW);
-  const result = await db.query(
-    `SELECT i.id, i.issue_date, i.total_gbp, i.tax_amount_gbp, b.booking_reference
+  const result = await sql<Record<string, unknown>>`
+    SELECT i.id, i.issue_date, i.total_gbp, i.tax_amount_gbp, b.booking_reference
      FROM invoices i LEFT JOIN bookings b ON b.id = i.booking_id
      WHERE i.tax_amount_gbp IS NOT NULL AND i.tax_amount_gbp > 0
-     ORDER BY i.issue_date DESC LIMIT 100`
-  );
+     ORDER BY i.issue_date DESC LIMIT 100
+  `.execute(kdb);
   return json({ invoices: result.rows });
 }
 

@@ -4,7 +4,8 @@ import { useLoaderData, Form } from "@remix-run/react";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
 import { requireUser } from "../utils/layout.server";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import DataGrid from "../components/DataGrid";
 import type { Column } from "../components/DataTable";
 import EmptyState from "../components/EmptyState";
@@ -14,17 +15,19 @@ import Button from "../components/Button";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   await requirePermission(request, Permission.MAINTENANCE_VIEW);
-  const comps = await db.query(
-    `SELECT lc.*, a.registration
+  const comps = await sql<Record<string, unknown>>`
+    SELECT lc.*, a.registration
  FROM lifed_components lc
  JOIN aircraft a ON a.id = lc.aircraft_id
  ORDER BY COALESCE(lc.hours_remaining, 9999) ASC
- LIMIT 100`
-  );
-  const data = comps.rows as Array<Record<string, unknown>>;
+ LIMIT 100
+  `.execute(kdb);
+  const data = comps.rows;
   const active = data.filter((c) => c.status === 'active').length;
   const critical = data.filter((c) => c.status === 'active' && Number(c.hours_remaining ?? 0) <= (Number(c.tbo_hours ?? 1) * 0.10)).length;
-  const aircraft = await db.query(`SELECT id, registration FROM aircraft ORDER BY registration`);
+  const aircraft = await sql<Record<string, unknown>>`
+    SELECT id, registration FROM aircraft ORDER BY registration
+  `.execute(kdb);
   return json({ components: data, active, critical, aircraft: aircraft.rows });
 }
 
@@ -49,12 +52,11 @@ export async function action({ request }: ActionFunctionArgs) {
         return json({ error: "Aircraft, component name, and TBO hours are required." }, { status: 400 });
       }
 
-      await db.$queryRawUnsafe(
-        `INSERT INTO lifed_components (aircraft_id, component_name, part_number, serial_number, ata_chapter,
+      await sql`
+        INSERT INTO lifed_components (aircraft_id, component_name, part_number, serial_number, ata_chapter,
          tbo_hours, installed_hours, current_hours, installed_date, hours_remaining, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8::date, $6 - $7, 'active')`,
-        [aircraftId, componentName, partNumber, serialNumber, ataChapter, tboHours, installedHours, installedDate]
-      );
+         VALUES (${aircraftId}, ${componentName}, ${partNumber}, ${serialNumber}, ${ataChapter}, ${tboHours}, ${installedHours}, ${installedHours}, ${installedDate + "::date"}, ${tboHours - installedHours}, ${"active"})
+      `.execute(kdb);
       return redirect("/engineer/components");
     }
 
@@ -62,10 +64,9 @@ export async function action({ request }: ActionFunctionArgs) {
       await requirePermission(request, Permission.MAINTENANCE_MANAGE_COMPONENTS);
       const componentId = Number(formData.get("component_id"));
 
-      await db.$queryRawUnsafe(
-        `UPDATE lifed_components SET status = 'removed', last_inspected_at = NOW() WHERE id = $1`,
-        [componentId]
-      );
+      await sql`
+        UPDATE lifed_components SET status = ${"removed"}, last_inspected_at = NOW() WHERE id = ${componentId}
+      `.execute(kdb);
       return redirect("/engineer/components");
     }
 

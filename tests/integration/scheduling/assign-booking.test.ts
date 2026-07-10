@@ -45,13 +45,13 @@ const createdIds: { bookingLegIds: number[]; flightIds: number[]; scheduleIds: n
 afterAll(async () => {
   // Clean up in reverse dependency order
   for (const id of createdIds.bookingLegIds) {
-    await db.booking_legs.deleteMany({ where: { id } }).catch(() => {});
+    await db.deleteFrom("booking_legs").where("id", "=", id).execute();
   }
   for (const id of createdIds.flightIds) {
-    await db.flights.deleteMany({ where: { id } }).catch(() => {});
+    await db.deleteFrom("flights").where("id", "=", id).execute();
   }
   for (const id of createdIds.scheduleIds) {
-    await db.schedules.deleteMany({ where: { id } }).catch(() => {});
+    await db.deleteFrom("schedules").where("id", "=", id).execute();
   }
 });
 
@@ -93,8 +93,8 @@ describe("handleAssignBooking()", () => {
     expect(isSuccess(result)).toBe(true);
 
     // Verify the booking leg was assigned to the flight
-    const updated = await db.booking_legs.findUnique({ where: { id: bookingLeg.id } });
-    expect(updated?.flight_id).toBe(flight.id);
+    const updatedRows = await db.selectFrom("booking_legs").selectAll().where("id", "=", bookingLeg.id).execute();
+    expect(updatedRows[0]?.flight_id).toBe(flight.id);
   });
 
   // ── Test: Returns error for non-existent booking leg (404) ────────────────
@@ -185,9 +185,10 @@ describe("handleAssignBooking()", () => {
     expect(isSuccess(result2)).toBe(true);
 
     // Verify both legs are assigned to the flight
-    const assignedLegs = await db.booking_legs.findMany({
-      where: { flight_id: flight.id },
-    });
+    const assignedLegs = await db.selectFrom("booking_legs")
+      .selectAll()
+      .where("flight_id", "=", flight.id)
+      .execute();
     expect(assignedLegs).toHaveLength(2);
     expect(assignedLegs.map((l: { id: number }) => l.id)).toEqual(
       expect.arrayContaining([leg1.id, leg2.id])
@@ -235,9 +236,10 @@ describe("handleAssignBooking()", () => {
     expect(successes.length).toBeGreaterThanOrEqual(1);
 
     // The booking leg should be assigned to the flight
-    const updated = await db.booking_legs.findUnique({
-      where: { id: bookingLeg.id },
-    });
-    expect(updated?.flight_id).toBe(flight.id);
+    const updatedRows2 = await db.selectFrom("booking_legs")
+      .selectAll()
+      .where("id", "=", bookingLeg.id)
+      .execute();
+    expect(updatedRows2[0]?.flight_id).toBe(flight.id);
   });
 });

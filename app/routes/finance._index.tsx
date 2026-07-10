@@ -1,5 +1,6 @@
 ﻿import type { LoaderFunctionArgs } from "@remix-run/node";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import { json } from "@remix-run/node";
 import { useLoaderData, Link, useNavigation, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import { requirePermission } from "../utils/permissions.server";
@@ -18,21 +19,21 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
     const [revenueResult, outstandingResult, pendingInvoiceResult, overdueResult, recentPayments, agingResult, monthlyResult,
         opsSchedule, opsBookings, opsFlights, opsManifests] = await Promise.all([
-        db.query(`SELECT COALESCE(SUM(p.amount_gbp), 0) as total FROM payments p WHERE p.status = 'succeeded'`),
-        db.query(`SELECT COALESCE(SUM(i.total_gbp - COALESCE((SELECT SUM(p.amount_gbp) FROM payments p WHERE p.booking_id = i.booking_id AND p.status = 'succeeded'), 0)), 0) as total FROM invoices i WHERE i.status = 'issued'`),
-        db.query(`SELECT COUNT(*) as cnt FROM invoices WHERE status = 'issued'`),
-        db.query(`SELECT COUNT(*) as cnt FROM invoices WHERE status = 'overdue'`),
-        db.query(
-            `SELECT p.id, p.amount_gbp, p.status, p.created_at, p.payment_method,
+        sql<{ total: string }>`SELECT COALESCE(SUM(p.amount_gbp), 0) as total FROM payments p WHERE p.status = 'succeeded'`.execute(kdb),
+        sql<{ total: string }>`SELECT COALESCE(SUM(i.total_gbp - COALESCE((SELECT SUM(p.amount_gbp) FROM payments p WHERE p.booking_id = i.booking_id AND p.status = 'succeeded'), 0)), 0) as total FROM invoices i WHERE i.status = 'issued'`.execute(kdb),
+        sql<{ cnt: string }>`SELECT COUNT(*) as cnt FROM invoices WHERE status = 'issued'`.execute(kdb),
+        sql<{ cnt: string }>`SELECT COUNT(*) as cnt FROM invoices WHERE status = 'overdue'`.execute(kdb),
+        sql<Record<string, unknown>>`
+            SELECT p.id, p.amount_gbp, p.status, p.created_at, p.payment_method,
        COALESCE(b.booking_reference, '—') AS booking_reference
  FROM payments p
   LEFT JOIN invoices i ON i.booking_id = p.booking_id
  LEFT JOIN bookings b ON b.id = i.booking_id
  ORDER BY p.created_at DESC
- LIMIT 10`
-        ),
-        db.query(
-            `SELECT
+ LIMIT 10
+        `.execute(kdb),
+        sql<{ overdue: string; due_30: string; due_60: string; due_90: string }>`
+            SELECT
        COALESCE(SUM(CASE WHEN i.due_date < NOW() AND i.status = 'issued' THEN i.total_gbp - COALESCE(p.paid, 0) ELSE 0 END), 0) AS overdue,
        COALESCE(SUM(CASE WHEN i.due_date >= NOW() AND i.due_date < NOW() + INTERVAL '30 days' AND i.status = 'issued' THEN i.total_gbp - COALESCE(p.paid, 0) ELSE 0 END), 0) AS due_30,
        COALESCE(SUM(CASE WHEN i.due_date >= NOW() + INTERVAL '30 days' AND i.due_date < NOW() + INTERVAL '60 days' AND i.status = 'issued' THEN i.total_gbp - COALESCE(p.paid, 0) ELSE 0 END), 0) AS due_60,
@@ -40,36 +41,36 @@ export async function loader({ request }: LoaderFunctionArgs) {
  FROM invoices i
  LEFT JOIN LATERAL (
     SELECT COALESCE(SUM(p.amount_gbp), 0) AS paid FROM payments p WHERE p.booking_id = i.booking_id AND p.status = 'succeeded'
- ) p ON true`
-        ),
-        db.query(
-            `SELECT DATE_TRUNC('month', p.created_at) AS month,
+ ) p ON true
+        `.execute(kdb),
+        sql<{ month: string; total: string }>`
+            SELECT DATE_TRUNC('month', p.created_at) AS month,
        COALESCE(SUM(p.amount_gbp), 0) AS total
  FROM payments p
  WHERE p.status = 'succeeded' AND p.created_at >= NOW() - INTERVAL '6 months'
  GROUP BY month
- ORDER BY month`
-        ),
+ ORDER BY month
+        `.execute(kdb),
         // Operations Overview queries (read-only, finance:view permission) — isolated with fallbacks
-        db.query(`SELECT s.status, COUNT(f.id)::int AS flight_count FROM schedules s LEFT JOIN flights f ON f.schedule_id = s.id WHERE s.schedule_date = CURRENT_DATE::date GROUP BY s.status`).catch(() => ({ rows: [] })),
-        db.query(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status NOT IN ('completed','cancelled'))::int AS active FROM bookings WHERE created_at::date = CURRENT_DATE::date`).catch(() => ({ rows: [{ total: 0, active: 0 }] })),
-        db.query(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE aircraft_id IS NULL)::int AS unassigned FROM flights WHERE departure_time::date = CURRENT_DATE::date`).catch(() => ({ rows: [{ total: 0, unassigned: 0 }] })),
-        db.query(`SELECT COUNT(*)::int AS pending FROM flight_manifests WHERE signed_off_at IS NULL`).catch(() => ({ rows: [{ pending: 0 }] })),
+        sql<{ status: string; flight_count: number }>`SELECT s.status, COUNT(f.id)::int AS flight_count FROM schedules s LEFT JOIN flights f ON f.schedule_id = s.id WHERE s.schedule_date = CURRENT_DATE::date GROUP BY s.status`.execute(kdb).catch(() => ({ rows: [] })),
+        sql<{ total: number; active: number }>`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status NOT IN ('completed','cancelled'))::int AS active FROM bookings WHERE created_at::date = CURRENT_DATE::date`.execute(kdb).catch(() => ({ rows: [{ total: 0, active: 0 }] })),
+        sql<{ total: number; unassigned: number }>`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE aircraft_id IS NULL)::int AS unassigned FROM flights WHERE departure_time::date = CURRENT_DATE::date`.execute(kdb).catch(() => ({ rows: [{ total: 0, unassigned: 0 }] })),
+        sql<{ pending: number }>`SELECT COUNT(*)::int AS pending FROM flight_manifests WHERE signed_off_at IS NULL`.execute(kdb).catch(() => ({ rows: [{ pending: 0 }] })),
     ]);
 
-    const totalRevenue = Number((revenueResult.rows[0] as { total: string }).total);
-    const outstanding = Number((outstandingResult.rows[0] as { total: string }).total);
-    const pendingInvoices = Number((pendingInvoiceResult.rows[0] as { cnt: string }).cnt);
-    const overdueInvoices = Number((overdueResult.rows[0] as { cnt: string }).cnt);
-    const agingRow = agingResult.rows[0] as { overdue: string; due_30: string; due_60: string; due_90: string };
+    const totalRevenue = Number(revenueResult.rows[0].total);
+    const outstanding = Number(outstandingResult.rows[0].total);
+    const pendingInvoices = Number(pendingInvoiceResult.rows[0].cnt);
+    const overdueInvoices = Number(overdueResult.rows[0].cnt);
+    const agingRow = agingResult.rows[0];
 
-    const monthlyData = (monthlyResult.rows as Array<{ month: string; total: string }>).map((r) => Number(r.total));
+    const monthlyData = monthlyResult.rows.map((r) => Number(r.total));
 
     // Operations Overview data
-    const scheduleStatus = (opsSchedule as { rows: Array<{ status: string; flight_count: number }> }).rows ?? [];
-    const bookingsToday = ((opsBookings as { rows: Array<{ total: number; active: number }> }).rows?.[0]) ?? { total: 0, active: 0 };
-    const flightsToday = ((opsFlights as { rows: Array<{ total: number; unassigned: number }> }).rows?.[0]) ?? { total: 0, unassigned: 0 };
-    const pendingManifests = Number(((opsManifests as { rows: Array<{ pending: number }> }).rows?.[0] ?? { pending: 0 }).pending);
+    const scheduleStatus = opsSchedule.rows ?? [];
+    const bookingsToday = opsBookings.rows?.[0] ?? { total: 0, active: 0 };
+    const flightsToday = opsFlights.rows?.[0] ?? { total: 0, unassigned: 0 };
+    const pendingManifests = Number((opsManifests.rows?.[0] ?? { pending: 0 }).pending);
 
     const opsData = { scheduleStatus, bookingsToday, flightsToday, pendingManifests };
 
@@ -235,7 +236,7 @@ export default function FinanceDashboard() {
                     <div className="text-center">
                         <p className="text-xs text-slate-500 dark:text-slate-400">Schedule</p>
                         <p className="text-lg font-bold text-sky-600 dark:text-sky-400">
-                            {opsData.scheduleStatus.length > 0 ? opsData.scheduleStatus.find(s => s.status === 'published')?.flight_count ?? '—' : '—'}
+                            {opsData.scheduleStatus.length > 0 ? (opsData.scheduleStatus as Array<{ status: string; flight_count: number }>).find(s => s.status === 'published')?.flight_count ?? '—' : '—'}
                         </p>
                     </div>
                     <div className="text-center">

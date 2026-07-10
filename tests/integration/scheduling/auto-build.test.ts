@@ -39,7 +39,7 @@ describe("handleAutoBuild()", () => {
         created_by: testUserId,
       });
 
-      const dateStr = formatDateOnly(schedule.schedule_date);
+      const dateStr = formatDateOnly(new Date(schedule.schedule_date));
       const result = await handleAutoBuild(dateStr, testUserId);
       const err = getError(result);
 
@@ -60,7 +60,7 @@ describe("handleAutoBuild()", () => {
         schedule_date: dateOnly(2026, 7, 26),
         created_by: testUserId,
       });
-      const dateStr = formatDateOnly(schedule.schedule_date);
+      const dateStr = formatDateOnly(new Date(schedule.schedule_date));
 
       // Create 12 booking legs — 6 for PSY→MPA and 6 for PSY→SHR
       // All use booking_id: 1 since that's the only booking in seed data
@@ -69,7 +69,7 @@ describe("handleAutoBuild()", () => {
           booking_id: 1,
           origin_code: "PSY",
           destination_code: "MPA",
-          leg_date: schedule.schedule_date,
+          leg_date: new Date(schedule.schedule_date),
           leg_sequence: i + 1,
           flight_id: null,
         });
@@ -79,7 +79,7 @@ describe("handleAutoBuild()", () => {
           booking_id: 1,
           origin_code: "PSY",
           destination_code: "SHR",
-          leg_date: schedule.schedule_date,
+          leg_date: new Date(schedule.schedule_date),
           leg_sequence: i + 7,
           flight_id: null,
         });
@@ -127,7 +127,7 @@ describe("handleAutoBuild()", () => {
         schedule_date: dateOnly(2026, 7, 27),
         created_by: testUserId,
       });
-      const dateStr = formatDateOnly(schedule.schedule_date);
+      const dateStr = formatDateOnly(new Date(schedule.schedule_date));
 
       // Create many booking legs to potentially exceed aircraft capacity
       // All use booking_id: 1 since that's the only booking in seed data
@@ -136,7 +136,7 @@ describe("handleAutoBuild()", () => {
           booking_id: 1,
           origin_code: "PSY",
           destination_code: "MPA",
-          leg_date: schedule.schedule_date,
+          leg_date: new Date(schedule.schedule_date),
           leg_sequence: i + 1,
           flight_id: null,
         });
@@ -165,7 +165,7 @@ describe("handleAutoBuild()", () => {
         schedule_date: dateOnly(2026, 7, 28),
         created_by: testUserId,
       });
-      const dateStr = formatDateOnly(schedule.schedule_date);
+      const dateStr = formatDateOnly(new Date(schedule.schedule_date));
 
       // Create a few booking legs
       // All use booking_id: 1 since that's the only booking in seed data
@@ -174,7 +174,7 @@ describe("handleAutoBuild()", () => {
           booking_id: 1,
           origin_code: "PSY",
           destination_code: "MPA",
-          leg_date: schedule.schedule_date,
+          leg_date: new Date(schedule.schedule_date),
           leg_sequence: i + 1,
           flight_id: null,
         });
@@ -202,14 +202,14 @@ describe("handleAutoBuild()", () => {
         schedule_date: dateOnly(2026, 7, 29),
         created_by: testUserId,
       });
-      const dateStr = formatDateOnly(schedule.schedule_date);
+      const dateStr = formatDateOnly(new Date(schedule.schedule_date));
 
       // Create a single booking leg (booking_id: 1 is the only booking in seed data)
       await createTestBookingLeg({
         booking_id: 1,
         origin_code: "PSY",
         destination_code: "MPA",
-        leg_date: schedule.schedule_date,
+        leg_date: new Date(schedule.schedule_date),
         leg_sequence: 1,
         flight_id: null,
       });
@@ -240,7 +240,7 @@ describe("handleAutoBuild()", () => {
         schedule_date: dateOnly(2026, 7, 30),
         created_by: testUserId,
       });
-      const dateStr = formatDateOnly(schedule.schedule_date);
+      const dateStr = formatDateOnly(new Date(schedule.schedule_date));
 
       // Create booking legs (all use booking_id: 1 since that's the only booking in seed data)
       for (let i = 0; i < 3; i++) {
@@ -248,7 +248,7 @@ describe("handleAutoBuild()", () => {
           booking_id: 1,
           origin_code: "PSY",
           destination_code: "MPA",
-          leg_date: schedule.schedule_date,
+          leg_date: new Date(schedule.schedule_date),
           leg_sequence: i + 1,
           flight_id: null,
         });
@@ -259,9 +259,10 @@ describe("handleAutoBuild()", () => {
       if (isSuccess(result)) {
         const { db } = await import("~/utils/db.server");
         // Check if weight_balance_snapshots were created
-        const snapshots = await db.weight_balance_snapshots.findMany({
-          take: 10,
-        });
+        const snapshots = await db.selectFrom("weight_balance_snapshots")
+          .selectAll()
+          .limit(10)
+          .execute();
         // If auto-build created flights, there should be snapshots
         if (snapshots.length > 0) {
           expect(snapshots.length).toBeGreaterThan(0);
@@ -277,7 +278,7 @@ describe("handleAutoBuild()", () => {
         schedule_date: dateOnly(2026, 7, 31),
         created_by: testUserId,
       });
-      const dateStr = formatDateOnly(schedule.schedule_date);
+      const dateStr = formatDateOnly(new Date(schedule.schedule_date));
 
       // Create booking legs (all use booking_id: 1 since that's the only booking in seed data)
       for (let i = 0; i < 3; i++) {
@@ -285,7 +286,7 @@ describe("handleAutoBuild()", () => {
           booking_id: 1,
           origin_code: "PSY",
           destination_code: "MPA",
-          leg_date: schedule.schedule_date,
+          leg_date: new Date(schedule.schedule_date),
           leg_sequence: i + 1,
           flight_id: null,
         });
@@ -296,10 +297,12 @@ describe("handleAutoBuild()", () => {
       if (isSuccess(result)) {
         const { db } = await import("~/utils/db.server");
         // Check if flight_legs were created
-        const flightLegs = await db.flight_legs.findMany({
-          take: 10,
-          orderBy: [{ flight_id: "asc" }, { leg_number: "asc" }],
-        });
+        const flightLegs = await db.selectFrom("flight_legs")
+          .selectAll()
+          .orderBy("flight_id", "asc")
+          .orderBy("leg_number", "asc")
+          .limit(10)
+          .execute();
         if (flightLegs.length > 0) {
           expect(flightLegs.length).toBeGreaterThan(0);
           // Verify leg sequences start at 1

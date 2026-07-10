@@ -1,4 +1,4 @@
-import { kdb } from "../db.server.kysely";
+import { kdb } from "../db.server";
 import { sql } from "kysely";
 
 export interface FareRouteRow {

@@ -1,6 +1,7 @@
-import { db } from "../db.server";
-import { FlightLegStatus } from "../../../generated/prisma/client";
-import type { Prisma } from "../../../generated/prisma/client";
+import { kdb } from "../db.server";
+import { sql } from "kysely";
+import type { Kysely } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 
 export interface FlightLegRow {
   id: number;
@@ -19,26 +20,34 @@ export interface FlightLegRow {
 
 export const flightLegRepository = {
   async findById(id: number): Promise<FlightLegRow | null> {
-    const leg = await db.flight_legs.findUnique({
-      where: { id },
-    });
-    return (leg as unknown as FlightLegRow) ?? null;
+    const rows = await kdb
+      .selectFrom("flight_legs")
+      .selectAll()
+      .where("id", "=", id)
+      .execute();
+    return (rows[0] as unknown as FlightLegRow) ?? null;
   },
 
   async findByFlightId(flightId: number): Promise<FlightLegRow[]> {
-    const legs = await db.flight_legs.findMany({
-      where: { flight_id: flightId },
-      orderBy: { leg_number: "asc" },
-    });
-    return legs as unknown as FlightLegRow[];
+    const rows = await kdb
+      .selectFrom("flight_legs")
+      .selectAll()
+      .where("flight_id", "=", flightId)
+      .orderBy("leg_number", "asc")
+      .execute();
+    return rows as unknown as FlightLegRow[];
   },
 
   async findByScheduleId(scheduleId: number): Promise<FlightLegRow[]> {
-    const legs = await db.flight_legs.findMany({
-      where: { flight: { schedule_id: scheduleId } },
-      orderBy: [{ flight_id: "asc" }, { leg_number: "asc" }],
-    });
-    return legs as unknown as FlightLegRow[];
+    const rows = await kdb
+      .selectFrom("flight_legs as fl")
+      .innerJoin("flights as f", "f.id", "fl.flight_id")
+      .selectAll("fl")
+      .where("f.schedule_id", "=", scheduleId)
+      .orderBy("fl.flight_id", "asc")
+      .orderBy("fl.leg_number", "asc")
+      .execute();
+    return rows as unknown as FlightLegRow[];
   },
 
   async create(data: {
@@ -51,8 +60,9 @@ export const flightLegRepository = {
     distance_nm?: number | null;
     heading?: number | null;
   }): Promise<FlightLegRow> {
-    const leg = await db.flight_legs.create({
-      data: {
+    const rows = await kdb
+      .insertInto("flight_legs")
+      .values({
         flight_id: data.flight_id,
         leg_number: data.leg_sequence,
         origin_code: data.origin_code,
@@ -61,9 +71,10 @@ export const flightLegRepository = {
         eta: data.arrival_time ? new Date(data.arrival_time) : null,
         distance_nm: data.distance_nm ?? undefined,
         heading: data.heading ?? undefined,
-      },
-    });
-    return leg as unknown as FlightLegRow;
+      } as any)
+      .returningAll()
+      .execute();
+    return rows[0] as unknown as FlightLegRow;
   },
 
   async updateTimes(
@@ -78,17 +89,19 @@ export const flightLegRepository = {
       updateData.eta = data.arrival_time ? new Date(data.arrival_time) : null;
     }
     if (Object.keys(updateData).length === 0) return;
-    await db.flight_legs.update({
-      where: { id },
-      data: updateData,
-    });
+    await kdb
+      .updateTable("flight_legs")
+      .set(updateData as any)
+      .where("id", "=", id)
+      .execute();
   },
 
-  async updateStatus(id: number, status: FlightLegStatus): Promise<void> {
-    await db.flight_legs.update({
-      where: { id },
-      data: { status },
-    });
+  async updateStatus(id: number, status: string): Promise<void> {
+    await kdb
+      .updateTable("flight_legs")
+      .set({ status } as any)
+      .where("id", "=", id)
+      .execute();
   },
 
   async updateActualTimes(
@@ -104,41 +117,49 @@ export const flightLegRepository = {
       data.ata = ata ? new Date(ata) : null;
     }
     if (Object.keys(data).length === 0) return;
-    await db.flight_legs.update({ where: { id }, data });
+    await kdb
+      .updateTable("flight_legs")
+      .set(data as any)
+      .where("id", "=", id)
+      .execute();
   },
 
   async deleteByFlightId(flightId: number): Promise<void> {
-    await db.flight_legs.deleteMany({
-      where: { flight_id: flightId },
-    });
+    await kdb
+      .deleteFrom("flight_legs")
+      .where("flight_id", "=", flightId)
+      .execute();
   },
 
   async replaceFlightLegs(
     flightId: number,
     legs: { leg_sequence: number; origin_code: string; destination_code: string }[],
-    client?: Prisma.TransactionClient
+    client?: Kysely<DB>
   ): Promise<FlightLegRow[]> {
-    const exec = async (tx: Prisma.TransactionClient) => {
-      await tx.flight_legs.deleteMany({
-        where: { flight_id: flightId },
-      });
+    const exec = async (tx: Kysely<DB>) => {
+      await tx
+        .deleteFrom("flight_legs")
+        .where("flight_id", "=", flightId)
+        .execute();
       const inserted: FlightLegRow[] = [];
       for (const leg of legs) {
-        const result = await tx.flight_legs.create({
-          data: {
+        const rows = await tx
+          .insertInto("flight_legs")
+          .values({
             flight_id: flightId,
             leg_number: leg.leg_sequence,
             origin_code: leg.origin_code,
             destination_code: leg.destination_code,
-          },
-        });
-        inserted.push(result as unknown as FlightLegRow);
+          } as any)
+          .returningAll()
+          .execute();
+        inserted.push(rows[0] as unknown as FlightLegRow);
       }
       return inserted;
     };
     if (client) {
       return exec(client);
     }
-    return db.$transaction(exec);
+    return kdb.transaction().execute(exec);
   },
 };

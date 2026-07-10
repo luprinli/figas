@@ -1,10 +1,11 @@
-﻿import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useFetcher , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import Button from "../components/Button";
 
 export const meta: MetaFunction<typeof loader> = ({ data }) => [
@@ -14,18 +15,17 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => [
 export async function loader({ request, params }: LoaderFunctionArgs) {
     await requirePermission(request, Permission.BOOKING_EDIT);
 
-    const booking = await db.$queryRawUnsafe<Array<{
+    const bookingResult = await sql<{
         id: number; booking_reference: string; status: string;
-    }>>(
-        `SELECT id, booking_reference, status FROM bookings WHERE id = $1`,
-        [Number(params.bookingId)]
-    );
+    }>`
+        SELECT id, booking_reference, status FROM bookings WHERE id = ${Number(params.bookingId)}
+    `.execute(kdb);
 
-    if (booking.length === 0) {
+    if (bookingResult.rows.length === 0) {
         throw new Response("Booking not found", { status: 404 });
     }
 
-    return json({ bookingRef: booking[0].booking_reference, status: booking[0].status });
+    return json({ bookingRef: bookingResult.rows[0].booking_reference, status: bookingResult.rows[0].status });
 }
 
 export async function action({ request, params }: ActionFunctionArgs) {
@@ -33,11 +33,10 @@ export async function action({ request, params }: ActionFunctionArgs) {
     const formData = await request.formData();
     const reason = formData.get("reason") as string;
 
-    await db.$queryRawUnsafe(
-        `UPDATE bookings SET status = 'cancelled', cancellation_reason = $1, updated_at = NOW()
-     WHERE id = $2`,
-        [reason || "No reason provided", Number(params.bookingId)]
-    );
+    await sql`
+        UPDATE bookings SET status = ${"cancelled"}, cancellation_reason = ${reason || "No reason provided"}, updated_at = NOW()
+     WHERE id = ${Number(params.bookingId)}
+    `.execute(kdb);
 
     return redirect(`/operations/bookings/${params.bookingId}`);
 }

@@ -10,6 +10,7 @@
  */
 
 import { db } from "./db.server";
+import { sql } from "kysely";
 import { scheduleRepository } from "./repositories/schedule";
 
 function todayISO(): string {
@@ -29,20 +30,20 @@ async function seed() {
   const nextWeek = daysFromNow(7);
 
   // 1. Use the existing admin user (id=1, admin@figas.gov.fk)
-  const userResult = await db.query(
-    "SELECT id, name FROM users WHERE role = 'admin' ORDER BY id LIMIT 1"
-  );
+  const userResult = await sql`
+    SELECT id, name FROM users WHERE role = 'admin' ORDER BY id LIMIT 1
+  `.execute(db);
   if (userResult.rows.length === 0) {
     console.error("  ❌ No admin user found. Run the main seed script first.");
     process.exit(1);
   }
-  const userId = Number(userResult.rows[0].id);
-  console.log(`  Using admin user "${userResult.rows[0].name}" (id=${userId})`);
+  const userId = Number((userResult.rows[0] as { id: number | bigint }).id);
+  console.log(`  Using admin user "${(userResult.rows[0] as { name: string }).name}" (id=${userId})`);
 
   // 2. Get aerodrome codes
-  const aerodromes = await db.query(
-    "SELECT id, code FROM aerodromes ORDER BY code LIMIT 10"
-  );
+  const aerodromes = await sql`
+    SELECT id, code FROM aerodromes ORDER BY code LIMIT 10
+  `.execute(db);
   if (aerodromes.rows.length < 2) {
     console.error("  ❌ Need at least 2 aerodromes in the database. Run migrations first.");
     process.exit(1);
@@ -86,53 +87,48 @@ async function seed() {
 
   for (const b of todayBookings) {
     // Check if booking already exists
-    const existing = await db.query(
-      "SELECT id FROM bookings WHERE booking_reference = $1",
-      [b.ref]
-    );
+    const existing = await sql`
+      SELECT id FROM bookings WHERE booking_reference = ${b.ref}
+    `.execute(db);
     if (existing.rows.length > 0) {
       console.log(`  Booking ${b.ref} already exists`);
       continue;
     }
 
     // Create booking (user_id = admin user)
-    const booking = await db.query(
-      `INSERT INTO bookings (user_id, booking_reference, status, is_organization_billing, payment_status, total_amount, booking_source, created_by)
-       VALUES ($1, $2, 'confirmed', false, 'pending', 100.00, 'online', $3)
-       RETURNING id`,
-      [userId, b.ref, userId]
-    );
-    const bookingId = booking.rows[0].id;
+    const booking = await sql`
+      INSERT INTO bookings (user_id, booking_reference, status, is_organization_billing, payment_status, total_amount, booking_source, created_by)
+       VALUES (${userId}, ${b.ref}, 'confirmed', false, 'pending', 100.00, 'online', ${userId})
+       RETURNING id
+    `.execute(db);
+    const bookingId = (booking.rows[0] as { id: number | bigint }).id;
 
     // Create booking leg (unassigned - no flight_id)
     // Use origin_code/destination_code as varchar columns
-    const legResult = await db.query(
-      `INSERT INTO booking_legs (booking_id, origin_code, destination_code, leg_date, departure_date, leg_sequence, status)
-       VALUES ($1, $2, $3, $4, $4, 1, 'confirmed')
-       RETURNING id`,
-      [bookingId, b.origin, b.dest, today]
-    );
-    const bookingLegId = legResult.rows[0].id;
+    const legResult = await sql`
+      INSERT INTO booking_legs (booking_id, origin_code, destination_code, leg_date, departure_date, leg_sequence, status)
+       VALUES (${bookingId}, ${b.origin}, ${b.dest}, ${today}, ${today}, 1, 'confirmed')
+       RETURNING id
+    `.execute(db);
+    const bookingLegId = (legResult.rows[0] as { id: number | bigint }).id;
 
     // Create booking_passengers for this booking so that handleAssignBooking
     // can find passengers via findByBookingLegId() (which joins booking_leg_passengers
     // with booking_passengers).
     for (let i = 0; i < b.pax; i++) {
       const passengerName = i === 0 ? b.name : `${b.name} Guest ${i + 1}`;
-      const bpResult = await db.query(
-        `INSERT INTO booking_passengers (booking_id, first_name, last_name, clothed_weight_kg, baggage_weight_kg, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id`,
-        [bookingId, passengerName.split(" ")[0], passengerName.split(" ").slice(1).join(" ") || "Passenger", 75, 10, userId]
-      );
-      const bpId = bpResult.rows[0].id;
+      const bpResult = await sql`
+        INSERT INTO booking_passengers (booking_id, first_name, last_name, clothed_weight_kg, baggage_weight_kg, created_by)
+         VALUES (${bookingId}, ${passengerName.split(" ")[0]}, ${passengerName.split(" ").slice(1).join(" ") || "Passenger"}, 75, 10, ${userId})
+         RETURNING id
+      `.execute(db);
+      const bpId = (bpResult.rows[0] as { id: number | bigint }).id;
 
       // Link passenger to booking leg via booking_leg_passengers
-      await db.query(
-        `INSERT INTO booking_leg_passengers (booking_leg_id, booking_passenger_id, clothed_weight_kg, baggage_weight_kg)
-         VALUES ($1, $2, $3, $4)`,
-        [bookingLegId, bpId, 75, 10]
-      );
+      await sql`
+        INSERT INTO booking_leg_passengers (booking_leg_id, booking_passenger_id, clothed_weight_kg, baggage_weight_kg)
+         VALUES (${bookingLegId}, ${bpId}, 75, 10)
+      `.execute(db);
     }
 
     console.log(`  Created booking ${b.ref} for ${today} with ${b.pax} passenger(s)`);
@@ -145,47 +141,42 @@ async function seed() {
   ];
 
   for (const b of tomorrowBookings) {
-    const existing = await db.query(
-      "SELECT id FROM bookings WHERE booking_reference = $1",
-      [b.ref]
-    );
+    const existing = await sql`
+      SELECT id FROM bookings WHERE booking_reference = ${b.ref}
+    `.execute(db);
     if (existing.rows.length > 0) {
       console.log(`  Booking ${b.ref} already exists`);
       continue;
     }
 
-    const booking = await db.query(
-      `INSERT INTO bookings (user_id, booking_reference, status, is_organization_billing, payment_status, total_amount, booking_source, created_by)
-       VALUES ($1, $2, 'confirmed', false, 'pending', 100.00, 'online', $3)
-       RETURNING id`,
-      [userId, b.ref, userId]
-    );
-    const bookingId = booking.rows[0].id;
+    const booking = await sql`
+      INSERT INTO bookings (user_id, booking_reference, status, is_organization_billing, payment_status, total_amount, booking_source, created_by)
+       VALUES (${userId}, ${b.ref}, 'confirmed', false, 'pending', 100.00, 'online', ${userId})
+       RETURNING id
+    `.execute(db);
+    const bookingId = (booking.rows[0] as { id: number | bigint }).id;
 
-    const legResult = await db.query(
-      `INSERT INTO booking_legs (booking_id, origin_code, destination_code, leg_date, departure_date, leg_sequence, status)
-       VALUES ($1, $2, $3, $4, $4, 1, 'confirmed')
-       RETURNING id`,
-      [bookingId, b.origin, b.dest, tomorrow]
-    );
-    const bookingLegId = legResult.rows[0].id;
+    const legResult = await sql`
+      INSERT INTO booking_legs (booking_id, origin_code, destination_code, leg_date, departure_date, leg_sequence, status)
+       VALUES (${bookingId}, ${b.origin}, ${b.dest}, ${tomorrow}, ${tomorrow}, 1, 'confirmed')
+       RETURNING id
+    `.execute(db);
+    const bookingLegId = (legResult.rows[0] as { id: number | bigint }).id;
 
     // Create booking_passengers and booking_leg_passengers for this booking
     for (let i = 0; i < b.pax; i++) {
       const passengerName = i === 0 ? b.name : `${b.name} Guest ${i + 1}`;
-      const bpResult = await db.query(
-        `INSERT INTO booking_passengers (booking_id, first_name, last_name, clothed_weight_kg, baggage_weight_kg, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id`,
-        [bookingId, passengerName.split(" ")[0], passengerName.split(" ").slice(1).join(" ") || "Passenger", 75, 10, userId]
-      );
-      const bpId = bpResult.rows[0].id;
+      const bpResult = await sql`
+        INSERT INTO booking_passengers (booking_id, first_name, last_name, clothed_weight_kg, baggage_weight_kg, created_by)
+         VALUES (${bookingId}, ${passengerName.split(" ")[0]}, ${passengerName.split(" ").slice(1).join(" ") || "Passenger"}, 75, 10, ${userId})
+         RETURNING id
+      `.execute(db);
+      const bpId = (bpResult.rows[0] as { id: number | bigint }).id;
 
-      await db.query(
-        `INSERT INTO booking_leg_passengers (booking_leg_id, booking_passenger_id, clothed_weight_kg, baggage_weight_kg)
-         VALUES ($1, $2, $3, $4)`,
-        [bookingLegId, bpId, 75, 10]
-      );
+      await sql`
+        INSERT INTO booking_leg_passengers (booking_leg_id, booking_passenger_id, clothed_weight_kg, baggage_weight_kg)
+         VALUES (${bookingLegId}, ${bpId}, 75, 10)
+      `.execute(db);
     }
 
     console.log(`  Created booking ${b.ref} for ${tomorrow} with ${b.pax} passenger(s)`);

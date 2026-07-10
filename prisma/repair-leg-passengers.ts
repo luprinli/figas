@@ -11,6 +11,7 @@
  */
 
 import { db } from "../app/utils/db.server";
+import { sql } from "kysely";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,15 +50,13 @@ async function main(): Promise<void> {
   console.log(`\n=== Repair Leg-Passengers (${mode}) ===\n`);
 
   // ── 1. Find bookings with legs + passengers but zero junction records ────
-  const brokenBookings = await db.$queryRawUnsafe<
-    {
-      booking_id: number;
-      booking_reference: string;
-      leg_count: bigint;
-      passenger_count: bigint;
-    }[]
-  >(
-    `SELECT
+  const brokenBookingsResult = await sql<{
+    booking_id: number;
+    booking_reference: string;
+    leg_count: bigint;
+    passenger_count: bigint;
+  }>`
+    SELECT
        b.id AS booking_id,
        b.booking_reference,
        (SELECT COUNT(*) FROM booking_legs bl WHERE bl.booking_id = b.id) AS leg_count,
@@ -70,12 +69,13 @@ async function main(): Promise<void> {
          JOIN booking_legs bl ON bl.id = blp.booking_leg_id
          WHERE bl.booking_id = b.id
        )
-     ORDER BY b.id`,
-  );
+     ORDER BY b.id
+  `.execute(db);
+
+  const brokenBookings = brokenBookingsResult.rows;
 
   if (brokenBookings.length === 0) {
     console.log("✓ No broken bookings found. All bookings with legs and passengers have junction records.\n");
-    await db.$disconnect();
     return;
   }
 
@@ -114,7 +114,6 @@ async function main(): Promise<void> {
 
   if (!execute) {
     console.log("DRY-RUN complete. Run with --execute to create the missing records.\n");
-    await db.$disconnect();
     return;
   }
 
@@ -125,22 +124,22 @@ async function main(): Promise<void> {
 
   for (const repair of repairs) {
     // Fetch legs for this booking
-    const legs = await db.$queryRawUnsafe<LegInfo[]>(
-      `SELECT id, leg_sequence, origin_code, destination_code, leg_date
+    const legsResult = await sql<LegInfo>`
+      SELECT id, leg_sequence, origin_code, destination_code, leg_date
        FROM booking_legs
-       WHERE booking_id = $1
-       ORDER BY leg_sequence`,
-      repair.booking_id,
-    );
+       WHERE booking_id = ${repair.booking_id}
+       ORDER BY leg_sequence
+    `.execute(db);
+    const legs = legsResult.rows;
 
     // Fetch passengers for this booking
-    const passengers = await db.$queryRawUnsafe<PassengerInfo[]>(
-      `SELECT id, first_name, last_name, clothed_body_weight_kg
+    const passengersResult = await sql<PassengerInfo>`
+      SELECT id, first_name, last_name, clothed_body_weight_kg
        FROM booking_passengers
-       WHERE booking_id = $1
-       ORDER BY id`,
-      repair.booking_id,
-    );
+       WHERE booking_id = ${repair.booking_id}
+       ORDER BY id
+    `.execute(db);
+    const passengers = passengersResult.rows;
 
     let createdForBooking = 0;
     let skippedForBooking = 0;
@@ -148,29 +147,24 @@ async function main(): Promise<void> {
     for (const leg of legs) {
       for (const passenger of passengers) {
         // Check if this combination already exists (safety check)
-        const existing = await db.$queryRawUnsafe<{ id: number }[]>(
-          `SELECT id FROM booking_leg_passengers
-           WHERE booking_leg_id = $1 AND booking_passenger_id = $2`,
-          leg.id,
-          passenger.id,
-        );
+        const existingResult = await sql<{ id: number }>`
+          SELECT id FROM booking_leg_passengers
+           WHERE booking_leg_id = ${leg.id} AND booking_passenger_id = ${passenger.id}
+        `.execute(db);
 
-        if (existing.length > 0) {
+        if (existingResult.rows.length > 0) {
           skippedForBooking++;
           continue;
         }
 
         // Create the junction record
-        await db.$executeRawUnsafe(
-          `INSERT INTO booking_leg_passengers
+        await sql`
+          INSERT INTO booking_leg_passengers
              (booking_leg_id, booking_passenger_id, clothed_weight_kg,
               baggage_weight_kg, baggage_description,
               freight_description, freight_weight_kg)
-           VALUES ($1, $2, $3, 0, NULL, NULL, 0)`,
-          leg.id,
-          passenger.id,
-          passenger.clothed_body_weight_kg ?? null,
-        );
+           VALUES (${leg.id}, ${passenger.id}, ${passenger.clothed_body_weight_kg ?? null}, 0, NULL, NULL, 0)
+        `.execute(db);
         createdForBooking++;
       }
     }
@@ -191,8 +185,6 @@ async function main(): Promise<void> {
     console.log(`Already-existing records skipped: ${totalSkipped}`);
   }
   console.log();
-
-  await db.$disconnect();
 }
 
 main().catch((err) => {

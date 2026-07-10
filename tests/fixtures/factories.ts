@@ -4,35 +4,11 @@ import { TEST_VALUES, MOCK_USER_IDS } from "./seed-data";
 // ---------------------------------------------------------------------------
 // Parallel-safe unique date generator
 // ---------------------------------------------------------------------------
-// Vitest runs test files in parallel by default. On some platforms (Windows),
-// settings like singleFork and sequence.concurrent are not reliably respected.
-// To avoid unique constraint collisions on schedule_date across parallel
-// processes, we use a timestamp-based offset that is unique per-call even
-// across processes.
-//
-// Strategy: combine Date.now() (milliseconds, shared across processes) with a
-// per-process counter and a random seed to guarantee uniqueness.
-// ---------------------------------------------------------------------------
 let bookingLegSequenceCounter = 0;
 
-// Each worker process gets a unique random seed (0..99,999).
-// A small range is critical because the offset is added as days to a Date
-// object. Adding more than ~100,000 days would overflow the Date.
-// With 100k possible seeds and at most ~100 test calls per process, the
-// probability of collision across parallel workers is negligible.
 const PROCESS_SEED = Math.floor(Math.random() * 100_000);
 let callCounter = 0;
 
-/**
- * Generate a unique Date that is guaranteed not to collide with any other
- * call to this function, even across parallel worker processes.
- *
- * The offset is derived from:
- *   - PROCESS_SEED: unique per worker process (startup time + random)
- *   - callCounter: unique per call within the same process
- *
- * This produces a date offset that is unique across all parallel workers.
- */
 function generateUniqueDate(baseDate: Date): Date {
   callCounter++;
   const offset = PROCESS_SEED + callCounter;
@@ -61,8 +37,6 @@ export interface ScheduleOverrides {
 export async function createTestSchedule(
   overrides: ScheduleOverrides = {},
 ) {
-  // Generate a globally unique date to avoid unique constraint collisions
-  // when tests run in parallel across files/processes.
   const baseDate = overrides.schedule_date ?? new Date("2026-07-01");
   const uniqueDate = generateUniqueDate(baseDate);
 
@@ -72,9 +46,11 @@ export async function createTestSchedule(
     created_by: MOCK_USER_IDS.ops,
   };
 
-  return db.schedules.create({
-    data: { ...defaults, ...overrides, schedule_date: uniqueDate },
-  });
+  const rows = await db.insertInto("schedules")
+    .values({ ...defaults, ...overrides, schedule_date: uniqueDate } as any)
+    .returningAll()
+    .execute();
+  return rows[0];
 }
 
 // ---------------------------------------------------------------------------
@@ -115,9 +91,11 @@ export async function createTestFlight(
     created_by: MOCK_USER_IDS.ops,
   };
 
-  return db.flights.create({
-    data: { ...defaults, ...overrides },
-  });
+  const rows = await db.insertInto("flights")
+    .values({ ...defaults, ...overrides } as any)
+    .returningAll()
+    .execute();
+  return rows[0];
 }
 
 // ---------------------------------------------------------------------------
@@ -150,9 +128,11 @@ export async function createTestFlightLeg(
     status: "scheduled" as const,
   };
 
-  return db.flight_legs.create({
-    data: { ...defaults, ...overrides },
-  });
+  const rows = await db.insertInto("flight_legs")
+    .values({ ...defaults, ...overrides } as any)
+    .returningAll()
+    .execute();
+  return rows[0];
 }
 
 // ---------------------------------------------------------------------------
@@ -184,9 +164,11 @@ export async function createTestBookingLeg(
     status: "pending",
   };
 
-  return db.booking_legs.create({
-    data: { ...defaults, ...overrides },
-  });
+  const rows = await db.insertInto("booking_legs")
+    .values({ ...defaults, ...overrides } as any)
+    .returningAll()
+    .execute();
+  return rows[0];
 }
 
 // ---------------------------------------------------------------------------
@@ -197,13 +179,7 @@ export interface PilotAssignmentOverrides {
   flight_id?: number;
   pilot_id?: number;
   role?: "captain" | "first_officer" | "relief";
-  status?:
-    | "assigned"
-    | "confirmed"
-    | "declined"
-    | "checked_in"
-    | "completed"
-    | "cancelled";
+  status?: "assigned" | "confirmed" | "declined" | "checked_in" | "completed" | "cancelled";
   schedule_id?: number | null;
   assigned_by?: number | null;
   [key: string]: unknown;
@@ -216,16 +192,18 @@ export async function createTestPilotAssignment(
 ) {
   const defaults = {
     flight_id: flightId,
-    pilot_id: 1, // pilot record id (user_id=3 in seed data)
+    pilot_id: 1,
     role: "captain" as const,
     status: "assigned" as const,
     schedule_id: scheduleId,
     assigned_by: MOCK_USER_IDS.ops,
   };
 
-  return db.pilot_assignments.create({
-    data: { ...defaults, ...overrides },
-  });
+  const rows = await db.insertInto("pilot_assignments")
+    .values({ ...defaults, ...overrides } as any)
+    .returningAll()
+    .execute();
+  return rows[0];
 }
 
 // ---------------------------------------------------------------------------
@@ -253,9 +231,11 @@ export async function createTestBookingPassenger(
     clothed_body_weight_kg: 70,
   };
 
-  return db.booking_passengers.create({
-    data: { ...defaults, ...overrides },
-  });
+  const rows = await db.insertInto("booking_passengers")
+    .values({ ...defaults, ...overrides } as any)
+    .returningAll()
+    .execute();
+  return rows[0];
 }
 
 export interface BookingLegPassengerLinkOverrides {
@@ -276,9 +256,11 @@ export async function createTestBookingLegPassengerLink(
     freight_weight_kg: 0,
   };
 
-  return db.booking_leg_passengers.create({
-    data: { ...defaults, ...overrides },
-  });
+  const rows = await db.insertInto("booking_leg_passengers")
+    .values({ ...defaults, ...overrides } as any)
+    .returningAll()
+    .execute();
+  return rows[0];
 }
 
 // ---------------------------------------------------------------------------
@@ -315,7 +297,9 @@ export async function createTestWeightBalance(
     computed_by: "system",
   };
 
-  return db.weight_balance_snapshots.create({
-    data: { ...defaults, ...overrides },
-  });
+  const rows = await db.insertInto("weight_balance_snapshots")
+    .values({ ...defaults, ...overrides } as any)
+    .returningAll()
+    .execute();
+  return rows[0];
 }

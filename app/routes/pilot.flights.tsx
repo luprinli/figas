@@ -1,10 +1,11 @@
-﻿import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import DataTable from "../components/DataTable";
 import type { Column } from "../components/DataTable";
 import EmptyState from "../components/EmptyState";
@@ -14,13 +15,13 @@ export const meta: MetaFunction = () => [{ title: "My Flights - FIGAS" }];
 export async function loader({ request }: LoaderFunctionArgs) {
     const user = await requirePermission(request, Permission.FLIGHT_VIEW);
 
-    const pilot = await db.$queryRawUnsafe<{ id: number }[]>(
-        `SELECT id FROM pilots WHERE user_id = $1 LIMIT 1`, Number(user.id)
-    );
-    const pilotId = pilot.length > 0 ? pilot[0].id : 0;
+    const pilotResult = await sql<{ id: number }>`
+        SELECT id FROM pilots WHERE user_id = ${Number(user.id)} LIMIT 1
+    `.execute(kdb);
+    const pilotId = pilotResult.rows.length > 0 ? (pilotResult.rows[0] as { id: number }).id : 0;
 
-    const flights = await db.query(
-        `SELECT f.id, f.flight_number, f.departure_time, f.arrival_time, f.status,
+    const flights = await sql<Record<string, unknown>[]>`
+        SELECT f.id, f.flight_number, f.departure_time, f.arrival_time, f.status,
             ao.code AS origin_code, ad.code AS destination_code,
             a.registration AS aircraft_registration
      FROM flights f
@@ -28,11 +29,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
      JOIN aerodromes ao ON ao.id = f.origin_aerodrome_id
      JOIN aerodromes ad ON ad.id = f.destination_aerodrome_id
      JOIN aircraft a ON a.id = f.aircraft_id
-     WHERE pa.pilot_id = $1
+     WHERE pa.pilot_id = ${pilotId}
      ORDER BY f.departure_time DESC
-     LIMIT 50`,
-        [pilotId]
-    );
+     LIMIT 50
+    `.execute(kdb);
 
     return json({ user, flights: flights.rows });
 }
@@ -55,7 +55,7 @@ export default function PilotFlights() {
             <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">My Flights</h2>
             <DataTable
                 columns={columns}
-                data={flights as Record<string, unknown>[]}
+                data={flights as unknown as Record<string, unknown>[]}
                 keyExtractor={(item) => String(item.id)}
                 emptyState={<EmptyState title="No flights assigned to you." />}
             />

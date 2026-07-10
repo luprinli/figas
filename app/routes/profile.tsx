@@ -4,7 +4,7 @@ import { Form, useActionData, useLoaderData , useRouteError, isRouteErrorRespons
 
 import { useState } from "react";
 import { requireAuth } from "../utils/auth.server";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
 import { bookingRepository } from "../utils/repositories/booking";
 import { verifyPassword, hashPassword } from "../utils/password.server";
 import DOBPicker from "../components/DOBPicker";
@@ -20,23 +20,20 @@ interface ActionData {
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireAuth(request);
-  const user = await db.users.findUnique({
-    where: { id: Number(userId) },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      date_of_birth: true,
-      nationality: true,
-      residency_status: true,
-      emergency_contact_name: true,
-      emergency_contact_phone: true,
-      id_document_type: true,
-      id_document_number: true,
-      password: true,
-    },
-  });
+  const user = (await kdb.selectFrom("users").select([
+    "id",
+    "name",
+    "email",
+    "phone",
+    "date_of_birth",
+    "nationality",
+    "residency_status",
+    "emergency_contact_name",
+    "emergency_contact_phone",
+    "id_document_type",
+    "id_document_number",
+    "password",
+  ]).where("id", "=", Number(userId)).execute())[0] ?? null;
 
   if (!user) {
     throw new Response("User not found", { status: 404 });
@@ -83,21 +80,18 @@ export async function action({ request }: ActionFunctionArgs) {
     }
 
     try {
-      await db.users.update({
-        where: { id: Number(userId) },
-        data: {
-          name,
-          phone,
-          date_of_birth: dateOfBirth,
-          nationality,
-          residency_status: residency,
-          emergency_contact_name: emergencyContactName,
-          emergency_contact_phone: emergencyContactPhone,
-          id_document_type: idDocumentType,
-          id_document_number: idDocumentNumber,
-          updated_at: new Date(),
-        },
-      });
+      await kdb.updateTable("users").set({
+        name,
+        phone,
+        date_of_birth: dateOfBirth,
+        nationality,
+        residency_status: residency,
+        emergency_contact_name: emergencyContactName,
+        emergency_contact_phone: emergencyContactPhone,
+        id_document_type: idDocumentType,
+        id_document_number: idDocumentNumber,
+        updated_at: new Date(),
+      } as any).where("id", "=", Number(userId)).execute();
       return json<ActionData>({ profileSuccess: "Profile updated successfully." });
     } catch (err) {
       return json<ActionData>({ profileError: "Failed to update profile. Please try again." }, { status: 500 });
@@ -122,10 +116,7 @@ export async function action({ request }: ActionFunctionArgs) {
     }
 
     // Verify current password
-    const user = await db.users.findUnique({
-      where: { id: Number(userId) },
-      select: { password: true },
-    });
+    const user = (await kdb.selectFrom("users").select("password").where("id", "=", Number(userId)).execute())[0] ?? null;
 
     if (!user) {
       return json<ActionData>({ passwordError: "User not found." }, { status: 404 });
@@ -138,10 +129,10 @@ export async function action({ request }: ActionFunctionArgs) {
 
     try {
       const hashedPassword = await hashPassword(newPassword);
-      await db.users.update({
-        where: { id: Number(userId) },
-        data: { password: hashedPassword, updated_at: new Date() },
-      });
+      await kdb.updateTable("users").set({
+        password: hashedPassword,
+        updated_at: new Date(),
+      } as any).where("id", "=", Number(userId)).execute();
       return json<ActionData>({ passwordSuccess: "Password changed successfully." });
     } catch (err) {
       return json<ActionData>({ passwordError: "Failed to change password. Please try again." }, { status: 500 });

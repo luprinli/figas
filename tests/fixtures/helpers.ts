@@ -1,10 +1,12 @@
 import { db } from "~/utils/db.server";
+import type { Kysely } from "kysely";
+import type { DB } from "~/../generated/kysely/database";
 
 /**
  * Special error class used to signal that a transaction should be rolled back
  * while still returning the result to the caller.
  *
- * Prisma's `$transaction` commits when the callback resolves successfully,
+ * Kysely's `transaction` commits when the callback resolves successfully,
  * and rolls back only when the callback throws. By throwing a `RollbackSignal`
  * after the test callback completes, we force the transaction to roll back
  * regardless of test outcome. The `.catch()` handler then unwraps the signal
@@ -23,29 +25,27 @@ class RollbackSignal<T> extends Error {
  * Execute a callback within a transaction that is rolled back
  * after the callback completes, providing test isolation.
  *
- * Uses Prisma's `$transaction` with an interactive transaction so that
+ * Uses Kysely's `transaction` with an interactive transaction so that
  * any data created during the test is discarded after the callback
  * finishes, regardless of success or failure.
  *
  * @example
  * ```ts
  * const result = await withRollback(async (tx) => {
- *   return tx.schedules.create({ data: { ... } });
+ *   return tx.insertInto("schedules").values({ ... }).returningAll().execute();
  * });
  * ```
  */
 export async function withRollback<T>(
-  fn: (tx: typeof db) => Promise<T>,
+  fn: (tx: Kysely<DB>) => Promise<T>,
 ): Promise<T> {
-  return db.$transaction(async (tx) => {
-    const result = await fn(tx as typeof db);
-    // Throw to force rollback — Prisma only rolls back on error
+  return db.transaction().execute(async (tx) => {
+    const result = await fn(tx);
     throw new RollbackSignal(result);
-  }, { timeout: 10_000 }).catch((err) => {
+  }).catch((err: unknown) => {
     if (err instanceof RollbackSignal) {
-      return err.value;
+      return err.value as T;
     }
-    // Re-throw actual test failures (e.g. assertion errors)
     throw err;
   });
 }

@@ -1,7 +1,8 @@
-﻿import type { MetaFunction } from "@remix-run/node";
+import type { MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, Link, useNavigation, useRouteError, isRouteErrorResponse } from "@remix-run/react";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import { scheduleRepository } from "../utils/repositories/schedule";
 import { bookingRepository } from "../utils/repositories/booking";
 import type { BookingRow } from "../utils/repositories/booking";
@@ -34,8 +35,8 @@ export async function loader() {
     const today = new Date().toISOString().slice(0, 10);
 
     const [flightsResult, pendingManifestsResult, notificationsResult, todaySchedule] = await Promise.all([
-        db.query(
-            `SELECT f.id, f.flight_number, f.departure_time, f.arrival_time, f.status,
+        sql<Record<string, unknown>>`
+            SELECT f.id, f.flight_number, f.departure_time, f.arrival_time, f.status,
               ao.code AS origin_code, ad.code AS destination_code,
               a.registration AS aircraft_registration,
               p.name AS pilot_name
@@ -44,24 +45,27 @@ export async function loader() {
        JOIN aerodromes ad ON ad.id = f.destination_aerodrome_id
        JOIN aircraft a ON a.id = f.aircraft_id
        LEFT JOIN pilots p ON p.id = f.pilot_id
-       WHERE f.departure_time::date = $1
-       ORDER BY f.departure_time`,
-            [today]
-        ),
-        db.query(`SELECT COUNT(*) as cnt FROM flight_manifests WHERE signed_off_at IS NULL`),
-        db.query(`SELECT id, notification_type, recipient_email, status, created_at FROM notifications ORDER BY created_at DESC LIMIT 10`),
+       WHERE f.departure_time::date = ${today}
+       ORDER BY f.departure_time
+        `.execute(kdb),
+        sql<{ cnt: string }>`
+            SELECT COUNT(*) as cnt FROM flight_manifests WHERE signed_off_at IS NULL
+        `.execute(kdb),
+        sql<Record<string, unknown>>`
+            SELECT id, notification_type, recipient_email, status, created_at FROM notifications ORDER BY created_at DESC LIMIT 10
+        `.execute(kdb),
         scheduleRepository.findByDate(today),
     ]);
 
     const flights = flightsResult.rows;
-    const pendingManifests = Number((pendingManifestsResult.rows[0] as { cnt: string })?.cnt ?? 0);
+    const pendingManifests = Number(pendingManifestsResult.rows[0]?.cnt ?? 0);
 
     let scheduleFlightCount = 0;
     if (todaySchedule) {
-        const countResult = await db.query(
-            "SELECT COUNT(*) as cnt FROM flights WHERE schedule_id = $1", [todaySchedule.id]
-        );
-        scheduleFlightCount = Number((countResult.rows[0] as { cnt: string })?.cnt ?? 0);
+        const countResult = await sql<{ cnt: string }>`
+            SELECT COUNT(*) as cnt FROM flights WHERE schedule_id = ${todaySchedule.id}
+        `.execute(kdb);
+        scheduleFlightCount = Number(countResult.rows[0]?.cnt ?? 0);
     }
 
     let pipelineCounts: Record<string, number> | null = null;

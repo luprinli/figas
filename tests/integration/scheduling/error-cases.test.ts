@@ -151,7 +151,7 @@ describe("Schedule Error and Edge Cases", () => {
         created_by: testUserId,
       });
 
-      const dateStr = formatDateOnly(schedule.schedule_date);
+      const dateStr = formatDateOnly(new Date(schedule.schedule_date));
       const result = await handleAutoBuild(dateStr, testUserId);
       const err = getError(result);
 
@@ -173,7 +173,7 @@ describe("Schedule Error and Edge Cases", () => {
         created_by: testUserId,
       });
 
-      const dateStr = formatDateOnly(schedule.schedule_date);
+      const dateStr = formatDateOnly(new Date(schedule.schedule_date));
       const result = await handleAutoBuild(dateStr, testUserId);
       const err = getError(result);
 

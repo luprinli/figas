@@ -1,10 +1,11 @@
-﻿import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
-import { db } from "../utils/db.server";
+import { kdb } from "../utils/db.server.kysely";
+import { sql } from "kysely";
 import SidebarLayout from "../components/SidebarLayout";
 
 export const meta: MetaFunction = () => [{ title: "Pilot - FIGAS" }];
@@ -15,22 +16,20 @@ export async function loader({ request }: LoaderFunctionArgs) {
     const today = new Date().toISOString().slice(0, 10);
 
     // Get the pilot record for this user
-    const pilot = await db.$queryRawUnsafe<{ id: number }[]>(
-      `SELECT id FROM pilots WHERE user_id = $1 LIMIT 1`, Number(user.id)
-    );
-    const pilotId = pilot.length > 0 ? pilot[0].id : 0;
+    const pilotResult = await sql<{ id: number }>`
+      SELECT id FROM pilots WHERE user_id = ${Number(user.id)} LIMIT 1
+    `.execute(kdb);
+    const pilotId = pilotResult.rows.length > 0 ? (pilotResult.rows[0] as { id: number }).id : 0;
 
     const [assignedFlightsResult, scheduleResult] = await Promise.all([
-        db.query(
-            `SELECT COUNT(*) as cnt FROM pilot_assignments pa
+        sql<{ cnt: string }>`
+            SELECT COUNT(*) as cnt FROM pilot_assignments pa
        JOIN flights f ON f.id = pa.flight_id
-       WHERE pa.pilot_id = $1 AND f.departure_time::date = $2`,
-            [pilotId, today]
-        ),
-        db.query(
-            `SELECT COUNT(*) as cnt FROM schedules WHERE schedule_date = $1`,
-            [today]
-        ),
+       WHERE pa.pilot_id = ${pilotId} AND f.departure_time::date = ${today}
+        `.execute(kdb),
+        sql<{ cnt: string }>`
+            SELECT COUNT(*) as cnt FROM schedules WHERE schedule_date = ${today}
+        `.execute(kdb),
     ]);
 
     const assignedFlights = Number(

@@ -28,13 +28,15 @@ describe("bookingLegServerRepository.findUnassignedByDate()", () => {
     const targetDateStr = formatDateOnly(targetDate);
 
     // Create a booking_passenger record so the JOIN in the raw SQL works
-    const passenger = await db.booking_passengers.create({
-      data: {
+    const passenger = (await db
+      .insertInto("booking_passengers")
+      .values({
         booking_id: 1,
         first_name: "Test",
         last_name: "Passenger",
-      },
-    });
+      } as any)
+      .returningAll()
+      .execute())[0];
 
     try {
       // Create an unassigned booking leg (flight_id = null) on the target date
@@ -48,12 +50,13 @@ describe("bookingLegServerRepository.findUnassignedByDate()", () => {
       });
 
       // Create a booking_leg_passengers record so the LEFT JOIN finds a match
-      await db.booking_leg_passengers.create({
-        data: {
+      await db
+        .insertInto("booking_leg_passengers")
+        .values({
           booking_leg_id: leg.id,
           booking_passenger_id: passenger.id,
-        },
-      });
+        } as any)
+        .execute();
 
       // Act: Query unassigned legs for the target date
       const results = await bookingLegServerRepository.findUnassignedByDate(targetDateStr);
@@ -67,16 +70,21 @@ describe("bookingLegServerRepository.findUnassignedByDate()", () => {
       expect(foundLeg!.destination_code).toBe("MPA");
       expect(foundLeg!.flight_id).toBeNull();
       // Resolve expected booking reference from the actual DB record
-      const booking = await db.bookings.findUnique({
-        where: { id: 1 },
-        select: { booking_reference: true },
-      });
+      const booking = (await db
+        .selectFrom("bookings")
+        .select("booking_reference")
+        .where("id", "=", 1)
+        .execute())[0] ?? null;
       const expectedRef = booking?.booking_reference ?? "BK-00001";
 
       expect(foundLeg!.booking_reference).toBe(expectedRef);
     } finally {
       // Cleanup: Remove the passenger we created
-      await db.booking_passengers.delete({ where: { id: passenger.id } }).catch(() => {});
+      await db
+        .deleteFrom("booking_passengers")
+        .where("id", "=", passenger.id)
+        .execute()
+        .catch(() => {});
     }
   });
 
@@ -102,16 +110,19 @@ describe("bookingLegServerRepository.findUnassignedByDate()", () => {
     const uniqueScheduleDate = dateOnly(2026, 8, 11 + Math.floor(Math.random() * 1000));
 
     // Create a schedule and flight to assign the leg to
-    const schedule = await db.schedules.create({
-      data: {
+    const schedule = (await db
+      .insertInto("schedules")
+      .values({
         schedule_date: uniqueScheduleDate,
         status: "draft",
         created_by: 1,
-      },
-    });
+      } as any)
+      .returningAll()
+      .execute())[0];
 
-    const flight = await db.flights.create({
-      data: {
+    const flight = (await db
+      .insertInto("flights")
+      .values({
         flight_number: `TST-ASN-${Date.now().toString(36)}`,
         origin_code: "PSY",
         destination_code: "MPA",
@@ -120,16 +131,19 @@ describe("bookingLegServerRepository.findUnassignedByDate()", () => {
         status: "scheduled",
         schedule_id: schedule.id,
         created_by: 1,
-      },
-    });
+      } as any)
+      .returningAll()
+      .execute())[0];
 
-    const passenger = await db.booking_passengers.create({
-      data: {
+    const passenger = (await db
+      .insertInto("booking_passengers")
+      .values({
         booking_id: 1,
         first_name: "Assigned",
         last_name: "Passenger",
-      },
-    });
+      } as any)
+      .returningAll()
+      .execute())[0];
 
     try {
       const assignedLeg = await createTestBookingLeg({
@@ -141,12 +155,13 @@ describe("bookingLegServerRepository.findUnassignedByDate()", () => {
         flight_id: flight.id, // Assigned to a flight
       });
 
-      await db.booking_leg_passengers.create({
-        data: {
+      await db
+        .insertInto("booking_leg_passengers")
+        .values({
           booking_leg_id: assignedLeg.id,
           booking_passenger_id: passenger.id,
-        },
-      });
+        } as any)
+        .execute();
 
       // Act: Query unassigned legs for this date
       const results = await bookingLegServerRepository.findUnassignedByDate(assignedDateStr);
@@ -155,7 +170,11 @@ describe("bookingLegServerRepository.findUnassignedByDate()", () => {
       const foundAssigned = results.find((r) => r.id === assignedLeg.id);
       expect(foundAssigned).toBeUndefined();
     } finally {
-      await db.booking_passengers.delete({ where: { id: passenger.id } }).catch(() => {});
+      await db
+        .deleteFrom("booking_passengers")
+        .where("id", "=", passenger.id)
+        .execute()
+        .catch(() => {});
     }
   });
 
@@ -168,13 +187,15 @@ describe("bookingLegServerRepository.findUnassignedByDate()", () => {
     const date2Str = formatDateOnly(date2);
 
     // Passenger for date1
-    const passenger1 = await db.booking_passengers.create({
-      data: {
+    const passenger1 = (await db
+      .insertInto("booking_passengers")
+      .values({
         booking_id: 1,
         first_name: "Date1",
         last_name: "Passenger",
-      },
-    });
+      } as any)
+      .returningAll()
+      .execute())[0];
 
     const leg1 = await createTestBookingLeg({
       booking_id: 1,
@@ -185,21 +206,24 @@ describe("bookingLegServerRepository.findUnassignedByDate()", () => {
       flight_id: null,
     });
 
-    await db.booking_leg_passengers.create({
-      data: {
+    await db
+      .insertInto("booking_leg_passengers")
+      .values({
         booking_leg_id: leg1.id,
         booking_passenger_id: passenger1.id,
-      },
-    });
+      } as any)
+      .execute();
 
     // Passenger for date2
-    const passenger2 = await db.booking_passengers.create({
-      data: {
+    const passenger2 = (await db
+      .insertInto("booking_passengers")
+      .values({
         booking_id: 1,
         first_name: "Date2",
         last_name: "Passenger",
-      },
-    });
+      } as any)
+      .returningAll()
+      .execute())[0];
 
     const leg2 = await createTestBookingLeg({
       booking_id: 1,
@@ -210,12 +234,13 @@ describe("bookingLegServerRepository.findUnassignedByDate()", () => {
       flight_id: null,
     });
 
-    await db.booking_leg_passengers.create({
-      data: {
+    await db
+      .insertInto("booking_leg_passengers")
+      .values({
         booking_leg_id: leg2.id,
         booking_passenger_id: passenger2.id,
-      },
-    });
+      } as any)
+      .execute();
 
     try {
       // Act: Query each date
@@ -233,8 +258,16 @@ describe("bookingLegServerRepository.findUnassignedByDate()", () => {
       expect(leg1InDate2).toBeUndefined(); // leg1 should NOT appear in date2 results
       expect(leg2InDate1).toBeUndefined(); // leg2 should NOT appear in date1 results
     } finally {
-      await db.booking_passengers.delete({ where: { id: passenger1.id } }).catch(() => {});
-      await db.booking_passengers.delete({ where: { id: passenger2.id } }).catch(() => {});
+      await db
+        .deleteFrom("booking_passengers")
+        .where("id", "=", passenger1.id)
+        .execute()
+        .catch(() => {});
+      await db
+        .deleteFrom("booking_passengers")
+        .where("id", "=", passenger2.id)
+        .execute()
+        .catch(() => {});
     }
   });
 
@@ -245,21 +278,25 @@ describe("bookingLegServerRepository.findUnassignedByDate()", () => {
     const cancelledDateStr = formatDateOnly(cancelledDate);
 
     // Create a cancelled booking
-    const cancelledBooking = await db.bookings.create({
-      data: {
+    const cancelledBooking = (await db
+      .insertInto("bookings")
+      .values({
         booking_reference: `CNCL-${Date.now().toString(36).toUpperCase()}`,
         user_id: 1,
         status: "cancelled",
-      },
-    });
+      } as any)
+      .returningAll()
+      .execute())[0];
 
-    const passenger = await db.booking_passengers.create({
-      data: {
+    const passenger = (await db
+      .insertInto("booking_passengers")
+      .values({
         booking_id: cancelledBooking.id,
         first_name: "Cancelled",
         last_name: "Booking",
-      },
-    });
+      } as any)
+      .returningAll()
+      .execute())[0];
 
     try {
       const cancelledLeg = await createTestBookingLeg({
@@ -271,12 +308,13 @@ describe("bookingLegServerRepository.findUnassignedByDate()", () => {
         flight_id: null,
       });
 
-      await db.booking_leg_passengers.create({
-        data: {
+      await db
+        .insertInto("booking_leg_passengers")
+        .values({
           booking_leg_id: cancelledLeg.id,
           booking_passenger_id: passenger.id,
-        },
-      });
+        } as any)
+        .execute();
 
       // Act: Query unassigned legs for this date
       const results = await bookingLegServerRepository.findUnassignedByDate(cancelledDateStr);
@@ -285,7 +323,11 @@ describe("bookingLegServerRepository.findUnassignedByDate()", () => {
       const foundCancelled = results.find((r) => r.id === cancelledLeg.id);
       expect(foundCancelled).toBeUndefined();
     } finally {
-      await db.booking_passengers.delete({ where: { id: passenger.id } }).catch(() => {});
+      await db
+        .deleteFrom("booking_passengers")
+        .where("id", "=", passenger.id)
+        .execute()
+        .catch(() => {});
     }
   });
 });

@@ -1,21 +1,20 @@
 import { db } from "../db.server";
+import type { Kysely } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 
 /**
- * Execute a function within a database transaction using Prisma Client.
+ * Execute a function within a database transaction using Kysely.
  *
- * Uses `db.$transaction` with an interactive transaction (Prisma's
- * `$transaction` with a callback) to provide a transactional Prisma Client.
+ * Uses `db.transaction()` with a callback to provide a transactional client.
  *
  * @example
  *   await withTransaction(async (tx) => {
- *     await tx.booking.update({ where: { id: 1 }, data: { status: "confirmed" } });
- *     await tx.flight.update({ where: { id: 1 }, data: { status: "booked" } });
+ *     await tx.updateTable("flights").set({ status: "confirmed" }).where("id", "=", 1).execute();
+ *     await tx.updateTable("bookings").set({ status: "booked" }).where("id", "=", 1).execute();
  *   });
  */
 export async function withTransaction<T>(
-  fn: (tx: typeof db) => Promise<T>
+  fn: (tx: Kysely<DB>) => Promise<T>
 ): Promise<T> {
-  return db.$transaction(async (tx) => {
-    return fn(tx as typeof db);
-  });
+  return db.transaction().execute(fn as any);
 }
