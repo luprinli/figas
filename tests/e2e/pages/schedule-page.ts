@@ -8,7 +8,8 @@ export class SchedulePage {
   readonly scheduleBoard: Locator;
   readonly draftFlightPlaceholder: Locator;
   readonly scheduleStatusBar: Locator;
-  readonly autoBuildButton: Locator;
+  readonly autoBuildTab: Locator;
+  readonly autoBuildGenerateBtn: Locator;
   readonly approveButton: Locator;
 
   constructor(page: Page) {
@@ -19,7 +20,8 @@ export class SchedulePage {
     this.scheduleBoard = page.locator('[data-testid="schedule-board"]');
     this.draftFlightPlaceholder = page.locator("text=Draft Flight").first();
     this.scheduleStatusBar = page.locator('[data-testid="schedule-status-bar"]');
-    this.autoBuildButton = page.getByRole("button", { name: /auto.?build/i });
+    this.autoBuildTab = page.getByRole("button", { name: "Auto-Build" });
+    this.autoBuildGenerateBtn = page.getByRole("button", { name: "Generate" });
     this.approveButton = page.getByRole("button", { name: /approve/i });
   }
 
@@ -72,8 +74,14 @@ export class SchedulePage {
   }
 
   async clickAutoBuild() {
-    if (await this.autoBuildButton.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await this.autoBuildButton.click();
+    // 1. Ensure the Auto-Build tab/view is selected so AutoBuildPanel is visible
+    if (await this.autoBuildTab.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await this.autoBuildTab.click();
+      await this.page.waitForTimeout(500);
+    }
+    // 2. Click the Generate button inside AutoBuildPanel
+    if (await this.autoBuildGenerateBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await this.autoBuildGenerateBtn.click();
       await this.page.waitForLoadState("networkidle");
     }
   }

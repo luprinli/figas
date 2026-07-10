@@ -156,12 +156,12 @@ test.describe("Schedule Builder — End-to-End Workflow", () => {
     });
 
     await test.step("auto-build flights (or use existing schedule)", async () => {
-      const btnVisible = await schedulePage.autoBuildButton.isVisible({ timeout: 5_000 }).catch(() => false);
-      if (btnVisible) {
+      const genVisible = await schedulePage.autoBuildGenerateBtn.isVisible({ timeout: 5_000 }).catch(() => false);
+      if (genVisible) {
         await schedulePage.clickAutoBuild();
         await waitForStable(page, run);
       } else {
-        run.log("Auto-Build button not visible — using existing schedule if present", true);
+        run.log("Generate button not visible — using existing schedule if present", true);
       }
 
       const flightCount = await schedulePage.getFlightCardCount();
@@ -305,8 +305,8 @@ test.describe("Schedule Builder — End-to-End Workflow", () => {
       // Ensure we have flights (auto‑build if needed)
       let flightCount = await schedulePage.getFlightCardCount();
       if (flightCount < 2) {
-        const btnVisible = await schedulePage.autoBuildButton.isVisible({ timeout: 5_000 }).catch(() => false);
-        if (btnVisible) {
+        const genVisible = await schedulePage.autoBuildGenerateBtn.isVisible({ timeout: 5_000 }).catch(() => false);
+        if (genVisible) {
           await schedulePage.clickAutoBuild();
           await waitForStable(page, run);
           flightCount = await schedulePage.getFlightCardCount();
@@ -378,9 +378,9 @@ test.describe("Schedule Builder — End-to-End Workflow", () => {
     });
 
     await test.step("attempt auto-build on empty date", async () => {
-      // On an empty date, the auto-build button may be hidden or disabled
-      const btnVisible = await schedulePage.autoBuildButton.isVisible({ timeout: 5_000 }).catch(() => false);
-      if (btnVisible) {
+      // On an empty date, the Generate button may be hidden (panel renders but has nothing to build)
+      const genVisible = await schedulePage.autoBuildGenerateBtn.isVisible({ timeout: 5_000 }).catch(() => false);
+      if (genVisible) {
         await schedulePage.clickAutoBuild();
         await waitForStable(page, run);
       }
@@ -401,9 +401,9 @@ test.describe("Schedule Builder — End-to-End Workflow", () => {
     await test.step("navigate and auto-build", async () => {
       await schedulePage.goto();
 
-      const btnVisible = await schedulePage.autoBuildButton.isVisible({ timeout: 5_000 }).catch(() => false);
-      if (!btnVisible) {
-        run.warn("Auto-Build button not visible — schedule may already be built or approved");
+      const genVisible = await schedulePage.autoBuildGenerateBtn.isVisible({ timeout: 5_000 }).catch(() => false);
+      if (!genVisible) {
+        run.warn("Generate button not visible — schedule may already be built or approved");
         test.skip();
         return;
       }
