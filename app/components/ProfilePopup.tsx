@@ -37,8 +37,8 @@ export default function ProfilePopup({ user }: Props) {
   }, [isPopupOpen]);
 
   const popupPosition = openUpward
-    ? "right-0 mb-2 bottom-full"
-    : "right-0 mt-2 top-full";
+    ? "left-0 bottom-full mb-2"
+    : "left-0 top-full mt-2";
 
   return (
     <div className="relative">
