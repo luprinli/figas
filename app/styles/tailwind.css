@@ -35,8 +35,21 @@
 }
 
 @layer components {
-  .prose img {
-    @apply border rounded-md border-slate-200 dark:border-slate-700;
+  .profile-popup {
+    @apply absolute z-10 w-56 p-4
+      bg-white dark:bg-slate-700
+      rounded-md border border-slate-200 dark:border-slate-600
+      shadow-lg dark:shadow-slate-900/50;
+  }
+  .profile-popup-item {
+    @apply flex w-full items-center px-4 py-2 text-sm text-left
+      transition-colors duration-150 rounded-md
+      text-slate-700 dark:text-slate-200
+      hover:bg-slate-100 dark:hover:bg-slate-600;
+  }
+  .profile-popup-item-danger {
+    @apply profile-popup-item
+      hover:text-white hover:bg-cyan-500/90;
   }
 }
 
