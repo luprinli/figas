@@ -98,7 +98,26 @@ async function findBestInsertionIndex(
 }
 
 /**
- * Insert a passenger's route (origin \u2192 destination) into an existing
+ * Ensure a route starts and ends at STY (Port Stanley — the base depot).
+ * All FIGAS flights must originate and terminate at STY.
+ */
+const DEPOT = "STY";
+
+function ensureStyDepot(stops: string[]): string[] {
+  const result = [...stops];
+  // Prepend STY if not already the first stop
+  if (result[0] !== DEPOT) {
+    result.unshift(DEPOT);
+  }
+  // Append STY if not already the last stop
+  if (result.length < 2 || result[result.length - 1] !== DEPOT) {
+    result.push(DEPOT);
+  }
+  return result;
+}
+
+/**
+ * Insert a passenger's route (origin → destination) into an existing
  * flight's leg sequence.
  *
  * @param currentLegs - The flight's current legs (ordered by leg_sequence)
@@ -128,9 +147,9 @@ export async function insertPassengerRoute(
     if (destIndex === originIndex + 1) {
       return { legs: currentLegs, inserted: false, reason: "already_on_route" };
     }
-    // They exist but not consecutively — the passenger can travel via the existing route
-    // No leg change needed since the passenger can board at origin and alight at destination
-    return { legs: currentLegs, inserted: false, reason: "already_on_route" };
+    // Ensure STY depot enforcement on existing route
+    const enforcedStops = ensureStyDepot(stops);
+    return { legs: stopsToLegs(enforcedStops), inserted: false, reason: "already_on_route" };
   }
 
   // Case 2: Origin exists, destination doesn't — insert destination after origin
@@ -138,8 +157,9 @@ export async function insertPassengerRoute(
     const insertAt = await findBestInsertionIndex(stops, passengerDest);
     const newStops = [...stops];
     newStops.splice(insertAt, 0, passengerDest);
+    const enforcedStops = ensureStyDepot(newStops);
     return {
-      legs: stopsToLegs(newStops),
+      legs: stopsToLegs(enforcedStops),
       inserted: true,
       reason: "destination_exists",
     };
@@ -150,8 +170,9 @@ export async function insertPassengerRoute(
     const insertAt = await findBestInsertionIndex(stops, passengerOrigin);
     const newStops = [...stops];
     newStops.splice(insertAt, 0, passengerOrigin);
+    const enforcedStops = ensureStyDepot(newStops);
     return {
-      legs: stopsToLegs(newStops),
+      legs: stopsToLegs(enforcedStops),
       inserted: true,
       reason: "origin_exists",
     };
@@ -173,21 +194,24 @@ export async function insertPassengerRoute(
       const withBoth = [...withOrigin];
       withBoth.splice(di, 0, passengerDest);
 
+      // Enforce STY depot start/end
+      const enforcedStops = ensureStyDepot(withBoth);
+
       // Calculate total distance of this route
       let totalDist = 0;
-      for (let i = 0; i < withBoth.length - 1; i++) {
-        totalDist += await getDistance(withBoth[i], withBoth[i + 1]);
+      for (let i = 0; i < enforcedStops.length - 1; i++) {
+        totalDist += await getDistance(enforcedStops[i], enforcedStops[i + 1]);
       }
 
       if (totalDist < bestDistance) {
         bestDistance = totalDist;
-        bestLegs = stopsToLegs(withBoth);
+        bestLegs = stopsToLegs(enforcedStops);
       }
     }
   }
 
   return {
-    legs: bestLegs.length > 0 ? bestLegs : currentLegs,
+    legs: bestLegs.length > 0 ? bestLegs : stopsToLegs(ensureStyDepot(stops)),
     inserted: bestLegs.length > 0,
     reason: bestLegs.length > 0 ? "both_inserted" : "invalid",
   };
