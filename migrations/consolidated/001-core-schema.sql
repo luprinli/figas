@@ -193,7 +193,7 @@ CREATE TABLE IF NOT EXISTS flights (
   departure_time              TIMESTAMPTZ  NOT NULL,
   arrival_time                TIMESTAMPTZ  NOT NULL,
   status                      VARCHAR(50)  NOT NULL DEFAULT 'scheduled',
-  available_seats             INTEGER      NOT NULL,
+  available_seats             INTEGER      NOT NULL DEFAULT 9,
   base_fare                   NUMERIC(10,2) NOT NULL,
   intermediate_stops          JSONB,
   total_passenger_weight_kg   NUMERIC(8,1),
