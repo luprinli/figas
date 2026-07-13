@@ -260,6 +260,7 @@ export async function unassignFromFlightLeg(
 export interface PassengerManifestRow {
   id: number;
   booking_leg_id: number;
+  booking_passenger_id: number;
   flight_leg_id: number | null;
   flight_id: number;
   passenger_name: string;
@@ -285,7 +286,7 @@ export async function findManifestsByFlightId(
   `.execute(kdb);
 
   const rows = await sql`
-    SELECT blp.id, blp.booking_leg_id, blp.flight_leg_id, fl.flight_id,
+    SELECT blp.id, blp.booking_leg_id, bp.id AS booking_passenger_id, blp.flight_leg_id, fl.flight_id,
             CONCAT(bp.first_name, ' ', bp.last_name) AS passenger_name,
             COALESCE(blp.clothed_weight_kg, 70)::int AS body_weight_kg,
             COALESCE(blp.baggage_weight_kg, 0)::int AS baggage_weight_kg,

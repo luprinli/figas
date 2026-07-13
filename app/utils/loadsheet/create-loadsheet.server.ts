@@ -45,6 +45,7 @@ export async function createLoadsheetFromFlight(flightId: number): Promise<numbe
 
   const passengers = routeMatchedRows.map((r) => ({
     id: r.id,
+    booking_passenger_id: r.booking_passenger_id,
     bookingLegId: r.booking_leg_id,
     origin_code: r.origin_code,
     destination_code: r.destination_code,
@@ -95,7 +96,7 @@ export async function createLoadsheetFromFlight(flightId: number): Promise<numbe
   for (const sa of calcResult.seatAssignments) {
     await loadsheetRepository.addPassenger({
       loadsheet_id: loadsheet.id,
-      booking_passenger_id: sa.passengerId,
+      booking_passenger_id: sa.bookingPassengerId,
       booking_leg_id: sa.bookingLegId,
       seat_row: sa.seatRow ?? null,
       seat_side: sa.seatSide ?? null,

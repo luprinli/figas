@@ -1,5 +1,6 @@
 interface PassengerInput {
   id: number;
+  booking_passenger_id?: number;
   bookingLegId: number;
   clothedWeightKg: number;
   baggageWeightKg: number;
@@ -7,6 +8,7 @@ interface PassengerInput {
 
 export interface SeatAssignment {
   passengerId: number;
+  bookingPassengerId: number;
   bookingLegId: number;
   seatRow: number | null;
   seatSide: "L" | "R" | "C" | null;
@@ -60,6 +62,7 @@ export function assignSeatsByCOG(passengers: PassengerInput[]): SeatAssignment[]
     const seat = AVAILABLE_SEATS[i];
     return {
       passengerId: p.id,
+      bookingPassengerId: p.booking_passenger_id ?? p.id,
       bookingLegId: p.bookingLegId,
       seatRow: seat.row,
       seatSide: seat.side,
@@ -70,6 +73,7 @@ export function assignSeatsByCOG(passengers: PassengerInput[]): SeatAssignment[]
 
   const overflow = sorted.slice(MAX_SEATS).map((p) => ({
     passengerId: p.id,
+    bookingPassengerId: p.booking_passenger_id ?? p.id,
     bookingLegId: p.bookingLegId,
     seatRow: null,
     seatSide: null,
