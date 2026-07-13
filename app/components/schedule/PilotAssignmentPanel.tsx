@@ -1,4 +1,4 @@
-﻿import StatusBadge from "../StatusBadge";
+import StatusBadge from "../StatusBadge";
 
 export interface PilotAssignment {
   id: number;
@@ -46,7 +46,7 @@ export default function PilotAssignmentPanel({
         {Array.from(grouped.entries()).map(([flightLabel, pilots]) => (
           <div
             key={flightLabel}
-            className="rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 bg-white dark:bg-slate-800 p-3"
+            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3"
           >
             <h4 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
               {flightLabel}
@@ -61,7 +61,7 @@ export default function PilotAssignmentPanel({
                     <span className="text-sm font-medium text-slate-800 dark:text-slate-100">
                       {p.pilotName}
                     </span>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                    <span className="text-xs text-slate-500 dark:text-slate-500">
                       ({formatRole(p.role)})
                     </span>
                   </div>

@@ -1,7 +1,8 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Link } from "@remix-run/react";
 import StatusBadge from "./StatusBadge";
 import PaymentStatusBadge from "./PaymentStatusBadge";
+import { formatDateFromISO } from "../utils/dates";
 
 export interface BookingWithMeta {
   booking: {
@@ -25,15 +26,6 @@ export interface ClientGroupProps {
   bookings: BookingWithMeta[];
   defaultExpanded?: boolean;
   className?: string;
-}
-
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function ClientGroup({
@@ -104,7 +96,7 @@ export default function ClientGroup({
       >
         <div className="border-t border-slate-200 dark:border-slate-700">
           {bookings.length === 0 ? (
-            <div className="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <div className="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-500">
               No bookings for this client
             </div>
           ) : (
@@ -123,14 +115,14 @@ export default function ClientGroup({
                     {/* Route */}
                     <span className="text-sm text-slate-700 dark:text-slate-200 min-w-[8rem]">
                       {item.firstLeg
-                        ? `${item.firstLeg.origin_code} → ${item.firstLeg.destination_code}`
+                        ? `${item.firstLeg.origin_code} \u2192 ${item.firstLeg.destination_code}`
                         : "—"}
                     </span>
 
                     {/* Date */}
                     <span className="text-sm text-slate-500 dark:text-slate-400 min-w-[7rem]">
                       {item.firstLeg
-                        ? formatDate(item.firstLeg.leg_date)
+                        ? formatDateFromISO(item.firstLeg.leg_date)
                         : "—"}
                     </span>
 

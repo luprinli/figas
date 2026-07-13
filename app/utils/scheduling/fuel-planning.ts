@@ -1,7 +1,58 @@
 import type { FuelPlan } from "./types";
-import { lookupFuelByFlightTime } from "./fuel-lookup";
+import { kdb } from "../db.server.kysely";
 
-export { clearFuelRulesCache } from "./fuel-lookup";
+// ── Fuel Rule Types & Caching ──────────────────────────────────────────────────
+
+export interface FuelCsvRow {
+  ftMins: number;
+  sectors: number;
+  requiredFuelKg: number;
+  minimumFuelKg: number;
+  fuelState: string;
+}
+
+let fuelRulesCache: FuelCsvRow[] | null = null;
+
+export async function loadFuelRules(): Promise<FuelCsvRow[]> {
+  if (fuelRulesCache) return fuelRulesCache;
+  const rows = await kdb.selectFrom("fuel_rules")
+    .select(["flight_time_minutes", "sectors", "required_fuel_kg", "minimum_fuel_kg", "fuel_state"])
+    .orderBy("flight_time_minutes", "asc")
+    .orderBy("sectors", "asc")
+    .execute();
+  fuelRulesCache = rows.map((r) => ({
+    ftMins: r.flight_time_minutes,
+    sectors: r.sectors,
+    requiredFuelKg: Number(r.required_fuel_kg),
+    minimumFuelKg: Number(r.minimum_fuel_kg),
+    fuelState: r.fuel_state,
+  }));
+  return fuelRulesCache;
+}
+
+export function clearFuelRulesCache(): void {
+  fuelRulesCache = null;
+}
+
+export async function lookupFuelByFlightTime(
+  flightTimeMinutes: number,
+  sectorsSoFar: number
+): Promise<FuelCsvRow | null> {
+  const FUEL_MATRIX = await loadFuelRules();
+  let candidates = FUEL_MATRIX.filter((r) => r.sectors >= sectorsSoFar);
+  if (candidates.length === 0) {
+    const maxSectors = Math.max(...FUEL_MATRIX.map((r) => r.sectors));
+    candidates = FUEL_MATRIX.filter((r) => r.sectors === maxSectors);
+  }
+  const ceilingMatch = candidates
+    .filter((r) => r.ftMins >= flightTimeMinutes)
+    .sort((a, b) => a.ftMins - b.ftMins);
+  if (ceilingMatch.length > 0) return ceilingMatch[0];
+  const fallback = candidates.sort((a, b) => b.ftMins - a.ftMins);
+  return fallback[0] ?? null;
+}
+
+// ── Fuel Planning ──────────────────────────────────────────────────────────────
 
 /**
  * Compute fuel plan for a given leg using flight time and sectors.
@@ -75,7 +126,7 @@ export async function computeFuelPlan(
     requiredFuelKg,
     minimumFuelKg,
     fuelState: rule.fuelState,
-    fuelRuleApplied: `FT ${flightTimeMinutes}min, sectors ${sectorsSoFar} → rule FT ${rule.ftMins}min, sectors ${rule.sectors}`,
+    fuelRuleApplied: `FT ${flightTimeMinutes}min, sectors ${sectorsSoFar} \u2192 rule FT ${rule.ftMins}min, sectors ${rule.sectors}`,
     fuelOnBoardKg,
     fuelBurnKg,
     fuelRemainingKg,

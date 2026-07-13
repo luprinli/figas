@@ -1,6 +1,6 @@
-﻿import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { Form, useLoaderData, useActionData, Link } from "@remix-run/react";
+import { Form, useLoaderData, useActionData, Link, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import { requireAuth } from "../utils/auth.server";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission, DEFAULT_PAGE_SIZE } from "../utils/constants";
@@ -110,7 +110,7 @@ export default function ManageAerodromeHeadings() {
       )}
 
       {/* Create Aerodrome Heading Form */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow border border-slate-200 dark:border-slate-700 dark:border-slate-700 p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow border border-slate-200 dark:border-slate-700 p-4">
         <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">
           Add Aerodrome Heading
         </h2>
@@ -130,7 +130,7 @@ export default function ManageAerodromeHeadings() {
               id="create-origin-code"
               name="origin_code"
               required
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select origin...</option>
               {aerodromes.map((a) => (
@@ -151,7 +151,7 @@ export default function ManageAerodromeHeadings() {
               id="create-destination-code"
               name="destination_code"
               required
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select destination...</option>
               {aerodromes.map((a) => (
@@ -177,7 +177,7 @@ export default function ManageAerodromeHeadings() {
               min={0}
               max={360}
               placeholder="e.g. 270"
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div className="flex items-end">
@@ -192,7 +192,7 @@ export default function ManageAerodromeHeadings() {
       </div>
 
       {/* Aerodrome Headings Table */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow border border-slate-200 dark:border-slate-700 dark:border-slate-700">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow border border-slate-200 dark:border-slate-700">
         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
             Aerodrome Headings ({totalCount})
@@ -218,7 +218,7 @@ export default function ManageAerodromeHeadings() {
               initialSortColumn="id"
               initialSortDirection="asc"
               emptyState={
-                <div className="px-4 py-8 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                <div className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
                   No aerodrome headings found.
                 </div>
               }
@@ -229,12 +229,12 @@ export default function ManageAerodromeHeadings() {
                     <summary className="text-blue-600 hover:underline text-xs cursor-pointer">
                       Edit
                     </summary>
-                    <div className="absolute left-0 top-6 z-10 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:border-slate-700 rounded-lg shadow-lg dark:shadow-slate-900/50 p-4 w-80">
+                    <div className="absolute left-0 top-6 z-10 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg dark:shadow-slate-900/50 p-4 w-80">
                       <Form method="post" className="space-y-2">
                         <input type="hidden" name="intent" value="update" />
                         <input type="hidden" name="id" value={h.id as number} />
                         <div>
-                          <label htmlFor={`edit-origin-code-${h.id}`} className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                          <label htmlFor={`edit-origin-code-${h.id}`} className="block text-xs text-slate-500 dark:text-slate-400">
                             Origin
                           </label>
                           <select
@@ -242,7 +242,7 @@ export default function ManageAerodromeHeadings() {
                             name="origin_code"
                             required
                             defaultValue={h.origin_code as string}
-                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-xs"
+                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs"
                           >
                             {aerodromes.map((a) => (
                               <option key={a.id} value={a.code}>
@@ -252,7 +252,7 @@ export default function ManageAerodromeHeadings() {
                           </select>
                         </div>
                         <div>
-                          <label htmlFor={`edit-destination-code-${h.id}`} className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                          <label htmlFor={`edit-destination-code-${h.id}`} className="block text-xs text-slate-500 dark:text-slate-400">
                             Destination
                           </label>
                           <select
@@ -260,7 +260,7 @@ export default function ManageAerodromeHeadings() {
                             name="destination_code"
                             required
                             defaultValue={h.destination_code as string}
-                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-xs"
+                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs"
                           >
                             {aerodromes.map((a) => (
                               <option key={a.id} value={a.code}>
@@ -270,7 +270,7 @@ export default function ManageAerodromeHeadings() {
                           </select>
                         </div>
                         <div>
-                          <label htmlFor={`edit-heading-degrees-${h.id}`} className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                          <label htmlFor={`edit-heading-degrees-${h.id}`} className="block text-xs text-slate-500 dark:text-slate-400">
                             Heading (°)
                           </label>
                           <input
@@ -280,7 +280,7 @@ export default function ManageAerodromeHeadings() {
                             defaultValue={h.heading_degrees as number}
                             required
                             step="any"
-                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-xs"
+                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs"
                           />
                         </div>
                         <button
@@ -303,7 +303,7 @@ export default function ManageAerodromeHeadings() {
                       onClick={(e) => {
                         if (!confirm("Are you sure you want to delete this aerodrome heading?")) {
                           e.preventDefault();
-                        }
+}
                       }}
                     >
                       Delete
@@ -318,14 +318,14 @@ export default function ManageAerodromeHeadings() {
         {/* Pagination */}
         {totalPages > 1 && (
           <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
-            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Page {page} of {totalPages}
             </p>
             <div className="flex gap-2">
               {page > 1 && (
                 <Link
                   to={`/admin/aerodrome-headings?page=${page - 1}`}
-                  className="px-3 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-sm hover:bg-slate-50 dark:bg-slate-700"
+                  className="px-3 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm hover:bg-slate-50 dark:bg-slate-700"
                 >
                   Previous
                 </Link>
@@ -333,7 +333,7 @@ export default function ManageAerodromeHeadings() {
               {page < totalPages && (
                 <Link
                   to={`/admin/aerodrome-headings?page=${page + 1}`}
-                  className="px-3 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-sm hover:bg-slate-50 dark:bg-slate-700"
+                  className="px-3 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm hover:bg-slate-50 dark:bg-slate-700"
                 >
                   Next
                 </Link>
@@ -341,6 +341,31 @@ export default function ManageAerodromeHeadings() {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  if (isRouteErrorResponse(error)) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
+        <div className="mx-auto max-w-lg text-center px-4">
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
+          <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
+      <div className="mx-auto max-w-lg text-center px-4">
+        <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
       </div>
     </div>
   );

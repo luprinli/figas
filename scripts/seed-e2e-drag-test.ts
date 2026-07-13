@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { db } from "../app/utils/db.server";
 import { sql } from "kysely";
 import { scheduleRepository } from "../app/utils/repositories/schedule";
@@ -19,6 +20,19 @@ async function seedE2EDragTest() {
   const day1 = daysFromNow(1);
   const day2 = daysFromNow(2);
 
+  // 0. Check no-fly dates and skip blocked days
+  const noFlyResult = await sql`SELECT no_fly_date FROM no_fly_dates WHERE no_fly_date IN (${day0}, ${day1}, ${day2})`.execute(db);
+  const noFlySet = new Set(noFlyResult.rows.map((r: any) => String(r.no_fly_date).slice(0, 10)));
+  const safeDates = [day0, day1, day2].filter((d) => !noFlySet.has(d));
+  const safeDay0 = safeDates[0] ?? day0;
+  const safeDay1 = safeDates[1] ?? safeDates[0] ?? day1;
+  const safeDay2 = safeDates[2] ?? safeDates[1] ?? safeDates[0] ?? day2;
+
+  if (noFlySet.size > 0) {
+    console.log(`  ⚠ No-fly dates detected: ${[...noFlySet].join(", ")}`);
+    console.log(`  Adjusted seeds to: ${safeDay0}, ${safeDay1}, ${safeDay2}\n`);
+  }
+
   // 1. Get admin user
   const userResult = await sql`SELECT id, name FROM users WHERE email = 'admin@figas.gov.fk' LIMIT 1`.execute(db);
   if (userResult.rows.length === 0) {
@@ -37,8 +51,8 @@ async function seedE2EDragTest() {
   const aeroCodes = aerodromes.rows.map((r: any) => r.code as string);
   console.log(`  Aerodromes available: ${aeroCodes.join(", ")}\n`);
 
-  // 3. Ensure schedules exist for all target dates
-  for (const date of [day0, day1, day2]) {
+  // 3. Ensure schedules exist for adjusted target dates
+  for (const date of [safeDay0, safeDay1, safeDay2]) {
     let s = await scheduleRepository.findByDate(date);
     if (!s) {
       s = await scheduleRepository.create({
@@ -55,22 +69,22 @@ async function seedE2EDragTest() {
   // 4. Booking definitions with distinct passenger names per group
   const bookingDefs = [
     // ──── DAY 0 (today) ────
-    { ref: "DRAG-001", names: ["Oliver Stone", "Emma Watson", "Liam Neeson"], origin: aeroCodes[0], dest: aeroCodes[3], weight: 75, date: day0 },
-    { ref: "DRAG-002", names: ["Mia Chen", "Zoe Saldana"], origin: aeroCodes[0], dest: aeroCodes[4], weight: 80, date: day0 },
-    { ref: "DRAG-003", names: ["Liam O'Brien", "Noah Reed", "Ava Price", "Ella Hart"], origin: aeroCodes[1], dest: aeroCodes[0], weight: 70, date: day0 },
-    { ref: "DRAG-004", names: ["Sophia Patel"], origin: aeroCodes[0], dest: aeroCodes[2], weight: 95, date: day0 },
-    { ref: "DRAG-005", names: ["Noah Kim", "Ivy Song"], origin: aeroCodes[2], dest: aeroCodes[0], weight: 85, date: day0 },
+    { ref: "DRAG-001", names: ["Oliver Stone", "Emma Watson", "Liam Neeson"], origin: aeroCodes[0], dest: aeroCodes[3], weight: 75, date: safeDay0 },
+    { ref: "DRAG-002", names: ["Mia Chen", "Zoe Saldana"], origin: aeroCodes[0], dest: aeroCodes[4], weight: 80, date: safeDay0 },
+    { ref: "DRAG-003", names: ["Liam O'Brien", "Noah Reed", "Ava Price", "Ella Hart"], origin: aeroCodes[1], dest: aeroCodes[0], weight: 70, date: safeDay0 },
+    { ref: "DRAG-004", names: ["Sophia Patel"], origin: aeroCodes[0], dest: aeroCodes[2], weight: 95, date: safeDay0 },
+    { ref: "DRAG-005", names: ["Noah Kim", "Ivy Song"], origin: aeroCodes[2], dest: aeroCodes[0], weight: 85, date: safeDay0 },
     // ──── DAY 1 (tomorrow) ────
-    { ref: "DRAG-006", names: ["Ava Garcia", "Leo Mendez", "Rosa Vega"], origin: aeroCodes[0], dest: aeroCodes[3], weight: 75, date: day1 },
-    { ref: "DRAG-007", names: ["Ethan Wright", "Owen Bryce"], origin: aeroCodes[0], dest: aeroCodes[1], weight: 80, date: day1 },
-    { ref: "DRAG-008", names: ["Isabella Lee"], origin: aeroCodes[3], dest: aeroCodes[0], weight: 90, date: day1 },
-    { ref: "DRAG-009", names: ["Mason Hall", "Tessa Lane"], origin: aeroCodes[0], dest: aeroCodes[5] || aeroCodes[0], weight: 75, date: day1 },
-    { ref: "DRAG-010", names: ["Charlotte Diaz", "Ryan Firth"], origin: aeroCodes[1], dest: aeroCodes[4], weight: 70, date: day1 },
+    { ref: "DRAG-006", names: ["Ava Garcia", "Leo Mendez", "Rosa Vega"], origin: aeroCodes[0], dest: aeroCodes[3], weight: 75, date: safeDay1 },
+    { ref: "DRAG-007", names: ["Ethan Wright", "Owen Bryce"], origin: aeroCodes[0], dest: aeroCodes[1], weight: 80, date: safeDay1 },
+    { ref: "DRAG-008", names: ["Isabella Lee"], origin: aeroCodes[3], dest: aeroCodes[0], weight: 90, date: safeDay1 },
+    { ref: "DRAG-009", names: ["Mason Hall", "Tessa Lane"], origin: aeroCodes[0], dest: aeroCodes[5] || aeroCodes[0], weight: 75, date: safeDay1 },
+    { ref: "DRAG-010", names: ["Charlotte Diaz", "Ryan Firth"], origin: aeroCodes[1], dest: aeroCodes[4], weight: 70, date: safeDay1 },
     // ──── DAY 2 (day after tomorrow) ────
-    { ref: "DRAG-011", names: ["James Martin", "Henry Ford", "Grace Hopper"], origin: aeroCodes[0], dest: aeroCodes[2], weight: 80, date: day2 },
-    { ref: "DRAG-012", names: ["Amelia White"], origin: aeroCodes[0], dest: aeroCodes[4], weight: 100, date: day2 },
-    { ref: "DRAG-013", names: ["Benjamin Clark", "Clara Barton"], origin: aeroCodes[2], dest: aeroCodes[0], weight: 75, date: day2 },
-    { ref: "DRAG-014", names: ["Harper Young", "Felix Baum"], origin: aeroCodes[3], dest: aeroCodes[1], weight: 70, date: day2 },
+    { ref: "DRAG-011", names: ["James Martin", "Henry Ford", "Grace Hopper"], origin: aeroCodes[0], dest: aeroCodes[2], weight: 80, date: safeDay2 },
+    { ref: "DRAG-012", names: ["Amelia White"], origin: aeroCodes[0], dest: aeroCodes[4], weight: 100, date: safeDay2 },
+    { ref: "DRAG-013", names: ["Benjamin Clark", "Clara Barton"], origin: aeroCodes[2], dest: aeroCodes[0], weight: 75, date: safeDay2 },
+    { ref: "DRAG-014", names: ["Harper Young", "Felix Baum"], origin: aeroCodes[3], dest: aeroCodes[1], weight: 70, date: safeDay2 },
   ];
 
   let totalBookings = 0;
@@ -123,7 +137,7 @@ async function seedE2EDragTest() {
 
   // 5. Verify the seeded data
   console.log("\n📊 Verification:");
-  for (const date of [day0, day1, day2]) {
+  for (const date of [safeDay0, safeDay1, safeDay2]) {
     const count = await sql`
       SELECT COUNT(*) as cnt FROM booking_legs bl
        JOIN bookings b ON b.id = bl.booking_id

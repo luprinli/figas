@@ -26,7 +26,7 @@ const Logo = () => {
           fill="#53EAFD"
         />
       </svg>
-      <span className="text-xl text-slate-900 font-semibold uppercase">
+      <span className="text-xl text-slate-900 dark:text-slate-100 font-semibold uppercase">
         FIGAS
       </span>
     </Link>

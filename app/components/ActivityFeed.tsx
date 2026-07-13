@@ -1,4 +1,4 @@
-﻿import { Link } from "@remix-run/react";
+import { Link } from "@remix-run/react";
 
 export interface ActivityItem {
   id: string | number;
@@ -27,20 +27,20 @@ export default function ActivityFeed({
   const visible = items.slice(0, maxItems);
 
   return (
-    <div className={`rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 overflow-hidden ${className}`}>
+    <div className={`rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden ${className}`}>
       <div className="px-4 py-2 bg-slate-50 dark:bg-slate-700 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
           Recent Activity
         </span>
         {viewAllLink && (
           <Link to={viewAllLink} className="text-xs font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400">
-            View all →
+            View all \u2192
           </Link>
         )}
       </div>
       <div className="divide-y divide-slate-100 dark:divide-slate-700">
         {visible.length === 0 ? (
-          <div className="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+          <div className="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-500">
             {emptyMessage}
           </div>
         ) : (

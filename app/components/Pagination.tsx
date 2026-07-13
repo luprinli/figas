@@ -1,4 +1,4 @@
-﻿import { Link } from "@remix-run/react";
+import { Link } from "@remix-run/react";
 
 export interface PaginationProps {
   currentPage: number;
@@ -54,10 +54,10 @@ export default function Pagination({
 
   const linkClasses = (page: number, isActive: boolean) =>
     [
-      "relative inline-flex items-center px-3 py-2 text-sm/5 font-medium transition",
+      "relative inline-flex items-center px-3 py-2 text-sm/5 font-medium transition-colors duration-150",
       isActive
-        ? "z-10 bg-cyan-500 text-white focus:outline-none"
-        : "text-slate-700 dark:text-slate-300 ring-1 ring-inset ring-slate-200 dark:ring-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 dark:hover:bg-slate-700/50 focus:outline-none",
+        ? "z-10 bg-cyan-500 text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1"
+        : "text-slate-700 dark:text-slate-300 ring-1 ring-inset ring-slate-200 dark:ring-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 dark:hover:bg-slate-700/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1",
     ]
       .filter(Boolean)
       .join(" ");
@@ -73,12 +73,12 @@ export default function Pagination({
       {currentPage > 1 ? (
         <Link
           to={`${baseUrl}?page=${currentPage - 1}`}
-          className="relative inline-flex items-center rounded-l-md px-3 py-2 text-sm/5 font-medium text-slate-700 dark:text-slate-200 dark:text-slate-300 ring-1 ring-inset ring-slate-200 dark:ring-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 dark:hover:bg-slate-700/50 transition"
+          className="relative inline-flex items-center rounded-l-md px-3 py-2 text-sm/5 font-medium text-slate-700 dark:text-slate-200 dark:text-slate-300 ring-1 ring-inset ring-slate-200 dark:ring-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 dark:hover:bg-slate-700/50 transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1"
         >
           Previous
         </Link>
       ) : (
-        <span className="relative inline-flex items-center rounded-l-md px-3 py-2 text-sm/5 font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 ring-1 ring-inset ring-slate-200 dark:ring-slate-700 cursor-not-allowed">
+        <span className="relative inline-flex items-center rounded-l-md px-3 py-2 text-sm/5 font-medium text-slate-500 dark:text-slate-500 ring-1 ring-inset ring-slate-200 dark:ring-slate-700 cursor-not-allowed">
           Previous
         </span>
       )}
@@ -89,7 +89,7 @@ export default function Pagination({
           page === "ellipsis" ? (
             <span
               key={`ellipsis-${index}`}
-              className="relative inline-flex items-center px-3 py-2 text-sm/5 font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500"
+              className="relative inline-flex items-center px-3 py-2 text-sm/5 font-medium text-slate-500 dark:text-slate-500"
             >
               ...
             </span>
@@ -115,7 +115,7 @@ export default function Pagination({
       {currentPage < totalPages ? (
         <Link
           to={`${baseUrl}?page=${currentPage + 1}`}
-          className="relative inline-flex items-center rounded-r-md px-3 py-2 text-sm/5 font-medium text-slate-700 dark:text-slate-200 ring-1 ring-inset ring-slate-200 dark:ring-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition"
+          className="relative inline-flex items-center rounded-r-md px-3 py-2 text-sm/5 font-medium text-slate-700 dark:text-slate-200 ring-1 ring-inset ring-slate-200 dark:ring-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1"
         >
           Next
         </Link>

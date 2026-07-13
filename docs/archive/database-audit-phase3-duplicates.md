@@ -89,19 +89,19 @@ The `.server.ts` version is more comprehensive (handles `booking_leg_passengers`
 
 ### 3.1 Hardcoded Matrices
 
-#### [`fuel-data.ts`](../app/utils/scheduling/fuel-data.ts) — FUEL_MATRIX (30×30)
+#### [`fuel-data.ts`](../app/utils/scheduling/fuel-data.ts) — FUEL_MATRIX (30�—30)
 
 - **Lines:** 1–60
-- **Content:** Hardcoded 30×30 aerodrome fuel consumption lookup table (kg)
+- **Content:** Hardcoded 30�—30 aerodrome fuel consumption lookup table (kg)
 - **Comment:** "Hardcoded fuel lookup table derived from data/fuel.csv"
 - **Issue:** `data/fuel.csv` is **empty** (headers only). The matrix is hardcoded with no DB backing.
 - **Severity:** High — fuel data cannot be updated without code changes.
 
-#### [`suggest-route.ts`](../app/utils/scheduling/suggest-route.ts) — DISTANCE_MATRIX (30×30) + AIRCRAFT_DATA (5 aircraft)
+#### [`suggest-route.ts`](../app/utils/scheduling/suggest-route.ts) — DISTANCE_MATRIX (30�—30) + AIRCRAFT_DATA (5 aircraft)
 
 - **Lines:** 1–308
 - **Content:**
-  - `DISTANCE_MATRIX`: 30×30 hardcoded distance lookup (nautical miles)
+  - `DISTANCE_MATRIX`: 30�—30 hardcoded distance lookup (nautical miles)
   - `AIRCRAFT_DATA`: 5 aircraft with full specs (registration, type, weights, fuel capacity, seats)
 - **Issue:** The DB has `aerodrome_distances` table (created in migration 003) and `aircraft` table (created in migration 001), but this file duplicates that data in code.
 - **Severity:** High — dual sources of truth for distances and aircraft specs.

@@ -240,10 +240,10 @@ type FuelCsvLookup = (
 PENDING ──► PASSENGERS_ADDED ──► WEIGHT_DECLARED ──► FREIGHT_DECLARED
                                                             │
                                                             ▼
-                                                    FLIGHT_ASSIGNED ◄── Schedule published,
+                                                    FLIGHT_ASSIGNED �—�── Schedule published,
                                                             │         flight_id set on booking_leg
                                                             ▼
-                                                    PILOT_REVIEW ◄── Pilot reviews manifest
+                                                    PILOT_REVIEW �—�── Pilot reviews manifest
                                                             │
                                                             ▼
                                                     APPROVED

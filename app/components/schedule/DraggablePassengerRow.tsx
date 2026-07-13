@@ -1,4 +1,4 @@
-﻿import { useDraggable } from "@dnd-kit/core";
+import { useDraggable } from "@dnd-kit/core";
 import { X } from "lucide-react";
 import { formatCompactName } from "../../utils/format-compact-name";
 
@@ -69,14 +69,13 @@ export function DraggablePassengerRow({
       data-testid="passenger-row"
       aria-grabbed={false}
       aria-label={`Passenger ${formatCompactName(passenger.compact_name)} on flight ${flightId}. Press spacebar or enter to start dragging to unassign.`}
-      aria-describedby={`passenger-desc-${passenger.id}`}
       className="group inline-flex cursor-grab items-center gap-1 rounded px-1 text-sm text-slate-600 dark:text-slate-300 hover:bg-red-50 dark:bg-red-900/30 dark:hover:bg-red-900/30 dark:bg-red-900/30 hover:text-red-700 dark:text-red-400 dark:text-red-400 active:cursor-grabbing"
       title="Drag to unassign pool to remove from flight"
     >
       {formatCompactName(passenger.compact_name)}
       <X
         size={12}
-        className="flex-shrink-0 text-slate-300 dark:text-slate-500 dark:text-slate-500 opacity-0 transition group-hover:text-red-400 group-hover:opacity-100"
+        className="flex-shrink-0 text-slate-300 dark:text-slate-500 opacity-0 transition group-hover:text-red-400 group-hover:opacity-100"
         strokeWidth={1.5}
         absoluteStrokeWidth
       />

@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useFetcher } from "@remix-run/react";
 
 /* ── Types ─────────────────────────────────────────────── */
@@ -12,6 +12,8 @@ export interface PassengerResult {
   date_of_birth: string;
   clothed_weight_kg: number;
   residency: string;
+  /** Non-null when this passenger is linked to a registered user account */
+  user_id: number | null;
 }
 
 export interface PassengerSearchComboboxProps {
@@ -38,7 +40,7 @@ export default function PassengerSearchCombobox({
   onSelect,
   isDuplicateEmail,
 }: PassengerSearchComboboxProps) {
-  const searchFetcher = useFetcher<{ passengers: PassengerResult[] }>();
+  const searchFetcher = useFetcher<{ results: Array<{ id: number; firstName: string; lastName: string; email: string | null; phone: string | null; dateOfBirth: string | null; clothedWeightKg: number | null; residency: string | null; source: string; passengerUserId: number | null }> }>();
   const [query, setQuery] = useState(defaultValue);
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -47,8 +49,19 @@ export default function PassengerSearchCombobox({
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const activeSearchRowRef = useRef<number | null>(null);
 
-  const results = searchFetcher.data?.passengers ?? [];
-  const isSearching = searchFetcher.state === "submitting";
+  const apiResults = searchFetcher.data?.results ?? [];
+  const results: PassengerResult[] = apiResults.map((r) => ({
+    id: r.id,
+    first_name: r.firstName,
+    last_name: r.lastName,
+    email: r.email ?? "",
+    phone: r.phone,
+    date_of_birth: r.dateOfBirth ?? "",
+    clothed_weight_kg: r.clothedWeightKg ?? 70,
+    residency: r.residency ?? "",
+    user_id: r.passengerUserId,
+  }));
+  const isSearching = searchFetcher.state === "loading";
 
   /* ── Debounced search ────────────────────────────────── */
 
@@ -63,10 +76,8 @@ export default function PassengerSearchCombobox({
 
       debounceRef.current = setTimeout(() => {
         activeSearchRowRef.current = rowIndex;
-        const formData = new FormData();
-        formData.set("intent", "search_passengers");
-        formData.set("query", value.trim());
-        searchFetcher.submit(formData, { method: "post" });
+        const params = new URLSearchParams({ q: value.trim() });
+        searchFetcher.load(`/api/passenger-search?${params.toString()}`);
       }, 300);
     },
     [rowIndex, searchFetcher]
@@ -76,9 +87,9 @@ export default function PassengerSearchCombobox({
 
   useEffect(() => {
     if (!searchFetcher.data || activeSearchRowRef.current !== rowIndex) return;
-    setIsOpen(searchFetcher.data.passengers.length > 0);
+    setIsOpen(results.length > 0);
     setActiveIndex(-1);
-  }, [searchFetcher.data, rowIndex]);
+  }, [searchFetcher.data, rowIndex, results.length]);
 
   /* ── Close on outside click ──────────────────────────── */
 

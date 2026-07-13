@@ -80,7 +80,7 @@ export default function AgingReport() {
     if (!hasData) return "";
     const headers = "Bucket,Count,Total Amount\n";
     const rows = Object.entries(data.buckets).map(([key, bucket]) => {
-      return `${key},${bucket.count},£${bucket.total.toFixed(2)}`;
+      return `${key},${bucket.count},Â£${bucket.total.toFixed(2)}`;
     });
     return encodeURIComponent(headers + rows.join("\n"));
   })();
@@ -107,11 +107,11 @@ export default function AgingReport() {
           <>
             <AgingReceivablesTable buckets={data.buckets} />
 
-            <div className="mt-4 text-sm/5 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <div className="mt-4 text-sm/5 text-slate-500 dark:text-slate-400">
               <p>
                 <strong>Total Overdue:</strong>{" "}
                 <span className="tabular-nums">
-                  £{data.totalOverdue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  Â£{data.totalOverdue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
               </p>
               <p className="mt-1">
@@ -136,22 +136,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
       </div>
     </div>
   );

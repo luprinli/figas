@@ -161,7 +161,7 @@ All recommendations are ordered by priority, with risk assessments and implement
 | | 1. Add `mouseIsOver` state to `FlightCard.tsx` |
 | | 2. Wrap secondary action buttons in a conditional render: `{mouseIsOver && <button>...</button>}` |
 | | 3. Add `onMouseEnter`/`onMouseLeave` handlers to the card container |
-| | 4. Ensure the delete/cancel buttons have sufficient hit area (minimum 44×44px for touch targets) |
+| | 4. Ensure the delete/cancel buttons have sufficient hit area (minimum 44�—44px for touch targets) |
 | **Files Affected** | [`app/components/schedule/FlightCard.tsx`](app/components/schedule/FlightCard.tsx) |
 | **Risk Assessment** | **Low.** This is a UX preference change. The main risk is accessibility — hover-reveal controls are not discoverable on touch devices. Ensure there is an alternative way to access these actions (e.g., a "more" menu or keyboard shortcut). |
 | **Test Impact** | Any E2E tests that click on secondary action buttons will need to hover over the card first, or the test will need to use a different selector (e.g., a "more" menu button). |

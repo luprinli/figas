@@ -1,4 +1,4 @@
-﻿import { useDraggable, useDroppable, DndContext, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { useDraggable, useDroppable, DndContext, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import type { DragEndEvent } from "@dnd-kit/core";
 
 interface Passenger {
@@ -89,7 +89,7 @@ function DraggablePassenger({ passenger }: { passenger: Passenger }) {
       className="flex cursor-grab items-center justify-between rounded border border-slate-200 bg-white px-2 py-1 text-xs hover:border-blue-300 active:cursor-grabbing dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
     >
       <span>{passenger.name}</span>
-      <span className="text-slate-500 tabular-nums dark:text-slate-400 dark:text-slate-500">{passenger.weightKg}kg</span>
+      <span className="text-slate-500 tabular-nums dark:text-slate-500">{passenger.weightKg}kg</span>
     </div>
   );
 }
@@ -133,7 +133,7 @@ export default function SeatMap({
       <div className={`space-y-4 ${className}`}>
         <div className="relative mx-auto w-full max-w-[320px]">
           {/* Cockpit */}
-          <div className="absolute left-1/2 top-0 -translate-x-1/2 rounded-t-xl bg-slate-100 px-3 py-1 text-[10px] font-medium text-slate-500 dark:bg-slate-700 dark:text-slate-400 dark:text-slate-500">
+          <div className="absolute left-1/2 top-0 -translate-x-1/2 rounded-t-xl bg-slate-100 px-3 py-1 text-[10px] font-medium text-slate-500 dark:bg-slate-700 dark:text-slate-500">
             COCKPIT
           </div>
 
@@ -171,7 +171,7 @@ export default function SeatMap({
           </svg>
 
           {/* Cargo hold */}
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 rounded-b-lg bg-slate-100 px-3 py-0.5 text-[9px] text-slate-500 dark:bg-slate-700 dark:text-slate-400 dark:text-slate-500">
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 rounded-b-lg bg-slate-100 px-3 py-0.5 text-[9px] text-slate-500 dark:bg-slate-700 dark:text-slate-500">
             CARGO HOLD
           </div>
         </div>
@@ -179,7 +179,7 @@ export default function SeatMap({
         {/* Unassigned passengers */}
         {unassignedPassengers.length > 0 && (
           <div>
-            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
               Unassigned ({unassignedPassengers.length})
             </h4>
             <div className="space-y-1">

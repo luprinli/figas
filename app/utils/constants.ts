@@ -342,6 +342,7 @@ export type ExportFormat = (typeof ExportFormat)[keyof typeof ExportFormat];
 
 // Schedule statuses
 export const ScheduleStatus = {
+  DRAFT: "draft",
   BUILDING: "building",
   APPROVED: "approved",
   PUBLISHED: "published",

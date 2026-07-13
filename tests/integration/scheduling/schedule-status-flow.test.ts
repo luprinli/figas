@@ -40,7 +40,7 @@ function getError(result: ActionResult): { error: string; status?: number } | un
 describe("Schedule Status Flow", () => {
   const testUserId = MOCK_USER_IDS.ops;
 
-  // ── Test 1: Creates a schedule in draft status ────────────────────────────
+  // â”€â”€ Test 1: Creates a schedule in draft status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("creates a schedule in draft status", async () => {
     await withRollback(async () => {
       const schedule = await createTestSchedule({
@@ -54,7 +54,7 @@ describe("Schedule Status Flow", () => {
     });
   });
 
-  // ── Test 2: Fails to approve a schedule with no flights ───────────────────
+  // â”€â”€ Test 2: Fails to approve a schedule with no flights â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("fails to approve a schedule with no flights (returns 400)", async () => {
     await withRollback(async () => {
       const schedule = await createTestSchedule({
@@ -74,7 +74,7 @@ describe("Schedule Status Flow", () => {
     });
   });
 
-  // ── Test 3: Creates flights with bookings, then approve succeeds ──────────
+  // â”€â”€ Test 3: Creates flights with bookings, then approve succeeds â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("creates flights with bookings, then approve succeeds (status becomes approved)", async () => {
     await withRollback(async () => {
       const schedule = await createTestSchedule({
@@ -93,7 +93,7 @@ describe("Schedule Status Flow", () => {
       // Create a booking leg assigned to the flight
       await createTestBookingLeg({
         booking_id: 1,
-        origin_code: "PSY",
+        origin_code: "STY",
         destination_code: "MPA",
         leg_date: dateOnly(2026, 7, 3),
         flight_id: flight.id,
@@ -112,7 +112,7 @@ describe("Schedule Status Flow", () => {
     });
   });
 
-  // ── Test 4: Publishes an approved schedule succeeds ───────────────────────
+  // â”€â”€ Test 4: Publishes an approved schedule succeeds â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("publishes an approved schedule succeeds (status becomes published)", async () => {
     await withRollback(async () => {
       const schedule = await createTestSchedule({
@@ -150,7 +150,7 @@ describe("Schedule Status Flow", () => {
     });
   });
 
-  // ── Test 5: Revises a published schedule reverts to draft ─────────────────
+  // â”€â”€ Test 5: Revises a published schedule reverts to draft â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("revises a published schedule reverts to draft", async () => {
     await withRollback(async () => {
       const schedule = await createTestSchedule({
@@ -176,7 +176,7 @@ describe("Schedule Status Flow", () => {
     });
   });
 
-  // ── Test 6: Approves the revised schedule succeeds ────────────────────────
+  // â”€â”€ Test 6: Approves the revised schedule succeeds â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("approves the revised schedule succeeds", async () => {
     await withRollback(async () => {
       const schedule = await createTestSchedule({
@@ -194,7 +194,7 @@ describe("Schedule Status Flow", () => {
 
       await createTestBookingLeg({
         booking_id: 1,
-        origin_code: "PSY",
+        origin_code: "STY",
         destination_code: "MPA",
         leg_date: dateOnly(2026, 7, 6),
         flight_id: flight.id,
@@ -210,7 +210,7 @@ describe("Schedule Status Flow", () => {
     });
   });
 
-  // ── Test 7: Cancels the approved schedule succeeds ────────────────────────
+  // â”€â”€ Test 7: Cancels the approved schedule succeeds â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("cancels the approved schedule succeeds (status becomes cancelled)", async () => {
     await withRollback(async () => {
       const schedule = await createTestSchedule({
@@ -233,7 +233,7 @@ describe("Schedule Status Flow", () => {
     });
   });
 
-  // ── Test 8: Cancels a cancelled schedule fails with 400 ───────────────────
+  // â”€â”€ Test 8: Cancels a cancelled schedule fails with 400 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("cancels a cancelled schedule fails with 400", async () => {
     await withRollback(async () => {
       const schedule = await createTestSchedule({
@@ -256,7 +256,7 @@ describe("Schedule Status Flow", () => {
     });
   });
 
-  // ── Test 9: Approves a cancelled schedule fails with 400 ──────────────────
+  // â”€â”€ Test 9: Approves a cancelled schedule fails with 400 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("approves a cancelled schedule fails with 400", async () => {
     await withRollback(async () => {
       const schedule = await createTestSchedule({
@@ -279,7 +279,7 @@ describe("Schedule Status Flow", () => {
     });
   });
 
-  // ── Test 10: Cancels a building schedule succeeds ─────────────────────────
+  // â”€â”€ Test 10: Cancels a building schedule succeeds â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("cancels a building schedule succeeds", async () => {
     await withRollback(async () => {
       const schedule = await createTestSchedule({
@@ -300,7 +300,7 @@ describe("Schedule Status Flow", () => {
     });
   });
 
-  // ── Test 11: Publishes a non-approved schedule fails with 400 ─────────────
+  // â”€â”€ Test 11: Publishes a non-approved schedule fails with 400 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("publishes a non-approved schedule fails with 400", async () => {
     await withRollback(async () => {
       const schedule = await createTestSchedule({
@@ -308,7 +308,7 @@ describe("Schedule Status Flow", () => {
         created_by: testUserId,
       });
 
-      // Schedule is in draft status — not approved
+      // Schedule is in draft status â€” not approved
       const result = await handlePublish(schedule.id, testUserId);
       const err = getError(result);
 
@@ -318,7 +318,7 @@ describe("Schedule Status Flow", () => {
     });
   });
 
-  // ── Test 12: Revises a non-published schedule fails with 400 ──────────────
+  // â”€â”€ Test 12: Revises a non-published schedule fails with 400 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("revises a non-published schedule fails with 400", async () => {
     await withRollback(async () => {
       const schedule = await createTestSchedule({
@@ -326,7 +326,7 @@ describe("Schedule Status Flow", () => {
         created_by: testUserId,
       });
 
-      // Schedule is in draft status — not published or approved
+      // Schedule is in draft status â€” not published or approved
       const result = await handleRevise(schedule.id, testUserId);
       const err = getError(result);
 

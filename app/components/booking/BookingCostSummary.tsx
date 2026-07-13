@@ -1,14 +1,8 @@
-﻿import type { BookingLegRow } from "../../utils/repositories/booking-leg";
-import type { BookingPassengerRow } from "../../utils/repositories/booking-passenger";
-import type { BookingLegPassengerWithDetails } from "../../utils/repositories/booking-leg-passenger";
 import type { FareCalculationResult } from "../../utils/services/fare-calculator";
 import Skeleton from "../Skeleton";
 import PaymentIcon from "../icons/PaymentIcon";
 
 interface BookingCostSummaryProps {
-  legs: BookingLegRow[];
-  passengers: BookingPassengerRow[];
-  legPassengers: BookingLegPassengerWithDetails[];
   totalAmountGbp: number | null;
   fareBreakdown?: FareCalculationResult | null;
 }
@@ -91,7 +85,7 @@ export default function BookingCostSummary({
   // Loading state (when fareBreakdown is not yet provided)
   if (calculation === undefined) {
     return (
-      <div className="rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20 space-y-3">
+      <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20 space-y-3">
         <Skeleton className="h-5 w-40 rounded" />
         <Skeleton className="h-4 w-full rounded" />
         <Skeleton className="h-4 w-3/4 rounded" />
@@ -126,7 +120,7 @@ export default function BookingCostSummary({
     return (
       <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 p-6 text-center">
         <PaymentIcon className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-500 mb-2" />
-        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No cost breakdown available.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-500">No cost breakdown available.</p>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
           Add legs and passengers to see the fare calculation.
         </p>
@@ -139,9 +133,9 @@ export default function BookingCostSummary({
   const legGroups = buildLegGroups(calculation);
 
   return (
-    <div className="rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20">
+    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20">
       <div className="flex items-center gap-2 mb-3">
-        <PaymentIcon className="w-5 h-5 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
+        <PaymentIcon className="w-5 h-5 text-slate-500 dark:text-slate-500" />
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Cost Breakdown</h3>
         <span className="text-[10px] text-slate-500 dark:text-slate-400 ml-auto">
           {calculation.passengerCount} passenger{calculation.passengerCount !== 1 ? "s" : ""} &middot;{" "}
@@ -160,7 +154,7 @@ export default function BookingCostSummary({
               <details key={group.legId} className="group">
                 <summary className="flex justify-between items-center gap-4 py-1.5 cursor-pointer">
                   <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
-                    {group.origin} → {group.destination}
+                    {group.origin} {'\u2192'} {group.destination}
                   </span>
                   <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">
                     {formatCurrency(group.subtotal)}

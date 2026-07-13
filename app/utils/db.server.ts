@@ -26,6 +26,15 @@ const pool = new Pool({
   max: 10,
 });
 
+pool.on("error", (err) => {
+  console.error("[db] Unexpected pool error:", err);
+});
+
+// Force UTC to avoid "time zone not recognized" errors from PostgreSQL
+pool.on("connect", async (client) => {
+  await client.query("SET timezone = 'UTC'");
+});
+
 export const db = new Kysely<DB>({
   dialect: new PostgresDialect({ pool }),
 });

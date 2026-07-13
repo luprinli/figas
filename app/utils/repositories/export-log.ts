@@ -59,6 +59,7 @@ export const exportLogRepository = {
         file_path: params.file_path ?? undefined,
         error_message: params.error_message ?? undefined,
         exported_by: parseInt(params.exported_by, 10),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       .returningAll()
       .execute();
@@ -69,7 +70,7 @@ export const exportLogRepository = {
     const rows = await kdb
       .selectFrom("export_log")
       .selectAll()
-      .orderBy("created_at desc")
+      .orderBy("created_at", "desc")
       .limit(limit)
       .execute();
     return rows.map((r) => toRow(r as unknown as Record<string, unknown>));

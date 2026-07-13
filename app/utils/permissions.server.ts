@@ -2,7 +2,6 @@ import { redirect } from "@remix-run/node";
 import { getSession } from "../session.server";
 import { kdb } from "./db.server.kysely";
 import { sql } from "kysely";
-import type { DB } from "../../generated/kysely/database";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -571,7 +570,6 @@ export async function validateSoDForRole(
     userId: number,
     roleId: number
 ): Promise<void> {
-    // Get the permissions that the role grants
     const rolePermsResult = await sql<{ resource: string; action: string }>`
       SELECT p.resource, p.action
       FROM role_permissions rp
@@ -583,7 +581,7 @@ export async function validateSoDForRole(
         (r) => `${r.resource}:${r.action}`
     );
 
-    // Get the user's current permissions
+
     const userPermissions = await getUserPermissions(userId);
 
     // Check each incompatible pair

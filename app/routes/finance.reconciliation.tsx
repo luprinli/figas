@@ -1,4 +1,4 @@
-﻿import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, Form, useNavigation , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
@@ -205,19 +205,19 @@ export default function Reconciliation() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
           <div className="text-center">
-            <p className="text-sm/5 font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Matched</p>
+            <p className="text-sm/5 font-medium text-slate-500 dark:text-slate-400">Matched</p>
             <p className="mt-1 text-3xl/8 font-bold text-green-600">{data.matchedCount}</p>
           </div>
         </Card>
         <Card>
           <div className="text-center">
-            <p className="text-sm/5 font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Unmatched</p>
+            <p className="text-sm/5 font-medium text-slate-500 dark:text-slate-400">Unmatched</p>
             <p className="mt-1 text-3xl/8 font-bold text-amber-600">{data.unmatchedCount}</p>
           </div>
         </Card>
         <Card>
           <div className="text-center">
-            <p className="text-sm/5 font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Disputed</p>
+            <p className="text-sm/5 font-medium text-slate-500 dark:text-slate-400">Disputed</p>
             <p className="mt-1 text-3xl/8 font-bold text-red-600">{data.disputedCount}</p>
           </div>
         </Card>
@@ -278,7 +278,7 @@ export default function Reconciliation() {
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setMatchDialog(null)} role="presentation" />
           <div className="relative w-full max-w-md rounded-lg bg-white dark:bg-slate-800 p-6 shadow-xl dark:shadow-slate-900/50 ring-1 ring-slate-200 dark:ring-slate-700">
             <h3 className="text-lg/6 font-semibold text-slate-900 dark:text-slate-100">Match Transaction</h3>
-            <p className="mt-1 text-sm/5 text-slate-500 dark:text-slate-400 dark:text-slate-500">Enter the Payment ID to match this transaction with.</p>
+            <p className="mt-1 text-sm/5 text-slate-500 dark:text-slate-400">Enter the Payment ID to match this transaction with.</p>
             <Form method="post" className="mt-4 space-y-4">
               <input type="hidden" name="intent" value="match" />
               <input type="hidden" name="transactionId" value={matchDialog.transactionId} />
@@ -316,7 +316,7 @@ export default function Reconciliation() {
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setFlagDialog(null)} role="presentation" />
           <div className="relative w-full max-w-md rounded-lg bg-white dark:bg-slate-800 p-6 shadow-xl dark:shadow-slate-900/50 ring-1 ring-slate-200 dark:ring-slate-700">
             <h3 className="text-lg/6 font-semibold text-slate-900 dark:text-slate-100">Flag Discrepancy</h3>
-            <p className="mt-1 text-sm/5 text-slate-500 dark:text-slate-400 dark:text-slate-500">Add notes explaining why this transaction is being flagged.</p>
+            <p className="mt-1 text-sm/5 text-slate-500 dark:text-slate-400">Add notes explaining why this transaction is being flagged.</p>
             <Form method="post" className="mt-4 space-y-4">
               <input type="hidden" name="intent" value="flag" />
               <input type="hidden" name="transactionId" value={flagDialog.transactionId} />
@@ -357,22 +357,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
       </div>
     </div>
   );

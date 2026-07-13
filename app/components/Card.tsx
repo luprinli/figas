@@ -1,4 +1,4 @@
-﻿import type { ReactNode } from "react";
+import type { ReactNode } from "react";
 
 export interface CardProps {
   title?: string;
@@ -33,7 +33,7 @@ export default function Card({
               </h3>
             )}
             {subtitle && (
-              <p className="mt-0.5 text-sm/5 text-slate-500 dark:text-slate-400 dark:text-slate-500">{subtitle}</p>
+              <p className="mt-0.5 text-sm/5 text-slate-500 dark:text-slate-500">{subtitle}</p>
             )}
           </div>
           {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}

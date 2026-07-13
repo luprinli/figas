@@ -50,7 +50,7 @@ export const organizationRepository = {
       .selectFrom("organizations")
       .selectAll()
       .where("is_active", "=", true)
-      .orderBy("name asc")
+      .orderBy("name", "asc")
       .execute();
     return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
   },

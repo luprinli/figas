@@ -7,6 +7,7 @@ export interface StatusBadgeProps {
 }
 
 const statusVariantMap: Record<string, BadgeProps["variant"]> = {
+  scheduled: "info",
   pending: "warning",
   confirmed: "success",
   cancelled: "danger",
@@ -26,6 +27,9 @@ const statusVariantMap: Record<string, BadgeProps["variant"]> = {
   info: "info",
   booked: "info",
   checked_in: "success",
+  "checked in": "success",
+  boarded: "success",
+  "not checked in": "warning",
   boarding: "info",
   departed: "info",
   arrived: "success",

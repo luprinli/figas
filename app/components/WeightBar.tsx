@@ -1,4 +1,4 @@
-﻿export interface WeightBarProps {
+export interface WeightBarProps {
   currentWeight: number;
   maxWeight: number;
   label?: string;

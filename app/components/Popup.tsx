@@ -28,11 +28,17 @@ export default function Popup({
       }
     };
 
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") setIsOpen(false);
+    }
+
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleEscape);
     }
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
     };
   }, [isOpen, buttonRef, setIsOpen]);
 
@@ -40,6 +46,8 @@ export default function Popup({
 
   return (
     <div
+      role="dialog"
+      aria-label="Popup menu"
       className={["absolute z-10", className].filter(Boolean).join(" ")}
       ref={popupRef}
     >

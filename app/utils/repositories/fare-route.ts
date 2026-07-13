@@ -1,6 +1,19 @@
 import { kdb } from "../db.server";
 import { sql } from "kysely";
 
+let fareCache: Map<string, FareRouteRow | null> | null = null;
+let fareCacheTimestamp = 0;
+const FARE_CACHE_TTL_MS = 60_000;
+
+function invalidateFareCache(): void {
+  fareCache = null;
+  fareCacheTimestamp = 0;
+}
+
+export function clearFareCache(): void {
+  invalidateFareCache();
+}
+
 export interface FareRouteRow {
   id: number;
   origin_code: string;
@@ -33,7 +46,13 @@ function toRow(r: Record<string, unknown>): FareRouteRow {
 
 export const fareRouteRepository = {
   async findByOriginDestination(originCode: string, destinationCode: string): Promise<FareRouteRow | null> {
-    // Symmetric lookup: A→B or B→A
+    const cacheKey = `${originCode}|${destinationCode}`;
+    if (fareCache && Date.now() - fareCacheTimestamp < FARE_CACHE_TTL_MS) {
+      const cached = fareCache.get(cacheKey);
+      if (cached !== undefined) return cached;
+    }
+
+    // Symmetric lookup: A\u2192B or B\u2192A
     const rows = await kdb
       .selectFrom("fare_routes")
       .selectAll()
@@ -45,7 +64,11 @@ export const fareRouteRepository = {
         ])
       )
       .execute();
-    return rows.length > 0 ? toRow(rows[0] as unknown as Record<string, unknown>) : null;
+    const result = rows.length > 0 ? toRow(rows[0] as unknown as Record<string, unknown>) : null;
+    if (!fareCache) fareCache = new Map();
+    fareCache.set(cacheKey, result);
+    fareCacheTimestamp = Date.now();
+    return result;
   },
 
   async findByOrigin(originCode: string): Promise<FareRouteRow[]> {

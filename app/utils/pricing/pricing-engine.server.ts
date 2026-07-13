@@ -1,6 +1,5 @@
 import { kdb } from "../db.server.kysely";
 import { sql } from "kysely";
-import type { DB } from "../../../generated/kysely/database";
 
 export type DiscountType = "none" | "child" | "veteran" | "senior" | "student" | "staff";
 

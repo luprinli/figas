@@ -1,13 +1,14 @@
 import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Link, Outlet, useLoaderData, useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { Form, Link, Outlet, useLoaderData, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { useState } from "react";
-import { ChevronsLeft, ChevronsRight } from "lucide-react";
+import { ChevronsLeft, ChevronsRight, LogOut } from "lucide-react";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
 import { kdb } from "../utils/db.server.kysely";
 import { sql } from "kysely";
+import ProfilePopup from "../components/ProfilePopup";
 
 export const meta: MetaFunction = () => [{ title: "Engineer - FIGAS" }];
 
@@ -68,13 +69,21 @@ export default function EngineerLayout() {
         </nav>
         <div className="border-t border-slate-700 px-3 py-3">
           {!collapsed ? (
-            <div className="text-xs text-slate-400">
-              <p className="font-medium text-slate-300">{user.name}</p>
-              <p className="truncate">{user.email}</p>
+            <div className="flex items-center gap-3">
+              <ProfilePopup user={{ name: user.name, email: user.email }} />
+              <div className="text-xs text-slate-400 min-w-0 flex-1">
+                <p className="font-medium text-slate-300 truncate">{user.name}</p>
+                <p className="truncate">{user.email}</p>
+              </div>
             </div>
           ) : (
-            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-600 text-xs font-bold mx-auto">
-              {user.name?.charAt(0) ?? "?"}
+            <div className="flex flex-col items-center gap-2">
+              <ProfilePopup user={{ name: user.name, email: user.email }} />
+              <Form action="/logout" method="POST">
+                <button type="submit" className="min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-500 hover:text-red-400 rounded transition-colors" title="Sign Out">
+                  <LogOut size={16} absoluteStrokeWidth />
+                </button>
+              </Form>
             </div>
           )}
         </div>

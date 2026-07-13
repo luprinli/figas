@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 interface CountdownBarProps {
   departureDate: string; // ISO date string
@@ -113,7 +113,7 @@ export default function CountdownBar({ departureDate, className = "" }: Countdow
       </div>
 
       {/* Countdown text */}
-      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
         {countdownText}
       </p>
     </div>

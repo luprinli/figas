@@ -1,6 +1,5 @@
 import { kdb } from "../db.server.kysely";
 import { sql } from "kysely";
-import type { DB } from "../../../generated/kysely/database";
 import { paymentReminderRepository } from "../repositories/payment-reminder";
 import { sendEmailQuiet } from "../email.server";
 import { paymentReminderEmail } from "../../emails/notifications";
@@ -168,6 +167,7 @@ export async function cancelRemindersForBooking(
   try {
     await kdb
       .updateTable("payment_reminders")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .set({ status: "cancelled" } as any)
       .where("booking_id", "=", Number(params.bookingId))
       .where("status", "=", "pending")

@@ -1,19 +1,19 @@
-﻿import { isRouteErrorResponse, useRouteError } from "@remix-run/react";
+import { isRouteErrorResponse, useRouteError } from "@remix-run/react";
 
 export function GlobalErrorBoundary() {
   const error = useRouteError();
 
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">
             {error.status}
           </div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">
             {error.statusText || "Something went wrong"}
           </h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-500">
             {error.data || "An unexpected error occurred."}
           </p>
           <button
@@ -29,12 +29,12 @@ export function GlobalErrorBoundary() {
 
   console.error("[GlobalErrorBoundary]", error);
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">
           Unexpected Error
         </h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-500">
           An unexpected error occurred. Please try again.
         </p>
         <button

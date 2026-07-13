@@ -31,7 +31,7 @@ export const operationsScheduleTour: TourConfig = {
       popover: {
         title: "Schedule Status",
         description:
-          "Tracks the lifecycle: Draft → Approved → Published → Active → Completed.",
+          "Tracks the lifecycle: Draft \u2192 Approved \u2192 Published \u2192 Active \u2192 Completed.",
         side: "bottom",
       },
     },

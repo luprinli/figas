@@ -108,7 +108,7 @@ describe("getDaysInMonth()", () => {
 });
 
 describe("getCalendarGrid()", () => {
-  it("returns 42 cells (6 rows × 7 columns)", () => {
+  it("returns 42 cells (6 rows �— 7 columns)", () => {
     const grid = getCalendarGrid(2026, 5); // June 2026
     expect(grid).toHaveLength(42);
   });

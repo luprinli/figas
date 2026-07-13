@@ -1,6 +1,4 @@
 import { kdb } from "../db.server.kysely";
-import { sql } from "kysely";
-import type { DB } from "../../../generated/kysely/database";
 import { aircraftRepository } from "../repositories/aircraft";
 import type { RouteResult, AircraftAssignmentResult } from "./types";
 import { computeFuelPlan, computeFlightTime } from "./fuel-planning";
@@ -62,7 +60,9 @@ export async function assignAircraft(
       .select(["id", "departure_time", "arrival_time"])
       .where("aircraft_id", "=", aircraft.id)
       .where("id", "!=", route.flight.id)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .where("departure_time", ">=", new Date(`${proposedDate}T00:00:00.000Z`) as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .where("departure_time", "<", new Date(`${proposedDate}T23:59:59.999Z`) as any)
       .execute();
 

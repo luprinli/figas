@@ -12,14 +12,14 @@ import { assignAircraftToRoutes } from "./assign-aircraft";
 import { computeFlightDuration } from "../check-in-time.server";
 import { computeWeightBalanceForRoute } from "./weight-balance";
 import { assignPilotsToRoutes } from "./assign-pilots";
-import { BookingStatus } from "../constants";
+import { BookingStatus, FlightStatus } from "../constants";
 import { isNoFlyDay } from "../services/no-fly.service";
 import { db } from "../db.server";
 import { sql } from "kysely";
 import { solveCvrp } from "./cvrp-solver";
 import { validateCvrpRoutes, filterFeasibleRoutes } from "./cvrp-validator";
 import type { ValidationAircraft } from "./flight-validation";
-import { loadDistances, loadHeadings, getDistance, getHeading } from "./distance-lookup";
+import { loadDistances, loadHeadings } from "./distance-lookup";
 import type { PassengerDemand } from "./cvrp-types";
 
 /**
@@ -76,20 +76,54 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
       };
     }
 
+    // ── Clean up prior builds for idempotency ────────────────────────────────
+    const priorSchedules = await sql<{ id: number }>`
+      SELECT id FROM schedules WHERE schedule_date = ${date}::date
+    `.execute(tx);
+    for (const ps of priorSchedules.rows) {
+      const priorFlightIds = await sql<{ id: number }>`
+        SELECT id FROM flights WHERE schedule_id = ${ps.id}
+      `.execute(tx);
+      const priorFlightIdList = priorFlightIds.rows.map((f) => f.id);
+      if (priorFlightIdList.length > 0) {
+        await sql`
+          DELETE FROM booking_leg_passengers WHERE flight_leg_id IN (
+            SELECT id FROM flight_legs WHERE flight_id = ANY(${priorFlightIdList}::int[])
+          )
+        `.execute(tx);
+        await sql`
+          UPDATE booking_legs SET flight_id = NULL, status = 'unassigned'
+          WHERE flight_id = ANY(${priorFlightIdList}::int[])
+        `.execute(tx);
+        await sql`
+          DELETE FROM weight_balance_snapshots WHERE schedule_id = ${ps.id}
+        `.execute(tx);
+        await sql`
+          DELETE FROM pilot_assignments WHERE schedule_id = ${ps.id}
+        `.execute(tx);
+        await sql`
+          DELETE FROM flight_legs WHERE flight_id = ANY(${priorFlightIdList}::int[])
+        `.execute(tx);
+        await sql`
+          DELETE FROM flights WHERE schedule_id = ${ps.id}
+        `.execute(tx);
+      }
+    }
+
     // ── Create or reuse schedule record ───────────────────────────────────────
     const existingResult = await sql`
       SELECT id FROM schedules WHERE schedule_date = ${date}::date ORDER BY created_at DESC LIMIT 1
-    `.execute(db);
+    `.execute(tx);
     let scheduleId: number;
     if (existingResult.rows.length > 0) {
       scheduleId = Number((existingResult.rows[0] as { id: number | bigint }).id);
       await sql`
         UPDATE schedules SET status = 'building', updated_at = NOW() WHERE id = ${scheduleId}
-      `.execute(db);
+      `.execute(tx);
     } else {
       const newScheduleResult = await sql`
         INSERT INTO schedules (schedule_date, created_by, notes, status) VALUES (${date}, ${createdBy}, ${`Auto-generated schedule for ${date}`}, 'building') RETURNING id
-      `.execute(db);
+      `.execute(tx);
       scheduleId = Number((newScheduleResult.rows[0] as { id: number | bigint }).id);
     }
     const schedule = { id: scheduleId };
@@ -100,7 +134,7 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
 
     // Convert clusters to passenger demands
     const demands: PassengerDemand[] = [];
-    const clusterLegMap = new Map<number, number[]>(); // cluster leg index → leg ids
+    const clusterLegMap = new Map<number, number[]>(); // cluster leg index \u2192 leg ids
     for (let ci = 0; ci < clusters.length; ci++) {
       const cluster = clusters[ci];
       demands.push({
@@ -112,13 +146,21 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
       clusterLegMap.set(ci, cluster.legs.map((l) => l.id));
     }
 
-    // Build distance matrix
+    // Build distance and heading lookup maps (O(1) instead of O(N) per leg)
     const distRows = await loadDistances();
     const headingRows = await loadHeadings();
     const distanceMatrix = new Map<string, number>();
     for (const d of distRows) {
       distanceMatrix.set(`${d.origin}->${d.destination}`, d.distance_nm);
     }
+    const headingMatrix = new Map<string, number>();
+    for (const h of headingRows) {
+      headingMatrix.set(`${h.origin}->${h.destination}`, h.heading);
+    }
+    const lookupDistance = (from: string, to: string): number =>
+      distanceMatrix.get(`${from}->${to}`) ?? distanceMatrix.get(`${to}->${from}`) ?? 0;
+    const lookupHeading = (from: string, to: string): number =>
+      headingMatrix.get(`${from}->${to}`) ?? headingMatrix.get(`${to}->${from}`) ?? 0;
 
     // Get aircraft capacities for constraints
     const allAircraft = await aircraftRepository.findAll();
@@ -179,10 +221,10 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
       // Get aerodrome IDs
       const originResult = await sql`
         SELECT id FROM aerodromes WHERE code = ${originCode}
-      `.execute(db);
+      `.execute(tx);
       const destResult = await sql`
         SELECT id FROM aerodromes WHERE code = ${destCode}
-      `.execute(db);
+      `.execute(tx);
       const originId = Number((originResult.rows[0] as { id: number | bigint })?.id ?? 0);
       const destId = Number((destResult.rows[0] as { id: number | bigint })?.id ?? 0);
 
@@ -192,8 +234,8 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
         INSERT INTO flights (
           flight_number, aircraft_id, origin_aerodrome_id, destination_aerodrome_id,
           departure_time, arrival_time, status, schedule_id
-        ) VALUES (${flightNumber}, ${defaultAircraftId}, ${originId}, ${destId}, ${`${date}T10:00:00Z`}, ${`${date}T12:00:00Z`}, ${"scheduled"}, ${schedule.id}) RETURNING *
-      `.execute(db);
+        ) VALUES (${flightNumber}, ${defaultAircraftId}, ${originId}, ${destId}, ${`${date}T10:00:00Z`}, ${`${date}T12:00:00Z`}, ${FlightStatus.SCHEDULED}, ${schedule.id}) RETURNING *
+      `.execute(tx);
       const flight = (flightResult.rows[0] as unknown as FlightRow);
 
       // Create flight legs from CVRP route stops.
@@ -205,9 +247,9 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
       for (let s = 0; s < cvrpRoute.stops.length - 1; s++) {
         const from = cvrpRoute.stops[s];
         const to = cvrpRoute.stops[s + 1];
-        const realDist = getDistance(distRows, from, to);
+        const realDist = lookupDistance(from, to);
         const legDistNm = realDist > 0 ? realDist : evenSplitNm;
-        const legHeading = getHeading(headingRows, from, to);
+        const legHeading = lookupHeading(from, to);
         legDistances.push({ distance_nm: legDistNm });
         await flightLegRepository.create({
           flight_id: flight.id,
@@ -223,7 +265,7 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
       const durationMinutes = computeFlightDuration(legDistances);
       await sql`
         UPDATE flights SET duration_minutes = ${durationMinutes}, check_in_time = ${"08:00"} WHERE id = ${flight.id}
-      `.execute(db);
+      `.execute(tx);
 
       // Assign booking legs to this flight based on CVRP assignments
       const assignedLegIds: number[] = [];
@@ -237,13 +279,13 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
       }
 
       // Build a RouteResult for Phases 3-5. Each routeStop represents the leg
-      // that ARRIVES at that stop (legSequence idx+1 = leg stops[idx]→stops[idx+1]),
+      // that ARRIVES at that stop (legSequence idx+1 = leg stops[idx]\u2192stops[idx+1]),
       // so carry the real per-leg distance/heading aligned to that leg.
       const routeStops = cvrpRoute.stops.slice(1).map((code, idx) => {
         const from = cvrpRoute.stops[idx];
         const to = cvrpRoute.stops[idx + 1];
-        const realDist = getDistance(distRows, from, to);
-        const h = getHeading(headingRows, from, to);
+        const realDist = lookupDistance(from, to);
+        const h = lookupHeading(from, to);
         return {
           aerodromeCode: code,
           legSequence: idx + 1,
@@ -284,7 +326,7 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
     // Warn about unserved demands
     for (const unserved of cvrpResult.unservedDemands) {
       warnings.push(
-        `Unserved demand: ${unserved.origin}→${unserved.destination} (${unserved.passengerCount} pax)`
+        `Unserved demand: ${unserved.origin}\u2192${unserved.destination} (${unserved.passengerCount} pax)`
       );
     }
 

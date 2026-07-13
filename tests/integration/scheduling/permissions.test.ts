@@ -88,16 +88,16 @@ describe("Schedule Action Permissions", () => {
     });
   });
 
-  it("ops user has booking:assign-flight permission", async () => {
+  it("ops user has schedule:create permission", async () => {
     await withRollback(async () => {
-      const hasPerm = await hasPermission(MOCK_USER_IDS.ops, Permission.BOOKING_ASSIGN_FLIGHT);
+      const hasPerm = await hasPermission(MOCK_USER_IDS.ops, Permission.SCHEDULE_CREATE);
       expect(hasPerm).toBe(true);
     });
   });
 
-  it("ops user has flight:assign-pilot permission", async () => {
+  it("ops user has flight:create permission", async () => {
     await withRollback(async () => {
-      const hasPerm = await hasPermission(MOCK_USER_IDS.ops, Permission.FLIGHT_ASSIGN_PILOT);
+      const hasPerm = await hasPermission(MOCK_USER_IDS.ops, Permission.FLIGHT_CREATE);
       expect(hasPerm).toBe(true);
     });
   });

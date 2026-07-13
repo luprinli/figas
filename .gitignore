@@ -31,3 +31,5 @@ playwright-report/
 .husky/_/
 
 generated/kysely
+
+backups/

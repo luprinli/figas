@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFetcher } from "@remix-run/react";
 import { X, Printer } from "lucide-react";
 import PrintButton from "../PrintButton";
@@ -53,11 +53,12 @@ function fmt(v: unknown): string {
   return String(v);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function buildLoadsheetPrintOptions(data: LoadsheetData, flightId: number): PrintOptions {
   const totalPaxWt = data.passengers.reduce((s, p) => s + p.clothedWeightKg, 0);
   const totalBagWt = data.passengers.reduce((s, p) => s + p.baggageWeightKg, 0);
   const sectors: PrintOptions["sections"] = data.sectors.map((sec) => ({
-    heading: `Sector ${sec.leg_sequence}: ${sec.origin_code ?? "?"} → ${sec.destination_code ?? "?"}`,
+    heading: `Sector ${sec.leg_sequence}: ${sec.origin_code ?? "?"} \u2192 ${sec.destination_code ?? "?"}`,
     rows: [
       { label: "ETD", value: sec.etd ?? "—" },
       { label: "ETA", value: sec.eta ?? "—" },
@@ -77,7 +78,7 @@ function buildLoadsheetPrintOptions(data: LoadsheetData, flightId: number): Prin
   return {
     title: `Loadsheet ${data.flightNumber}`,
     header: `Loadsheet — ${data.flightNumber}`,
-    subheader: `${data.stopCodes.join(" → ")} — ${data.pilotName} — ${data.aircraftType} ${data.aircraftRegistration} — ${data.loadsheet.total_pax} pax`,
+    subheader: `${data.stopCodes.join(" \u2192 ")} — ${data.pilotName} — ${data.aircraftType} ${data.aircraftRegistration} — ${data.loadsheet.total_pax} pax`,
     sections: [
       {
         heading: "Weight & Balance Summary",
@@ -93,7 +94,7 @@ function buildLoadsheetPrintOptions(data: LoadsheetData, flightId: number): Prin
         heading: `Passenger Manifest (${data.passengers.length})`,
         rows: data.passengers.map((p) => ({
           label: `${p.seat} ${p.name}`,
-          value: `${p.origin} → ${p.destination}  ${p.clothedWeightKg}kg + ${p.baggageWeightKg}kg bag  ${p.boarded ? "BOARDED" : ""}`,
+          value: `${p.origin} \u2192 ${p.destination}  ${p.clothedWeightKg}kg + ${p.baggageWeightKg}kg bag  ${p.boarded ? "BOARDED" : ""}`,
         })),
       },
       ...sectors,
@@ -112,11 +113,8 @@ export default function LoadsheetModal({ flightId, isOpen, onClose, canPerformIn
   useEffect(() => {
     if (isOpen && flightId > 0) {
       setMode(canPerformInFlight ? "ops" : "pax");
-      console.log("[LoadsheetModal] OPEN — fetching loadsheet for flight", flightId, "canPerformInFlight:", canPerformInFlight);
       fetcher.load(`/ops/flight/${flightId}/loadsheet`);
       wb.load();
-    } else {
-      console.log("[LoadsheetModal] CLOSED — flight", flightId);
     }
   }, [isOpen, flightId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -132,16 +130,7 @@ export default function LoadsheetModal({ flightId, isOpen, onClose, canPerformIn
     if (e.target === overlayRef.current) onClose();
   }
 
-  useEffect(() => {
-    console.log(
-      "[LoadsheetModal] fetcher.state =",
-      fetcher.state,
-      "| hasData =",
-      !!fetcher.data,
-      "| flightId =",
-      flightId
-    );
-  }, [fetcher.state, fetcher.data, flightId]);
+
 
   if (!isOpen) return null;
 
@@ -157,12 +146,15 @@ export default function LoadsheetModal({ flightId, isOpen, onClose, canPerformIn
   };
 
   return (
+    /* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions, @typescript-eslint/no-unused-vars */
     <div
       ref={overlayRef}
       onClick={handleBackdropClick}
       onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
-      role="button"
+      role="dialog"
       tabIndex={-1}
+      aria-modal="true"
+      aria-label="Loadsheet"
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-[5vh] pb-[5vh]"
     >
       <div className="relative w-full max-w-4xl rounded-xl bg-white dark:bg-slate-800 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -177,7 +169,7 @@ export default function LoadsheetModal({ flightId, isOpen, onClose, canPerformIn
         {isLoading ? (
           <div className="flex items-center justify-center p-12">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 dark:border-slate-600 border-t-cyan-500" />
-            <span className="ml-3 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Loading loadsheet...</span>
+            <span className="ml-3 text-sm text-slate-500 dark:text-slate-500">Loading loadsheet...</span>
           </div>
         ) : data ? (
           <div className="p-4 sm:p-6">
@@ -193,7 +185,7 @@ export default function LoadsheetModal({ flightId, isOpen, onClose, canPerformIn
                 <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
                   {data.flightNumber} Loadsheet
                 </h2>
-                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-500">
                   <span>Pilot: {data.pilotName}</span>
                   <span>Aircraft: {data.aircraftType} {data.aircraftRegistration}</span>
                   <span>{data.loadsheet.total_pax} pax</span>
@@ -222,7 +214,7 @@ export default function LoadsheetModal({ flightId, isOpen, onClose, canPerformIn
             </div>
 
             {/* ── Mode toggle ── */}
-            <div className="mb-4 flex rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 bg-slate-100 dark:bg-slate-700 p-0.5 w-fit">
+            <div className="mb-4 flex rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-700 p-0.5 w-fit">
               <button
                 onClick={() => setMode("ops")}
                 className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
@@ -273,7 +265,7 @@ export default function LoadsheetModal({ flightId, isOpen, onClose, canPerformIn
                     <thead>
                       <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700 text-left">
                         <th className="py-1.5 px-2 font-medium text-slate-500 dark:text-slate-400 w-6">#</th>
-                        <th className="py-1.5 px-2 font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Route</th>
+                        <th className="py-1.5 px-2 font-medium text-slate-500 dark:text-slate-500">Route</th>
                         <th className="py-1.5 px-2 font-medium text-slate-500 dark:text-slate-400 w-10">Nm</th>
                         <th className="py-1.5 px-2 font-medium text-slate-500 dark:text-slate-400 w-12">Plan</th>
                         <th className="py-1.5 px-2 font-medium text-slate-500 dark:text-slate-400 w-12">ETD</th>
@@ -299,16 +291,16 @@ export default function LoadsheetModal({ flightId, isOpen, onClose, canPerformIn
                         return (
                           <tr key={s.leg_sequence} className="border-b border-slate-100 dark:border-slate-700">
                             <td className="py-1.5 px-2 font-mono text-slate-600 dark:text-slate-300 dark:text-slate-500">{s.leg_sequence}</td>
-                            <td className="py-1.5 px-2 font-medium text-slate-700 dark:text-slate-200">{s.origin_code}→{s.destination_code}</td>
-                            <td className="py-1.5 px-2 font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500">{Number(s.distance_nm)}</td>
-                            <td className="py-1.5 px-2 font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500">{s.planned_time_min}m</td>
+                            <td className="py-1.5 px-2 font-medium text-slate-700 dark:text-slate-200">{s.origin_code}{'\u2192'}{s.destination_code}</td>
+                            <td className="py-1.5 px-2 font-mono text-slate-500 dark:text-slate-500">{Number(s.distance_nm)}</td>
+                            <td className="py-1.5 px-2 font-mono text-slate-500 dark:text-slate-500">{s.planned_time_min}m</td>
                             <td className="py-1.5 px-2 font-mono text-slate-600 dark:text-slate-300 dark:text-slate-500">{s.etd}</td>
                             <td className="py-1.5 px-2 font-mono text-slate-600 dark:text-slate-300 dark:text-slate-500">{s.eta}</td>
                             {data.canEnterActual && canPerformInFlight && (
                               <>
                                 <td className="py-1.5 px-2">
                                   <input type="text" inputMode="numeric" maxLength={4} defaultValue={s.atd ?? ""}
-                                    className="w-12 rounded border border-slate-200 dark:border-slate-700 dark:border-slate-700 px-1 py-0.5 text-[10px] font-mono focus:border-cyan-400 focus:outline-none text-center"
+                                    className="w-12 rounded border border-slate-200 dark:border-slate-700 px-1 py-0.5 text-[10px] font-mono focus:border-cyan-400 focus:outline-none text-center"
                                     placeholder="0800"
                                     onBlur={(e) => fetcher.submit(
                                       { intent: "update-sector", sectorId: String(s.id), atd: e.target.value, ata: s.ata ?? "" },
@@ -317,7 +309,7 @@ export default function LoadsheetModal({ flightId, isOpen, onClose, canPerformIn
                                 </td>
                                 <td className="py-1.5 px-2">
                                   <input type="text" inputMode="numeric" maxLength={4} defaultValue={s.ata ?? ""}
-                                    className="w-12 rounded border border-slate-200 dark:border-slate-700 dark:border-slate-700 px-1 py-0.5 text-[10px] font-mono focus:border-cyan-400 focus:outline-none text-center"
+                                    className="w-12 rounded border border-slate-200 dark:border-slate-700 px-1 py-0.5 text-[10px] font-mono focus:border-cyan-400 focus:outline-none text-center"
                                     placeholder="0800"
                                     onBlur={(e) => fetcher.submit(
                                       { intent: "update-sector", sectorId: String(s.id), atd: s.atd ?? "", ata: e.target.value },
@@ -414,7 +406,6 @@ export default function LoadsheetModal({ flightId, isOpen, onClose, canPerformIn
                     <button
                       onClick={() => {
                         if (!data.canEnterActual || !canPerformInFlight) return;
-                        console.log("[LoadsheetModal] SUBMIT toggle-boarding — passenger:", p.id, "name:", p.name, "current boarded:", p.boarded, "flight:", flightId);
                         fetcher.submit(
                           { intent: "toggle-boarding", passengerId: String(p.id), boarded: String(p.boarded) },
                           { method: "post", action: `/ops/flight/${flightId}/loadsheet` }
@@ -429,10 +420,10 @@ export default function LoadsheetModal({ flightId, isOpen, onClose, canPerformIn
                     </button>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                        {p.name} <span className="text-xs font-normal text-slate-500 dark:text-slate-400 dark:text-slate-500">Seat {p.seat}</span>
+                        {p.name} <span className="text-xs font-normal text-slate-500 dark:text-slate-500">Seat {p.seat}</span>
                       </div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
-                        {p.origin} → {p.destination} · {p.clothedWeightKg}kg{p.baggageWeightKg > 0 ? ` + ${p.baggageWeightKg}kg` : ""}
+                      <div className="text-xs text-slate-500 dark:text-slate-500">
+                        {p.origin} {'\u2192'} {p.destination} · {p.clothedWeightKg}kg{p.baggageWeightKg > 0 ? ` + ${p.baggageWeightKg}kg` : ""}
                       </div>
                     </div>
                     {p.boarded && (
@@ -441,7 +432,7 @@ export default function LoadsheetModal({ flightId, isOpen, onClose, canPerformIn
                   </div>
                 ))}
                 {data.passengers.length === 0 && (
-                  <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No passengers on this flight</p>
+                  <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-500">No passengers on this flight</p>
                 )}
               </div>
             )}
@@ -451,19 +442,17 @@ export default function LoadsheetModal({ flightId, isOpen, onClose, canPerformIn
               <div className="mt-4 flex items-center gap-2 border-t border-slate-200 dark:border-slate-700 pt-3">
                 <button
                   onClick={() => {
-                    console.log("[LoadsheetModal] SUBMIT regenerate — flight:", flightId);
                     fetcher.submit(
                     { intent: "regenerate" },
                     { method: "post", action: `/ops/flight/${flightId}/loadsheet` }
                   );}}
-                  className="rounded-md border border-slate-200 dark:border-slate-700 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:bg-slate-700"
+                  className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:bg-slate-700"
                 >
                   Regenerate
                 </button>
                 {(data.loadsheet.status === "active" || data.loadsheet.status === "review") && (
                   <button
                     onClick={() => {
-                      console.log("[LoadsheetModal] SUBMIT finalize — flight:", flightId, "status:", data.loadsheet.status);
                       fetcher.submit(
                       { intent: "finalize" },
                       { method: "post", action: `/ops/flight/${flightId}/loadsheet` }
@@ -487,7 +476,7 @@ export default function LoadsheetModal({ flightId, isOpen, onClose, canPerformIn
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg bg-slate-50 dark:bg-slate-700 p-2 text-center">
-      <div className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-500">{label}</div>
       <div className="text-sm font-bold text-slate-700 dark:text-slate-200">{value}</div>
     </div>
   );

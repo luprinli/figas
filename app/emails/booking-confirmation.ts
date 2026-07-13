@@ -10,7 +10,7 @@ interface BookingConfirmationParams {
 }
 
 export function bookingConfirmationEmail(params: BookingConfirmationParams): EmailOptions {
-  const route = `${params.origin} → ${params.destination}`;
+  const route = `${params.origin} \u2192 ${params.destination}`;
   return {
     to: params.passengerEmail,
     subject: `Booking Confirmed — ${params.bookingReference}`,

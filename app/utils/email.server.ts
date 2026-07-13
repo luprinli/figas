@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import type { SentMessageInfo } from "nodemailer";
 import { notificationRepository } from "./repositories/notification";
+import { kdb } from "./db.server";
 
 let transporter: nodemailer.Transporter | null = null;
 
@@ -110,6 +111,72 @@ export async function sendEmailQuiet(
     console.error(
       `[Email] Failed to send "${options.subject}" to ${String(options.to)}: ${result.error}`
     );
+  }
+}
+
+export interface ProcessPendingNotificationsResult {
+  success: boolean;
+  processed?: number;
+  failed?: number;
+  error?: string;
+}
+
+export async function processPendingNotifications(): Promise<ProcessPendingNotificationsResult> {
+  try {
+    const pending = await kdb
+      .selectFrom("notifications")
+      .selectAll()
+      .where("status", "=", "pending")
+      .execute();
+
+    let processed = 0;
+    let failed = 0;
+
+    for (const notif of pending) {
+      try {
+        const notificationType = (notif.notification_type ?? notif.type ?? "general") as string;
+        const subject = (notif.subject as string | undefined)
+          ?? `FIGAS Notification: ${notificationType.replace(/_/g, " ")}`;
+        const body = (notif.message as string | undefined)
+          ?? `You have a notification from FIGAS regarding: ${notificationType.replace(/_/g, " ")}.`;
+
+        await sendEmailQuiet({
+          to: String(notif.recipient_email ?? ""),
+          subject,
+          text: body,
+          notificationType,
+          bookingId: notif.booking_id != null ? Number(notif.booking_id) : undefined,
+          flightId: notif.flight_id != null ? Number(notif.flight_id) : undefined,
+          recipientType: String(notif.recipient_type ?? "user"),
+        });
+
+        await notificationRepository.markAsSent(notif.id);
+        processed++;
+      } catch (sendError) {
+        const errorMessage =
+          sendError instanceof Error
+            ? sendError.message
+            : "Failed to send notification";
+
+        await notificationRepository.markAsFailed(notif.id).catch(() => {});
+
+        console.error(
+          `[processPendingNotifications] Failed for notification #${notif.id}: ${errorMessage}`
+        );
+
+        failed++;
+      }
+    }
+
+    console.log(
+      `[processPendingNotifications] Completed: ${processed} sent, ${failed} failed (${pending.length} total pending)`
+    );
+
+    return { success: true, processed, failed };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error(`[processPendingNotifications] Error: ${message}`);
+    return { success: false, error: message };
   }
 }
 

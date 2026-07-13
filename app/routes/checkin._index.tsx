@@ -1,19 +1,21 @@
-import type { MetaFunction } from "@remix-run/node";
+import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { Link, useLoaderData, useNavigation, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import { checkinRepository } from "../utils/repositories/checkin";
+import { requireUser } from "../utils/layout.server";
 import { kdb } from "../utils/db.server.kysely";
 import { sql } from "kysely";
 import DataGrid from "../components/DataGrid";
 import type { Column } from "../components/DataTable";
 import EmptyState from "../components/EmptyState";
-import DashboardCard from "../components/DashboardCard";
+import MetricCard from "../components/MetricCard";
 import Skeleton from "../components/Skeleton";
 import Card from "../components/Card";
 
 export const meta: MetaFunction = () => [{ title: "Check-In - FIGAS" }];
 
-export async function loader() {
+export async function loader({ request }: LoaderFunctionArgs) {
+  await requireUser(request);
   const today = new Date().toISOString().slice(0, 10);
 
   const [pendingResult, flightsResult, recentResult] = await Promise.all([
@@ -80,7 +82,7 @@ export default function CheckinIndex() {
       <Link to={`/checkin/counter?flightId=${f.id}`} className="font-medium text-blue-700 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">{String(f.flight_number)}</Link>
     )},
     { key: "route", header: "Route", render: (f) => (
-      <span className="text-slate-600 dark:text-slate-300">{String(f.origin_code)} → {String(f.destination_code)}</span>
+      <span className="text-slate-600 dark:text-slate-300">{String(f.origin_code)} \u2192 {String(f.destination_code)}</span>
     )},
     { key: "departure_time", header: "Time", sortable: true, render: (f) => (
       <span className="tabular-nums">{new Date(String(f.departure_time)).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</span>
@@ -112,10 +114,10 @@ export default function CheckinIndex() {
     <div className="p-6 space-y-5">
       {/* KPI Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <DashboardCard label="Today's Flights" value={totalFlights} color="blue" />
-        <DashboardCard label="Checked In" value={`${checkedInTotal}/${passengerTotal}`} color="emerald" />
-        <DashboardCard label="Pending" value={pendingCount} color={pendingCount > 0 ? "amber" : "emerald"} />
-        <DashboardCard label="Freight Consignments" value="New" color="purple" to="/checkin/freight" />
+        <MetricCard label="Today's Flights" value={totalFlights} color="blue" />
+        <MetricCard label="Checked In" value={`${checkedInTotal}/${passengerTotal}`} color="emerald" />
+        <MetricCard label="Pending" value={pendingCount} color={pendingCount > 0 ? "amber" : "emerald"} />
+        <MetricCard label="Freight Consignments" value="New" color="purple" to="/checkin/freight" />
       </div>
 
       {/* Today's Flights */}
@@ -124,7 +126,7 @@ export default function CheckinIndex() {
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
             Today&rsquo;s Schedule — {new Date(today).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
           </h2>
-          <Link to="/checkin/lookup" className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400">Search →</Link>
+          <Link to="/checkin/lookup" className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400">Search \u2192</Link>
         </div>
         <DataGrid
           columns={flightColumns}
@@ -154,7 +156,7 @@ export default function CheckinIndex() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-slate-500">
-                  <span>{String(r.origin_code)} → {String(r.destination_code)}</span>
+                  <span>{String(r.origin_code)} \u2192 {String(r.destination_code)}</span>
                   <span className="tabular-nums">{Number(r.clothed_weight_kg ?? 0)} kg</span>
                   {r.seat_number ? <span className="font-mono text-slate-400">{String(r.seat_number)}</span> : null}
                 </div>
@@ -176,7 +178,7 @@ export function ErrorBoundary() {
           <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
           <p className="mb-6 text-sm text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
         </div>
       </div>
     );
@@ -186,7 +188,7 @@ export function ErrorBoundary() {
       <div className="mx-auto max-w-lg text-center">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
         <p className="mb-6 text-sm text-slate-500">An unexpected error occurred.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
       </div>
     </div>
   );

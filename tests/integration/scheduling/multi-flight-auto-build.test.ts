@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect } from "vitest";
 import { sql } from "kysely";
 import {
@@ -223,6 +224,7 @@ describe("Multi-Flight Auto-Build (>12 bookings)", () => {
             status: "scheduled",
             schedule_id: schedule.id,
             created_by: testUserId,
+            available_seats: 9, base_fare: 0,
           } as any)
           .returningAll()
           .execute())[0];
@@ -274,7 +276,7 @@ describe("Multi-Flight Auto-Build (>12 bookings)", () => {
       });
       const dateStr = formatDateOnly(new Date(schedule.schedule_date));
 
-      // 4 booking legs × 6 passengers = 24 total
+      // 4 booking legs �— 6 passengers = 24 total
       const bookingLegIds: number[] = [];
       for (let i = 0; i < 4; i++) {
         const leg = await createTestBookingLeg({
@@ -356,6 +358,7 @@ describe("Multi-Flight Auto-Build (>12 bookings)", () => {
           status: "scheduled",
           schedule_id: schedule.id,
           created_by: testUserId,
+          available_seats: 9, base_fare: 0,
         } as any)
         .returningAll()
         .execute())[0];

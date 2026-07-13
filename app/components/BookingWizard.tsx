@@ -1,10 +1,16 @@
-﻿import { Link } from "@remix-run/react";
+import { Link } from "@remix-run/react";
 import PassengerIcon from "./icons/PassengerIcon";
-import WeightIcon from "./icons/WeightIcon";
-import FreightIcon from "./icons/FreightIcon";
-import CalendarIcon from "./icons/CalendarIcon";
-import ItineraryIcon from "./icons/ItineraryIcon";
 import PaymentIcon from "./icons/PaymentIcon";
+import ItineraryIcon from "./icons/ItineraryIcon";
+
+/**
+ * @deprecated This multi-step wizard is unused. Booking creation now uses a
+ * single-page form in `operations.bookings.new.tsx` (Legs + Passengers in one page),
+ * which provides a simpler, more efficient experience. Detail-page status management
+ * uses `BookingTimeline` instead of wizard steps.
+ *
+ * Retained for reference — safe to remove in a future cleanup pass.
+ */
 
 interface Step {
   label: string;
@@ -21,7 +27,7 @@ export default function BookingWizard({ bookingId, currentStep }: BookingWizardP
   const steps: Step[] = [
     {
       label: "Itinerary",
-      path: `/operations/bookings/${bookingId}/itinerary`,
+      path: `/operations/bookings/${bookingId}/edit`,
       icon: <ItineraryIcon className="w-4 h-4" />,
     },
     {
@@ -30,23 +36,8 @@ export default function BookingWizard({ bookingId, currentStep }: BookingWizardP
       icon: <PassengerIcon className="w-4 h-4" />,
     },
     {
-      label: "Weight",
-      path: `/operations/bookings/${bookingId}`,
-      icon: <WeightIcon className="w-4 h-4" />,
-    },
-    {
-      label: "Freight",
-      path: `/operations/bookings/${bookingId}/freight`,
-      icon: <FreightIcon className="w-4 h-4" />,
-    },
-    {
-      label: "Schedule",
-      path: `/operations/bookings/${bookingId}`,
-      icon: <CalendarIcon className="w-4 h-4" />,
-    },
-    {
       label: "Payment",
-      path: `/operations/bookings/${bookingId}/payment`,
+      path: `/operations/bookings/${bookingId}`,
       icon: <PaymentIcon className="w-4 h-4" />,
     },
   ];

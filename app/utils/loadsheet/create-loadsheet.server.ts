@@ -1,8 +1,7 @@
 import { kdb } from "../db.server.kysely";
-import { sql } from "kysely";
-import type { DB } from "../../../generated/kysely/database";
 import { loadsheetRepository } from "./loadsheet-repository.server";
 import { computeLoadsheetCalculations } from "./loadsheet-calculations.server";
+import { findManifestsByFlightId } from "../repositories/booking-leg-passenger";
 import { DEFAULT_BN2_MTOW_KG } from "../constants";
 
 const BN2_EMPTY_WT = 1627;
@@ -20,60 +19,38 @@ export async function createLoadsheetFromFlight(flightId: number): Promise<numbe
   const legs = await kdb.selectFrom("flight_legs")
     .select(["id", "leg_number", "origin_code", "destination_code", "distance_nm", "etd", "eta"])
     .where("flight_id", "=", flightId)
-    .orderBy("leg_number asc")
+    .orderBy("leg_number", "asc")
     .execute();
 
-  // Query passengers that are explicitly assigned to a flight leg of this flight
-  // (per-passenger).  Previously used `WHERE bl.flight_id = $1` which is booking-leg
-  // level and can include passengers who were per-passenger unassigned or never
-  // assigned to a specific leg.
-  const passengerRowsResult = await sql<Record<string, unknown>>`
-    SELECT DISTINCT ON (bp.id)
-            bp.id,
-            blp.booking_leg_id,
-            bl.origin_code,
-            bl.destination_code,
-            COALESCE(blp.clothed_weight_kg, 70)::numeric AS clothed_weight_kg,
-            COALESCE(blp.baggage_weight_kg, 0)::numeric AS baggage_weight_kg,
-            COALESCE(blp.freight_weight_kg, 0)::numeric AS freight_weight_kg
-    FROM booking_leg_passengers blp
-    JOIN flight_legs fl ON fl.id = blp.flight_leg_id
-    JOIN booking_legs bl ON bl.id = blp.booking_leg_id
-    JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
-    WHERE fl.flight_id = ${flightId}
-    ORDER BY bp.id, blp.id ASC
-  `.execute(kdb);
+  // Query passengers via canonical source of truth (booking_legs.flight_id).
+  // This is the same function used by the schedule loader and flight card,
+  // guaranteeing flight-loadsheet passenger consistency.
+  const manifestRows = await findManifestsByFlightId([flightId]);
 
-  // Build stop order map from flight legs to validate route order
-  const stopOrderMap = new Map<string, number>();
-  let order = 0;
+  // Build ordered stop list from flight legs, allowing duplicate codes for
+  // round-trip routes (e.g., STY → BLF → STY uses STY twice).
+  const stopSequence: string[] = [];
   for (const l of legs) {
-    if (l.origin_code && !stopOrderMap.has(l.origin_code)) {
-      stopOrderMap.set(l.origin_code, order++);
-    }
-    if (l.destination_code && !stopOrderMap.has(l.destination_code)) {
-      stopOrderMap.set(l.destination_code, order++);
-    }
+    if (l.origin_code) stopSequence.push(l.origin_code);
+    if (l.destination_code) stopSequence.push(l.destination_code);
   }
+  const routeStops = stopSequence.filter((code, i) => i === 0 || code !== stopSequence[i - 1]);
 
-  const routeMatchedRows = (passengerRowsResult.rows as unknown as Array<{
-    id: number | bigint; booking_leg_id: number | bigint;
-    origin_code: string; destination_code: string;
-    clothed_weight_kg: number | bigint; baggage_weight_kg: number | bigint; freight_weight_kg: number | bigint;
-  }>).filter((r) => {
-    const originIdx = stopOrderMap.get(r.origin_code);
-    const destIdx = stopOrderMap.get(r.destination_code);
-    return originIdx != null && destIdx != null && originIdx < destIdx;
+  const routeMatchedRows = manifestRows.filter((r) => {
+    const originIdx = routeStops.indexOf(r.origin_code);
+    if (originIdx === -1) return false;
+    const destIdx = routeStops.indexOf(r.destination_code, originIdx + 1);
+    return destIdx > originIdx;
   });
 
   const passengers = routeMatchedRows.map((r) => ({
-    id: Number(r.id),
-    bookingLegId: Number(r.booking_leg_id),
+    id: r.id,
+    bookingLegId: r.booking_leg_id,
     origin_code: r.origin_code,
     destination_code: r.destination_code,
-    clothedWeightKg: Number(r.clothed_weight_kg) || 70,
-    baggageWeightKg: Number(r.baggage_weight_kg) || 0,
-    freightWeightKg: Number(r.freight_weight_kg) || 0,
+    clothedWeightKg: r.body_weight_kg || 70,
+    baggageWeightKg: r.baggage_weight_kg || 0,
+    freightWeightKg: r.freight_weight_kg || 0,
   }));
 
   const aircraft = (await kdb.selectFrom("aircraft")

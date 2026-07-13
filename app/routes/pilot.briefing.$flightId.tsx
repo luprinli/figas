@@ -1,9 +1,9 @@
-﻿import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { requirePermission } from "../utils/permissions.server";
-import { Permission } from "../utils/constants";
+import { Permission, DEFAULT_BN2_EMPTY_WEIGHT_KG, DEFAULT_BN2_MTOW_KG, DEFAULT_CLOTHED_BODY_WEIGHT_KG } from "../utils/constants";
 import { kdb } from "../utils/db.server.kysely";
 import { sql } from "kysely";
 import { requireUser } from "../utils/layout.server";
@@ -13,7 +13,7 @@ import { TourTrigger } from "../components/TourTrigger";
 import { pilotBriefingTour } from "../utils/tour/definitions/pilot-briefing";
 
 export const meta: MetaFunction<typeof loader> = ({ data }) => [
-    { title: `Pilot Briefing — ${data?.flightNumber ?? ""} - FIGAS` },
+    { title: `Pilot Briefing Ã¢â‚¬â€ ${data?.flightNumber ?? ""} - FIGAS` },
 ];
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
@@ -29,9 +29,9 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         SELECT f.id, f.flight_number, f.departure_time, f.arrival_time,
        ao.code AS origin_code, ad.code AS destination_code,
        a.registration AS aircraft_registration, a.type AS aircraft_type,
-       COALESCE(a.empty_weight_kg, 1627) AS empty_weight_kg,
-       COALESCE(a.max_takeoff_weight_kg, 2994) AS mtow_kg,
-       COALESCE(a.max_takeoff_weight_kg, 2994) AS mlw_kg,
+       COALESCE(a.empty_weight_kg, ${DEFAULT_BN2_EMPTY_WEIGHT_KG}) AS empty_weight_kg,
+       COALESCE(a.max_takeoff_weight_kg, ${DEFAULT_BN2_MTOW_KG}) AS mtow_kg,
+       COALESCE(a.max_takeoff_weight_kg, ${DEFAULT_BN2_MTOW_KG}) AS mlw_kg,
        f.operational_notes
  FROM flights f
  JOIN aerodromes ao ON ao.id = f.origin_aerodrome_id
@@ -46,9 +46,9 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 
     const f = flight.rows[0];
 
-    // Ordered flight legs — the true STY → … → STY route (RULE 1).
+    // Ordered flight legs Ã¢â‚¬â€ the true STY \u2192 Ã¢â‚¬Â¦ \u2192 STY route (RULE 1).
     // Route display MUST derive from flight_legs, not the flight-level
-    // origin/destination aerodrome (which is STY↔STY for round-trip sorties).
+    // origin/destination aerodrome (which is STYÃ¢â€ â€STY for round-trip sorties).
     const legs = await sql<{
         leg_number: number; origin_code: string; destination_code: string;
         distance_nm: number | null; etd: string | null; eta: string | null;
@@ -70,8 +70,8 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     }>`
         SELECT bp.first_name || ' ' || bp.last_name AS name,
        bl.origin_code AS origin, bl.destination_code AS destination,
-       COALESCE(blp.seat_number, '—') AS seat,
-       COALESCE(blp.clothed_weight_kg, 70) AS "weightKg"
+       COALESCE(blp.seat_number, 'Ã¢â‚¬â€') AS seat,
+       COALESCE(blp.clothed_weight_kg, ${DEFAULT_CLOTHED_BODY_WEIGHT_KG}) AS "weightKg"
  FROM booking_leg_passengers blp
  JOIN booking_legs bl ON bl.id = blp.booking_leg_id
  JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
@@ -229,7 +229,7 @@ export default function PilotBriefingRoute() {
               <button
                 type="submit"
                 data-tour="accept-briefing"
-                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover"
               >
                 Accept Briefing
               </button>
@@ -246,22 +246,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
       </div>
     </div>
   );

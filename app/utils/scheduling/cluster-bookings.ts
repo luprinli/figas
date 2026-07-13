@@ -1,6 +1,5 @@
 import { kdb } from "../db.server.kysely";
 import { sql } from "kysely";
-import type { DB } from "../../../generated/kysely/database";
 import type { BookingLegRow } from "../repositories/booking-leg";
 import { bookingLegRepository } from "../repositories/booking-leg";
 import type { ClusterResult } from "./types";

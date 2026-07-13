@@ -158,7 +158,7 @@ export interface LegFuelAndDistance {
 
 /**
  * Pre-computed fuel and distance lookup for all legs in a flight.
- * Keyed by "ORIGIN→DEST" (uppercase).
+ * Keyed by "ORIGIN\u2192DEST" (uppercase).
  */
 export type FuelAndDistanceMap = Map<string, LegFuelAndDistance>;
 
@@ -242,7 +242,7 @@ function computeEffectiveMlw(
  * Build a lookup key for the fuel/distance map.
  */
 function legKey(origin: string, destination: string): string {
-    return `${origin.toUpperCase()}→${destination.toUpperCase()}`;
+    return `${origin.toUpperCase()}\u2192${destination.toUpperCase()}`;
 }
 
 // ── Main validation function ───────────────────────────────────────────────────
@@ -275,7 +275,7 @@ function legKey(origin: string, destination: string): string {
  * @param options.pilotWeightKg - Total pilot/crew weight (default: 160 kg for 2 pilots)
  * @param options.freightWeightKg - Total freight/cargo weight (default: 0 kg)
  * @param options.aerodromes - Per-destination aerodrome data for dynamic MTOW/MLW limits
- * @param options.fuelAndDistance - Pre-computed fuel and distance data keyed by "ORIG→DEST"
+ * @param options.fuelAndDistance - Pre-computed fuel and distance data keyed by "ORIG\u2192DEST"
  * @returns FlightValidationResult with detailed validation data
  */
 export async function validateFlight(

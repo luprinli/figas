@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { db } from "~/utils/db.server";
 import { TEST_VALUES, MOCK_USER_IDS } from "./seed-data";
 
@@ -89,6 +90,8 @@ export async function createTestFlight(
     status: "scheduled",
     schedule_id: scheduleId,
     created_by: MOCK_USER_IDS.ops,
+    available_seats: 9,
+    base_fare: 0,
   };
 
   const rows = await db.insertInto("flights")
@@ -144,7 +147,7 @@ export interface BookingLegOverrides {
   flight_id?: number | null;
   origin_code?: string;
   destination_code?: string;
-  leg_date?: Date;
+  leg_date?: Date | string;
   leg_sequence?: number;
   status?: string;
   [key: string]: unknown;
@@ -159,7 +162,7 @@ export async function createTestBookingLeg(
     booking_id: 1,
     origin_code: TEST_VALUES.originCode,
     destination_code: TEST_VALUES.destinationCode,
-    leg_date: TEST_VALUES.scheduleDate,
+    leg_date: TEST_VALUES.scheduleDate as string | Date,
     leg_sequence: overrides.leg_sequence ?? bookingLegSequenceCounter,
     status: "pending",
   };

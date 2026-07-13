@@ -116,7 +116,7 @@ export default function InvoiceList() {
       header: "Booking",
       render: (inv) => (
         <span className="text-sm/5 text-slate-700 dark:text-slate-200">
-          {inv.booking_reference ?? "—"}
+          {inv.booking_reference ?? "Ã¢â‚¬â€"}
         </span>
       ),
     },
@@ -125,7 +125,7 @@ export default function InvoiceList() {
       header: "Organization",
       render: (inv) => (
         <span className="text-sm/5 text-slate-700 dark:text-slate-200">
-          {inv.organization_name ?? "—"}
+          {inv.organization_name ?? "Ã¢â‚¬â€"}
         </span>
       ),
     },
@@ -135,7 +135,7 @@ export default function InvoiceList() {
       sortable: true,
       render: (inv) => (
         <span className="text-sm/5 text-slate-500 dark:text-slate-400 tabular-nums">
-          {inv.issue_date ? new Date(inv.issue_date).toLocaleDateString("en-GB") : "—"}
+          {inv.issue_date ? new Date(inv.issue_date).toLocaleDateString("en-GB") : "Ã¢â‚¬â€"}
         </span>
       ),
     },
@@ -145,7 +145,7 @@ export default function InvoiceList() {
       sortable: true,
       render: (inv) => (
         <span className="text-sm/5 text-slate-500 dark:text-slate-400 tabular-nums">
-          {inv.due_date ? new Date(inv.due_date).toLocaleDateString("en-GB") : "—"}
+          {inv.due_date ? new Date(inv.due_date).toLocaleDateString("en-GB") : "Ã¢â‚¬â€"}
         </span>
       ),
     },
@@ -156,7 +156,7 @@ export default function InvoiceList() {
       className: "text-right",
       render: (inv) => (
         <span className="text-sm/5 font-medium text-slate-900 dark:text-slate-100 tabular-nums">
-          £{Number(inv.total_gbp).toFixed(2)}
+          Ã‚Â£{Number(inv.total_gbp).toFixed(2)}
         </span>
       ),
     },
@@ -291,22 +291,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-﻿import type { ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useState, useRef, useCallback } from "react";
 import Button from "./Button";
 import DOBPicker from "./DOBPicker";
@@ -42,7 +42,7 @@ export interface PassengersTableProps {
 /* ── Helpers ───────────────────────────────────────────── */
 
 const inputClass =
-  "block w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-2 py-1.5 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500";
+  "block w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500";
 
 const inputErrorClass =
   "block w-full rounded-lg border border-red-500 px-2 py-1.5 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500";
@@ -227,7 +227,7 @@ export default function PassengersTable({
         key={idx}
         className={isCommitted ? "bg-sky-50/40" : undefined}
       >
-        <td className="whitespace-nowrap px-3 py-2 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <td className="whitespace-nowrap px-3 py-2 text-sm text-slate-500 dark:text-slate-500">
           {idx + 1}
           {prefill && (
             <>
@@ -263,6 +263,7 @@ export default function PassengersTable({
             required
             onChange={() => onErrorClear?.(`passenger_last_name_${idx}`)}
             onBlur={() => onErrorClear?.(`passenger_last_name_${idx}`)}
+            aria-label={`Passenger ${idx + 1} last name`}
           />
           {lastNameError && (
             <p className="text-red-500 text-xs mt-1">{lastNameError}</p>
@@ -277,6 +278,7 @@ export default function PassengersTable({
             required
             onChange={() => onErrorClear?.(`passenger_email_${idx}`)}
             onBlur={() => onErrorClear?.(`passenger_email_${idx}`)}
+            aria-label={`Passenger ${idx + 1} email`}
           />
           {emailError && (
             <p className="text-red-500 text-xs mt-1">{emailError}</p>
@@ -288,6 +290,7 @@ export default function PassengersTable({
             name="passenger_phone[]"
             defaultValue={prefill?.phone ?? ""}
             className={inputClass}
+            aria-label={`Passenger ${idx + 1} phone`}
           />
         </td>
         <td className="whitespace-nowrap px-3 py-2">
@@ -301,6 +304,7 @@ export default function PassengersTable({
             type="hidden"
             name="passenger_dob[]"
             value={getDobValue(idx)}
+            aria-label={`Passenger ${idx + 1} date of birth`}
           />
         </td>
         <td className="whitespace-nowrap px-3 py-2">
@@ -313,6 +317,7 @@ export default function PassengersTable({
             className={weightError ? inputErrorClass : inputClass}
             onChange={() => onErrorClear?.(`passenger_weight_${idx}`)}
             onBlur={() => onErrorClear?.(`passenger_weight_${idx}`)}
+            aria-label={`Passenger ${idx + 1} weight (kg)`}
           />
           {weightError && (
             <p className="text-red-500 text-xs mt-1">{weightError}</p>
@@ -324,6 +329,7 @@ export default function PassengersTable({
             name="passenger_residency[]"
             defaultValue={prefill?.residency ?? ""}
             className={inputClass}
+            aria-label={`Passenger ${idx + 1} residency`}
           />
         </td>
         <td className="px-3 py-2">
@@ -332,7 +338,8 @@ export default function PassengersTable({
             name="passenger_special[]"
             defaultValue=""
             className={inputClass}
-            placeholder="e.g. wheelchair, medical…"
+            placeholder="e.g. wheelchair, medical\u2026"
+            aria-label={`Passenger ${idx + 1} special requirements`}
           />
         </td>
         <td className="whitespace-nowrap px-3 py-2">
@@ -355,38 +362,38 @@ export default function PassengersTable({
       </div>
 
       {/* Table */}
-      <div className="overflow-x-visible">
+      <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
           <thead className="bg-slate-50 dark:bg-slate-700">
             <tr>
-              <th className="w-12 px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <th className="w-12 px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
                 #
               </th>
-              <th className="min-w-[120px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <th className="min-w-[120px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
                 First Name
               </th>
-              <th className="min-w-[120px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <th className="min-w-[120px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
                 Last Name
               </th>
-              <th className="min-w-[160px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <th className="min-w-[160px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
                 Email
               </th>
-              <th className="min-w-[120px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <th className="min-w-[120px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
                 Phone
               </th>
-              <th className="w-32 px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <th className="w-32 px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
                 DOB
               </th>
-              <th className="w-24 px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <th className="w-24 px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
                 Weight (kg)
               </th>
-              <th className="w-28 px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <th className="w-28 px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
                 Residency
               </th>
-              <th className="min-w-[140px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <th className="min-w-[140px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
                 Special Req.
               </th>
-              <th className="w-20 px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <th className="w-20 px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
                 Action
               </th>
             </tr>

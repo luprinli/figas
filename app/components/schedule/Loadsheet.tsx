@@ -1,5 +1,7 @@
-﻿import type { WeightBalanceResult } from "../../utils/scheduling/types";
+import type { WeightBalanceResult } from "../../utils/scheduling/types";
 import WeightBar from "../WeightBar";
+import { FuelStatusIndicator } from "./FuelStatusIndicator";
+import { formatDateFromISO } from "../../utils/dates";
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -28,18 +30,6 @@ export interface LoadsheetProps {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  } catch {
-    return iso;
-  }
-}
-
 function formatNumber(value: number, decimals = 0): string {
   return value.toFixed(decimals);
 }
@@ -61,7 +51,7 @@ function validationStatusText(wb: WeightBalanceResult): {
 
 function SectionHeader({ title }: { title: string }) {
   return (
-    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
       {title}
     </h4>
   );
@@ -153,7 +143,7 @@ export default function Loadsheet({
           return (
             <div
               key={leg.legId}
-              className="rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm dark:shadow-slate-900/20"
+              className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm dark:shadow-slate-900/20"
             >
               {/* ── Header: Flight & Leg Info ─────────────────────────────── */}
               <div className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-700 px-4 py-3">
@@ -162,22 +152,22 @@ export default function Loadsheet({
                     <span className="text-base font-bold text-slate-900 dark:text-slate-100">
                       {flightNumber}
                     </span>
-                    <span className="ml-2 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                    <span className="ml-2 text-sm text-slate-500 dark:text-slate-500">
                       Leg {leg.legNumber}
                     </span>
                   </div>
-                  <span className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
-                    {formatDate(scheduleDate)}
+                  <span className="text-sm text-slate-500 dark:text-slate-500">
+                    {formatDateFromISO(scheduleDate)}
                   </span>
                 </div>
                 <div className="mt-1 flex items-center gap-2">
                   <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                    {leg.origin} → {leg.destination}
+                    {leg.origin} {'\u2192'} {leg.destination}
                   </span>
                   <span className="rounded bg-sky-100 dark:bg-sky-900/30 dark:bg-sky-900/30 px-2 py-0.5 text-xs font-medium text-sky-700 dark:text-sky-400 dark:text-sky-400">
                     {aircraftRegistration}
                   </span>
-                  <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{aircraftType}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-500">{aircraftType}</span>
                 </div>
               </div>
 
@@ -287,7 +277,7 @@ export default function Loadsheet({
                     <span className="rounded bg-sky-100 dark:bg-sky-900/30 dark:bg-sky-900/30 px-2 py-0.5 text-xs font-medium text-sky-700 dark:text-sky-400 dark:text-sky-400">
                       {fp.fuelState}
                     </span>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                    <span className="text-xs text-slate-500 dark:text-slate-500">
                       {fp.fuelRuleApplied}
                     </span>
                   </div>
@@ -349,7 +339,7 @@ export default function Loadsheet({
                     </span>
                   </div>
                   {wb.bindingConstraint.constraint !== "none" && (
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
                       {wb.bindingConstraint.detail}
                     </p>
                   )}
@@ -373,7 +363,7 @@ export default function Loadsheet({
                     >
                       {validation.ok
                         ? "✓ Loadsheet valid — all weights within limits"
-                        : "✗ Loadsheet invalid — weight limit exceeded"}
+                        : "�— Loadsheet invalid — weight limit exceeded"}
                     </span>
                   </div>
                 </div>
@@ -399,25 +389,10 @@ function FuelMetric({
 }) {
   return (
     <div className="flex items-center justify-between rounded bg-slate-50 dark:bg-slate-700 px-2 py-1">
-      <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{label}</span>
+      <span className="text-slate-500 dark:text-slate-500">{label}</span>
       <span className="font-medium text-slate-700 dark:text-slate-200">
         {formatNumber(value)} {unit}
       </span>
-    </div>
-  );
-}
-
-function FuelStatusIndicator({
-  label,
-  ok,
-}: {
-  label: string;
-  ok: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-1.5 text-xs">
-      <StatusDot ok={ok} />
-      <span className={ok ? "text-green-700 dark:text-green-400 dark:text-green-400" : "text-red-700 dark:text-red-400 dark:text-red-400"}>{label}</span>
     </div>
   );
 }

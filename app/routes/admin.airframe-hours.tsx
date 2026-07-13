@@ -1,6 +1,9 @@
-﻿import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
+import type { LoaderFunctionArgs } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import { Form, useLoaderData, useActionData, Link , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
+export { action } from "./admin.airframe-hours.action.server";
+import type { action } from "./admin.airframe-hours.action.server";
 
 import { useState } from "react";
 import { requireAuth } from "../utils/auth.server";
@@ -31,130 +34,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
     totalPages: Math.ceil(result.totalCount / perPage),
     aircraftList,
   });
-}
-
-export async function action({ request }: ActionFunctionArgs) {
-  await requireAuth(request);
-  await requirePermission(request, Permission.SETTINGS_EDIT);
-
-  const formData = await request.formData();
-  const intent = formData.get("intent") as string;
-
-  switch (intent) {
-    case "create": {
-      const aircraft_id = Number(formData.get("aircraft_id"));
-      const last_reading_date = formData.get("last_reading_date") as string;
-      const total_hours = formData.get("total_hours") as string;
-      const next_check_date = (formData.get("next_check_date") as string) || null;
-      const next_check_type = formData.get("next_check_type")
-        ? Number(formData.get("next_check_type"))
-        : null;
-      const days_remaining = formData.get("days_remaining")
-        ? Number(formData.get("days_remaining"))
-        : null;
-      const next_check_due_hours =
-        (formData.get("next_check_due_hours") as string) || null;
-      const hours_until_next_check =
-        (formData.get("hours_until_next_check") as string) || null;
-      const next_500_hour_check =
-        (formData.get("next_500_hour_check") as string) || null;
-      const hours_until_500_check =
-        (formData.get("hours_until_500_check") as string) || null;
-      const next_1000_hour_check =
-        (formData.get("next_1000_hour_check") as string) || null;
-      const hours_until_1000_check =
-        (formData.get("hours_until_1000_check") as string) || null;
-      const status = (formData.get("status") as string) || null;
-
-      if (!aircraft_id || !last_reading_date || !total_hours) {
-        return json(
-          { error: "Aircraft, last reading date, and total hours are required" },
-          { status: 400 }
-        );
-      }
-
-      try {
-        await adminRepository.createAirframeHour({
-          aircraft_id,
-          last_reading_date,
-          total_hours,
-          next_check_date,
-          next_check_type,
-          days_remaining,
-          next_check_due_hours,
-          hours_until_next_check,
-          next_500_hour_check,
-          hours_until_500_check,
-          next_1000_hour_check,
-          hours_until_1000_check,
-          status,
-        });
-      } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Failed to create airframe hour record";
-        return json({ error: message }, { status: 400 });
-      }
-      break;
-    }
-    case "update": {
-      const id = Number(formData.get("id"));
-      const aircraft_id = Number(formData.get("aircraft_id"));
-      const last_reading_date = formData.get("last_reading_date") as string;
-      const total_hours = formData.get("total_hours") as string;
-      const next_check_date = (formData.get("next_check_date") as string) || null;
-      const next_check_type = formData.get("next_check_type")
-        ? Number(formData.get("next_check_type"))
-        : null;
-      const days_remaining = formData.get("days_remaining")
-        ? Number(formData.get("days_remaining"))
-        : null;
-      const next_check_due_hours =
-        (formData.get("next_check_due_hours") as string) || null;
-      const hours_until_next_check =
-        (formData.get("hours_until_next_check") as string) || null;
-      const next_500_hour_check =
-        (formData.get("next_500_hour_check") as string) || null;
-      const hours_until_500_check =
-        (formData.get("hours_until_500_check") as string) || null;
-      const next_1000_hour_check =
-        (formData.get("next_1000_hour_check") as string) || null;
-      const hours_until_1000_check =
-        (formData.get("hours_until_1000_check") as string) || null;
-      const status = (formData.get("status") as string) || null;
-
-      if (id) {
-        await adminRepository.updateAirframeHour(id, {
-          aircraft_id,
-          last_reading_date,
-          total_hours,
-          next_check_date,
-          next_check_type,
-          days_remaining,
-          next_check_due_hours,
-          hours_until_next_check,
-          next_500_hour_check,
-          hours_until_500_check,
-          next_1000_hour_check,
-          hours_until_1000_check,
-          status,
-        });
-      }
-      break;
-    }
-    case "delete": {
-      const id = Number(formData.get("id"));
-      if (id) {
-        await adminRepository.deleteAirframeHour(id);
-      }
-      break;
-    }
-    default:
-      return json({ error: "Unknown action" }, { status: 400 });
-  }
-
-  return redirect("/admin/airframe-hours");
 }
 
 export default function ManageAirframeHours() {
@@ -197,7 +76,7 @@ export default function ManageAirframeHours() {
       )}
 
       {/* Create Airframe Hour Form */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow border border-slate-200 dark:border-slate-700 dark:border-slate-700 p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow border border-slate-200 dark:border-slate-700 p-4">
         <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">
           Add Airframe Hour Record
         </h2>
@@ -218,7 +97,7 @@ export default function ManageAirframeHours() {
               id="create-aircraft-id"
               name="aircraft_id"
               required
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select aircraft...</option>
               {aircraftList.map((a) => (
@@ -254,7 +133,7 @@ export default function ManageAirframeHours() {
               name="total_hours"
               required
               placeholder="e.g. 1234.5"
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -281,7 +160,7 @@ export default function ManageAirframeHours() {
               id="create-next-check-type"
               type="number"
               name="next_check_type"
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -296,7 +175,7 @@ export default function ManageAirframeHours() {
               id="create-days-remaining"
               type="number"
               name="days_remaining"
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -312,7 +191,7 @@ export default function ManageAirframeHours() {
               type="text"
               name="next_check_due_hours"
               placeholder="e.g. 1500.0"
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -328,7 +207,7 @@ export default function ManageAirframeHours() {
               type="text"
               name="hours_until_next_check"
               placeholder="e.g. 265.5"
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -344,7 +223,7 @@ export default function ManageAirframeHours() {
               type="text"
               name="next_500_hour_check"
               placeholder="e.g. 2000.0"
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -360,7 +239,7 @@ export default function ManageAirframeHours() {
               type="text"
               name="hours_until_500_check"
               placeholder="e.g. 765.5"
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -376,7 +255,7 @@ export default function ManageAirframeHours() {
               type="text"
               name="next_1000_hour_check"
               placeholder="e.g. 2500.0"
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -392,7 +271,7 @@ export default function ManageAirframeHours() {
               type="text"
               name="hours_until_1000_check"
               placeholder="e.g. 1265.5"
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -408,7 +287,7 @@ export default function ManageAirframeHours() {
               type="text"
               name="status"
               placeholder="e.g. OK"
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -424,7 +303,7 @@ export default function ManageAirframeHours() {
       </div>
 
       {/* Airframe Hours Table */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow border border-slate-200 dark:border-slate-700 dark:border-slate-700">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow border border-slate-200 dark:border-slate-700">
         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
             Airframe Hours ({totalCount})
@@ -432,7 +311,7 @@ export default function ManageAirframeHours() {
         </div>
         {(() => {
           const statusBadge = (status: string | null | undefined) => {
-            if (!status) return <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">—</span>;
+            if (!status) return <span className="text-slate-500 dark:text-slate-400">Ã¢â‚¬â€</span>;
             let colorClass = "bg-yellow-100 text-yellow-800";
             if (status === "OK") colorClass = "bg-green-100 text-green-800";
             else if (status === "DUE" || status === "OVERDUE") colorClass = "bg-red-100 text-red-800";
@@ -455,7 +334,7 @@ export default function ManageAirframeHours() {
             {
               key: "next_check_date",
               header: "Next Check Date",
-              render: (h) => <span>{(h.next_check_date as string) ?? "—"}</span>,
+              render: (h) => <span>{(h.next_check_date as string) ?? "Ã¢â‚¬â€"}</span>,
             },
             {
               key: "status",
@@ -472,7 +351,7 @@ export default function ManageAirframeHours() {
               initialSortColumn="id"
               initialSortDirection="asc"
               emptyState={
-                <div className="px-4 py-8 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                <div className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
                   No airframe hour records found.
                 </div>
               }
@@ -483,7 +362,7 @@ export default function ManageAirframeHours() {
                     <summary className="text-blue-600 hover:underline text-xs cursor-pointer">
                       Edit
                     </summary>
-                    <div className="absolute left-0 top-6 z-10 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:border-slate-700 rounded-lg shadow-lg dark:shadow-slate-900/50 p-4 w-96">
+                    <div className="absolute left-0 top-6 z-10 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg dark:shadow-slate-900/50 p-4 w-96">
                       <Form method="post" className="space-y-2">
                         <input
                           type="hidden"
@@ -499,7 +378,7 @@ export default function ManageAirframeHours() {
                           <div>
                             <label
                               htmlFor={`edit-aircraft-id-${h.id as number}`}
-                              className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500"
+                              className="block text-xs text-slate-500 dark:text-slate-400"
                             >
                               Aircraft
                             </label>
@@ -508,7 +387,7 @@ export default function ManageAirframeHours() {
                               name="aircraft_id"
                               required
                               defaultValue={h.aircraft_id as number}
-                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-xs"
+                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs"
                             >
                               {aircraftList.map((a) => (
                                 <option key={a.id} value={a.id}>
@@ -518,7 +397,7 @@ export default function ManageAirframeHours() {
                             </select>
                           </div>
                           <div>
-                            <span className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                            <span className="block text-xs text-slate-500 dark:text-slate-400">
                               Last Reading Date
                             </span>
                             <DatePicker
@@ -535,7 +414,7 @@ export default function ManageAirframeHours() {
                           <div>
                             <label
                               htmlFor={`edit-total-hours-${h.id as number}`}
-                              className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500"
+                              className="block text-xs text-slate-500 dark:text-slate-400"
                             >
                               Total Hours
                             </label>
@@ -545,11 +424,11 @@ export default function ManageAirframeHours() {
                               name="total_hours"
                               defaultValue={h.total_hours as string}
                               required
-                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-xs"
+                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs"
                             />
                           </div>
                           <div>
-                            <span className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                            <span className="block text-xs text-slate-500 dark:text-slate-400">
                               Next Check Date
                             </span>
                             <DatePicker
@@ -566,7 +445,7 @@ export default function ManageAirframeHours() {
                           <div>
                             <label
                               htmlFor={`edit-next-check-type-${h.id as number}`}
-                              className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500"
+                              className="block text-xs text-slate-500 dark:text-slate-400"
                             >
                               Next Check Type
                             </label>
@@ -577,13 +456,13 @@ export default function ManageAirframeHours() {
                               defaultValue={
                                 (h.next_check_type as number) ?? undefined
                               }
-                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-xs"
+                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs"
                             />
                           </div>
                           <div>
                             <label
                               htmlFor={`edit-days-remaining-${h.id as number}`}
-                              className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500"
+                              className="block text-xs text-slate-500 dark:text-slate-400"
                             >
                               Days Remaining
                             </label>
@@ -594,13 +473,13 @@ export default function ManageAirframeHours() {
                               defaultValue={
                                 (h.days_remaining as number) ?? undefined
                               }
-                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-xs"
+                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs"
                             />
                           </div>
                           <div>
                             <label
                               htmlFor={`edit-next-check-due-hours-${h.id as number}`}
-                              className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500"
+                              className="block text-xs text-slate-500 dark:text-slate-400"
                             >
                               Next Check Due Hours
                             </label>
@@ -611,13 +490,13 @@ export default function ManageAirframeHours() {
                               defaultValue={
                                 (h.next_check_due_hours as string) ?? undefined
                               }
-                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-xs"
+                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs"
                             />
                           </div>
                           <div>
                             <label
                               htmlFor={`edit-hours-until-next-check-${h.id as number}`}
-                              className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500"
+                              className="block text-xs text-slate-500 dark:text-slate-400"
                             >
                               Hours Until Next Check
                             </label>
@@ -628,13 +507,13 @@ export default function ManageAirframeHours() {
                               defaultValue={
                                 (h.hours_until_next_check as string) ?? undefined
                               }
-                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-xs"
+                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs"
                             />
                           </div>
                           <div>
                             <label
                               htmlFor={`edit-next-500-hour-check-${h.id as number}`}
-                              className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500"
+                              className="block text-xs text-slate-500 dark:text-slate-400"
                             >
                               Next 500 Hour Check
                             </label>
@@ -645,13 +524,13 @@ export default function ManageAirframeHours() {
                               defaultValue={
                                 (h.next_500_hour_check as string) ?? undefined
                               }
-                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-xs"
+                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs"
                             />
                           </div>
                           <div>
                             <label
                               htmlFor={`edit-hours-until-500-check-${h.id as number}`}
-                              className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500"
+                              className="block text-xs text-slate-500 dark:text-slate-400"
                             >
                               Hours Until 500 Check
                             </label>
@@ -662,13 +541,13 @@ export default function ManageAirframeHours() {
                               defaultValue={
                                 (h.hours_until_500_check as string) ?? undefined
                               }
-                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-xs"
+                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs"
                             />
                           </div>
                           <div>
                             <label
                               htmlFor={`edit-next-1000-hour-check-${h.id as number}`}
-                              className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500"
+                              className="block text-xs text-slate-500 dark:text-slate-400"
                             >
                               Next 1000 Hour Check
                             </label>
@@ -679,13 +558,13 @@ export default function ManageAirframeHours() {
                               defaultValue={
                                 (h.next_1000_hour_check as string) ?? undefined
                               }
-                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-xs"
+                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs"
                             />
                           </div>
                           <div>
                             <label
                               htmlFor={`edit-hours-until-1000-check-${h.id as number}`}
-                              className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500"
+                              className="block text-xs text-slate-500 dark:text-slate-400"
                             >
                               Hours Until 1000 Check
                             </label>
@@ -696,13 +575,13 @@ export default function ManageAirframeHours() {
                               defaultValue={
                                 (h.hours_until_1000_check as string) ?? undefined
                               }
-                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-xs"
+                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs"
                             />
                           </div>
                           <div>
                             <label
                               htmlFor={`edit-status-${h.id as number}`}
-                              className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500"
+                              className="block text-xs text-slate-500 dark:text-slate-400"
                             >
                               Status
                             </label>
@@ -711,7 +590,7 @@ export default function ManageAirframeHours() {
                               type="text"
                               name="status"
                               defaultValue={(h.status as string) ?? undefined}
-                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-xs"
+                              className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs"
                             />
                           </div>
                         </div>
@@ -762,14 +641,14 @@ export default function ManageAirframeHours() {
         {/* Pagination */}
         {totalPages > 1 && (
           <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
-            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Page {page} of {totalPages}
             </p>
             <div className="flex gap-2">
               {page > 1 && (
                 <Link
                   to={`/admin/airframe-hours?page=${page - 1}`}
-                  className="px-3 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-sm hover:bg-slate-50 dark:bg-slate-700"
+                  className="px-3 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm hover:bg-slate-50 dark:bg-slate-700"
                 >
                   Previous
                 </Link>
@@ -777,7 +656,7 @@ export default function ManageAirframeHours() {
               {page < totalPages && (
                 <Link
                   to={`/admin/airframe-hours?page=${page + 1}`}
-                  className="px-3 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-sm hover:bg-slate-50 dark:bg-slate-700"
+                  className="px-3 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm hover:bg-slate-50 dark:bg-slate-700"
                 >
                   Next
                 </Link>
@@ -796,22 +675,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
       </div>
     </div>
   );

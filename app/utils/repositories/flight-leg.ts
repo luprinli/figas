@@ -1,5 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { kdb } from "../db.server";
-import { sql } from "kysely";
 import type { Kysely } from "kysely";
 import type { DB } from "../../../generated/kysely/database";
 

@@ -23,6 +23,21 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      - name: Verify invariants
+        run: node scripts/ci/verify-invariants.js
+
+  build:
+    needs: lint-and-typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run build
 
   unit-tests:
     needs: lint-and-typecheck
@@ -76,10 +91,24 @@ jobs:
         env:
           DATABASE_URL: postgresql://figas_test:figas_test@localhost:5432/figas_test
 
-  invariant-check:
-    needs: [unit-tests, integration-tests]
+  e2e-tests:
+    needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: figas_test
+          POSTGRES_PASSWORD: figas_test
+          POSTGRES_DB: figas_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -87,5 +116,13 @@ jobs:
           node-version-file: ".nvmrc"
           cache: "npm"
       - run: npm ci
-      - name: Verify all 10 invariants have tests
-        run: node scripts/ci/verify-invariants.js
+      - name: Run migrations
+        run: npx tsx app/utils/migrate.ts
+        env:
+          DATABASE_URL: postgresql://figas_test:figas_test@localhost:5432/figas_test
+      - name: Install Playwright browsers
+        run: npx playwright install chromium
+      - name: Run E2E tests
+        run: npm run test:e2e
+        env:
+          DATABASE_URL: postgresql://figas_test:figas_test@localhost:5432/figas_test

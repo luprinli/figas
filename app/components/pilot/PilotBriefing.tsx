@@ -1,4 +1,4 @@
-﻿import type { ReactNode } from "react";
+import type { ReactNode } from "react";
 
 /** Extract HH:MM from an ISO timestamp deterministically (no locale/hydration drift). */
 function hhmm(iso: string | null | undefined): string {
@@ -19,7 +19,7 @@ function BriefingSection({ title, children, dataTour }: BriefingSectionProps) {
       data-tour={dataTour}
       className="rounded-lg bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20 ring-1 ring-slate-200 dark:ring-slate-700 dark:bg-slate-800 dark:ring-slate-700"
     >
-      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
         {title}
       </h3>
       {children}
@@ -34,7 +34,7 @@ export interface PilotBriefingData {
   destination: string;
   departureTime: string;
   arrivalTime: string;
-  /** Ordered flight legs (STY → … → STY). Empty only for legacy flights without leg rows. */
+  /** Ordered flight legs (STY \u2192 … \u2192 STY). Empty only for legacy flights without leg rows. */
   legs: {
     legNumber: number;
     originCode: string;
@@ -87,7 +87,7 @@ export default function PilotBriefing({ data }: { data: PilotBriefingData }) {
           <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
             Pilot Briefing — {data.flightNumber}
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{data.date}</p>
+          <p className="text-sm text-slate-500 dark:text-slate-500">{data.date}</p>
         </div>
         <div className="text-right text-sm text-slate-600 dark:text-slate-300 dark:text-slate-500">
           <p>{data.aircraftRegistration} — {data.aircraftType}</p>
@@ -112,7 +112,7 @@ export default function PilotBriefing({ data }: { data: PilotBriefingData }) {
                   >
                     {code}
                   </span>
-                  {i < arr.length - 1 && <span className="text-slate-400 dark:text-slate-500">→</span>}
+                  {i < arr.length - 1 && <span className="text-slate-400 dark:text-slate-500">{'\u2192'}</span>}
                 </span>
               ))}
             </div>
@@ -132,7 +132,7 @@ export default function PilotBriefing({ data }: { data: PilotBriefingData }) {
                     <tr key={l.legNumber}>
                       <td className="py-1 pr-3 tabular-nums text-slate-500 dark:text-slate-400">{l.legNumber}</td>
                       <td className="py-1 pr-3 font-mono text-slate-700 dark:text-slate-200">
-                        {l.originCode} → {l.destinationCode}
+                        {l.originCode} {'\u2192'} {l.destinationCode}
                       </td>
                       <td className="py-1 pr-3 tabular-nums text-slate-600 dark:text-slate-300">{hhmm(l.etd)}</td>
                       <td className="py-1 pr-3 tabular-nums text-slate-600 dark:text-slate-300">{hhmm(l.eta)}</td>
@@ -148,7 +148,7 @@ export default function PilotBriefing({ data }: { data: PilotBriefingData }) {
         ) : (
           <div className="flex items-center gap-4 text-lg font-mono">
             <span className="text-emerald-600 dark:text-emerald-400">{data.origin}</span>
-            <span className="text-slate-400 dark:text-slate-500">→</span>
+            <span className="text-slate-400 dark:text-slate-500">{'\u2192'}</span>
             <span className="text-red-600 dark:text-red-400">{data.destination}</span>
           </div>
         )}
@@ -163,7 +163,7 @@ export default function PilotBriefing({ data }: { data: PilotBriefingData }) {
           {data.crew.map((c, i) => (
             <div key={i} className="flex justify-between py-1 text-sm">
               <span className="font-medium text-slate-700 dark:text-slate-200">{c.name}</span>
-              <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{c.role}</span>
+              <span className="text-slate-500 dark:text-slate-500">{c.role}</span>
             </div>
           ))}
         </BriefingSection>
@@ -178,24 +178,24 @@ export default function PilotBriefing({ data }: { data: PilotBriefingData }) {
 
       <BriefingSection title="Passenger Manifest" dataTour="briefing-passengers">
         {data.passengers.length === 0 ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No passengers on this flight</p>
+          <p className="text-sm text-slate-500 dark:text-slate-500">No passengers on this flight</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-700">
-                  <th className="py-1.5 pr-2 text-left font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Name</th>
-                  <th className="py-1.5 pr-2 text-left font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Route</th>
-                  <th className="py-1.5 pr-2 text-left font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Seat</th>
-                  <th className="py-1.5 text-right font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Wt (kg)</th>
+                  <th className="py-1.5 pr-2 text-left font-medium text-slate-500 dark:text-slate-500">Name</th>
+                  <th className="py-1.5 pr-2 text-left font-medium text-slate-500 dark:text-slate-500">Route</th>
+                  <th className="py-1.5 pr-2 text-left font-medium text-slate-500 dark:text-slate-500">Seat</th>
+                  <th className="py-1.5 text-right font-medium text-slate-500 dark:text-slate-500">Wt (kg)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                 {data.passengers.map((p, i) => (
                   <tr key={i}>
                     <td className="py-1.5 pr-2 text-slate-800 dark:text-slate-100 dark:text-slate-200">{p.name}</td>
-                    <td className="py-1.5 pr-2 text-slate-500 dark:text-slate-400 dark:text-slate-500">{p.origin} → {p.destination}</td>
-                    <td className="py-1.5 pr-2 font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500">{p.seat || "—"}</td>
+                    <td className="py-1.5 pr-2 text-slate-500 dark:text-slate-500">{p.origin} {'\u2192'} {p.destination}</td>
+                    <td className="py-1.5 pr-2 font-mono text-slate-500 dark:text-slate-500">{p.seat || "—"}</td>
                     <td className="py-1.5 text-right tabular-nums text-slate-600 dark:text-slate-300 dark:text-slate-500">{p.weightKg}</td>
                   </tr>
                 ))}
@@ -208,38 +208,38 @@ export default function PilotBriefing({ data }: { data: PilotBriefingData }) {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <BriefingSection title="Weight & Balance" dataTour="briefing-wb">
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-            <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Passenger Wt</span>
+            <span className="text-slate-500 dark:text-slate-500">Passenger Wt</span>
             <span className="text-right tabular-nums text-slate-700 dark:text-slate-200">{data.weightBalance.passengerWeightKg} kg</span>
-            <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Baggage Wt</span>
+            <span className="text-slate-500 dark:text-slate-500">Baggage Wt</span>
             <span className="text-right tabular-nums text-slate-700 dark:text-slate-200">{data.weightBalance.baggageWeightKg} kg</span>
-            <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Freight Wt</span>
+            <span className="text-slate-500 dark:text-slate-500">Freight Wt</span>
             <span className="text-right tabular-nums text-slate-700 dark:text-slate-200">{data.weightBalance.freightWeightKg} kg</span>
-            <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Fuel Wt</span>
+            <span className="text-slate-500 dark:text-slate-500">Fuel Wt</span>
             <span className="text-right tabular-nums text-slate-700 dark:text-slate-200">{data.weightBalance.fuelWeightKg} kg</span>
-            <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Crew Wt</span>
+            <span className="text-slate-500 dark:text-slate-500">Crew Wt</span>
             <span className="text-right tabular-nums text-slate-700 dark:text-slate-200">{data.weightBalance.crewWeightKg} kg</span>
             <span className="border-t border-slate-200 dark:border-slate-700 pt-1 font-semibold text-slate-700 dark:text-slate-200">Total</span>
             <span className="border-t border-slate-200 dark:border-slate-700 pt-1 text-right tabular-nums font-semibold text-slate-800 dark:text-slate-100">{data.weightBalance.totalWeightKg} kg</span>
           </div>
           <div className="mt-3 space-y-1 text-sm">
             <div className="flex justify-between">
-              <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">MTOW</span>
+              <span className="text-slate-500 dark:text-slate-500">MTOW</span>
               <span className="tabular-nums text-slate-700 dark:text-slate-200">
                 {data.weightBalance.mtowUsedPct}% of {data.mtowKg} kg
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">MLW</span>
+              <span className="text-slate-500 dark:text-slate-500">MLW</span>
               <span className="tabular-nums text-slate-700 dark:text-slate-200">
                 {data.weightBalance.mlwUsedPct}% of {data.mlwKg} kg
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">CG Position</span>
+              <span className="text-slate-500 dark:text-slate-500">CG Position</span>
               <span className="tabular-nums text-slate-700 dark:text-slate-200">{data.weightBalance.cgPositionPct}% MAC</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Binding Constraint</span>
+              <span className="text-slate-500 dark:text-slate-500">Binding Constraint</span>
               <span className="tabular-nums font-medium text-amber-600">{data.weightBalance.bindingConstraint}</span>
             </div>
           </div>
@@ -248,15 +248,15 @@ export default function PilotBriefing({ data }: { data: PilotBriefingData }) {
         <BriefingSection title="Fuel Plan" dataTour="briefing-fuel">
           <div className="space-y-1 text-sm">
             <div className="flex justify-between">
-              <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Required Fuel</span>
+              <span className="text-slate-500 dark:text-slate-500">Required Fuel</span>
               <span className="tabular-nums text-slate-700 dark:text-slate-200">{data.fuelPlan.requiredFuelKg} kg</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Reserve</span>
+              <span className="text-slate-500 dark:text-slate-500">Reserve</span>
               <span className="tabular-nums text-slate-700 dark:text-slate-200">{data.fuelPlan.reserveFuelKg} kg</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Burn Rate</span>
+              <span className="text-slate-500 dark:text-slate-500">Burn Rate</span>
               <span className="tabular-nums text-slate-700 dark:text-slate-200">{data.fuelPlan.burnRateKgPerHr} kg/hr</span>
             </div>
             <div className="flex justify-between font-semibold">

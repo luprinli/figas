@@ -319,7 +319,7 @@ The scheduling pipeline is a 5-phase automated process that builds daily flight 
 │  │  ├── Evaluates all active aircraft against each route's requirements  │  │
 │  │  ├── Checks passenger capacity (seat_count)                          │  │
 │  │  ├── Checks payload capacity (max_payload_kg)                        │  │
-│  │  ├── Checks fuel range (fuel_capacity_kg × fuel_flow_kg_per_hour)    │  │
+│  │  ├── Checks fuel range (fuel_capacity_kg �— fuel_flow_kg_per_hour)    │  │
 │  │  ├── Checks runway compatibility (aerodrome mtow_limit_kg)           │  │
 │  │  ├── Selects best-fit aircraft per route                             │  │
 │  │  └── Updates flights.aircraft_id                                     │  │
@@ -396,7 +396,7 @@ The schedule status lifecycle consists of 6 stages:
                     └────┬─────┘
                          │ auto-build
                     ┌────▼─────┐
-              ┌─────│ BUILDING │◄──── revise ──────┐
+              ┌─────│ BUILDING │�—�──── revise ──────┐
               │     └────┬─────┘                    │
               │          │ approve                  │
               │     ┌────▼─────┐                    │
@@ -495,7 +495,7 @@ The system supports four payment methods with different flows. All payments crea
 │  │  └── paymentService.calculateBookingCost(bookingId)                  │  │
 │  │       ├── Fetch legs and passengers                                  │  │
 │  │       ├── For each leg: lookup base_fare from fare_routes table      │  │
-│  │       ├── Multiply fare × passenger count                            │  │
+│  │       ├── Multiply fare �— passenger count                            │  │
 │  │       ├── Add freight costs (£2/kg placeholder)                      │  │
 │  │       └── Return total                                               │  │
 │  └──────────────────────────────────────────────────────────────────────┘  │
@@ -1159,7 +1159,7 @@ export async function calculateFareBreakdown(
 
 Pricing logic:
 - Looks up base fare from [`fareRouteRepository.getBaseFare()`](app/utils/repositories/fare-route.ts:43) for each origin→destination pair
-- Applies residency multiplier: residents pay full fare, non-residents pay a premium (×1.5)
+- Applies residency multiplier: residents pay full fare, non-residents pay a premium (�—1.5)
 - Sums per-leg subtotals into total amount
 
 ### Key Data Flow

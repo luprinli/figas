@@ -1,4 +1,4 @@
-﻿import type { ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   SortableContext,
   verticalListSortingStrategy,
@@ -38,7 +38,7 @@ export default function ScheduleBoard({
         items={flights.map((f) => f.id)}
         strategy={verticalListSortingStrategy}
       >
-        <div className="space-y-3">
+        <div className="space-y-3" role="list">
           {flights.map((flight) =>
             renderFlightCard ? (
               <SortableFlightCardWrapper key={flight.id} flightId={flight.id}>
@@ -113,7 +113,6 @@ function SortableFlightCard({
       tabIndex={0}
       aria-grabbed={false}
       aria-label={`Flight ${flight.flight_number}, ${flight.origin_code} to ${flight.destination_code}. Press spacebar or enter to start dragging to reorder.`}
-      aria-describedby={`sortable-flight-desc-${flight.id}`}
     >
       <FlightCard flight={flight} maxTakeoffWeightKg={maxTakeoffWeightKg} onOpenLoadsheet={onOpenLoadsheet} />
     </div>
@@ -171,7 +170,6 @@ function SortableFlightCardWrapper({
       tabIndex={0}
       aria-grabbed={false}
       aria-label={`Flight card ${flightId}. Press spacebar or enter to start dragging to reorder.`}
-      aria-describedby={`sortable-flight-desc-${flightId}`}
     >
       {children}
     </div>

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { kdb } from "../db.server";
 import { sql } from "kysely";
 
@@ -10,8 +11,8 @@ export interface WebhookEventRow {
   status: "received" | "processing" | "processed" | "failed";
   attempts: number;
   last_error: string | null;
-  created_at: Date;
-  processed_at: Date | null;
+  created_at: string;
+  processed_at: string | null;
 }
 
 function toRow(r: Record<string, unknown>): WebhookEventRow {
@@ -24,8 +25,8 @@ function toRow(r: Record<string, unknown>): WebhookEventRow {
     status: String(r.status ?? "received") as WebhookEventRow["status"],
     attempts: Number(r.attempts ?? 0),
     last_error: r.last_error != null ? String(r.last_error) : null,
-    created_at: r.created_at instanceof Date ? r.created_at : new Date(String(r.created_at)),
-    processed_at: r.processed_at instanceof Date ? r.processed_at : (r.processed_at != null ? new Date(String(r.processed_at)) : null),
+    created_at: String(r.created_at ?? ""),
+    processed_at: r.processed_at != null ? String(r.processed_at) : null,
   };
 }
 
@@ -82,7 +83,7 @@ export const webhookEventRepository = {
       .selectAll()
       .where("status", "in", ["received", "failed"])
       .where("attempts", "<", 10)
-      .orderBy("created_at asc")
+      .orderBy("created_at", "asc")
       .limit(limit)
       .execute();
     return rows.map((r) => toRow(r as unknown as Record<string, unknown>));

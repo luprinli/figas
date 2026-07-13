@@ -1,7 +1,7 @@
-import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { HeadersFunction, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Link, useLoaderData, useNavigation, useRouteError, isRouteErrorResponse } from "@remix-run/react";
-import { Form } from "@remix-run/react";
+import { Link, useLoaderData, useNavigation, useRouteError, isRouteErrorResponse , Form } from "@remix-run/react";
+
 import { bookingRepository } from "../utils/repositories/booking";
 import { requireUser } from "../utils/layout.server";
 import { getUserPermissions } from "../utils/permissions.server";
@@ -13,8 +13,13 @@ import ExpandableSection from "../components/ui/ExpandableSection";
 import EmptyState from "../components/EmptyState";
 import Skeleton from "../components/Skeleton";
 import StatusBadge from "../components/StatusBadge";
+import Button from "../components/Button";
 
 export const meta: MetaFunction = () => [{ title: "My Bookings - FIGAS" }];
+
+export const headers: HeadersFunction = () => ({
+  "Cache-Control": "max-age=60, stale-while-revalidate=300",
+});
 
 /**
  * Calculates days until a given date string (date-only comparison).
@@ -52,14 +57,17 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const userPermissions = await getUserPermissions(numericUserId);
 
   // Fetch upcoming bookings (existing method)
-  const upcomingBookings = await bookingRepository.findUpcomingByUserId(numericUserId);
+  const { bookings: upcomingBookings, totalCount: upcomingTotalCount } = await bookingRepository.findUpcomingByUserId(numericUserId);
 
-  // Fetch past bookings (completed or cancelled)
+  // Fetch past bookings (completed or cancelled) — limited to last 90 days
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+  const dateFrom = ninetyDaysAgo.toISOString().split("T")[0];
   const today = new Date();
   const todayStr = today.toISOString().split("T")[0];
   const pastResult = await bookingRepository.findByUserIdAndDateRange(
     numericUserId,
-    "1970-01-01",
+    dateFrom,
     todayStr
   );
 
@@ -84,6 +92,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   return json({
     upcomingBookings: upcomingWithMeta,
+    upcomingTotalCount,
     pastBookings,
     userIdentity,
     permissions: { canCreate, canCancel, canCheckin, canManagePayment },
@@ -155,56 +164,61 @@ function buildActions(
 
   if (permissions.canCheckin && isCheckinAvailable(booking.status)) {
     actions.push(
-      <Link
+      <Button
         key="checkin"
         to={`/checkin?booking=${booking.id}`}
-        className="inline-flex items-center rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 transition-colors"
+        color="success"
+        size="sm"
         onClick={(e) => e.stopPropagation()}
       >
         Check In
-      </Link>
+      </Button>
     );
   }
 
   // View Boarding Pass (status >= approved)
   if (["approved", "checkin_open", "checked_in", "boarding", "departed", "completed"].includes(booking.status)) {
     actions.push(
-      <Link
+      <Button
         key="boarding-pass"
         to={`/bookings/${booking.id}`}
-        className="inline-flex items-center rounded-md border border-slate-300 dark:border-slate-600 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+        variant="outlined"
+        size="sm"
         onClick={(e) => e.stopPropagation()}
       >
         Boarding Pass
-      </Link>
+      </Button>
     );
   }
 
   // Make Payment (if not paid)
   if (permissions.canManagePayment && booking.payment_status !== "paid") {
     actions.push(
-      <Link
+      <Button
         key="payment"
         to={`/bookings/${booking.id}`}
-        className="inline-flex items-center rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 transition-colors"
+        color="warning"
+        size="sm"
         onClick={(e) => e.stopPropagation()}
       >
         Make Payment
-      </Link>
+      </Button>
     );
   }
 
   // Cancel (if not completed or cancelled)
   if (permissions.canCancel && !["completed", "cancelled"].includes(booking.status)) {
     actions.push(
-      <Link
+      <Button
         key="cancel"
         to={`/bookings/${booking.id}`}
-        className="inline-flex items-center rounded-md border border-red-300 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-400 hover:bg-red-50 dark:bg-red-900/30 transition-colors"
+        variant="outlined"
+        color="danger"
+        size="sm"
         onClick={(e) => e.stopPropagation()}
       >
         Cancel
-      </Link>
+      </Button>
     );
   }
 
@@ -214,6 +228,7 @@ function buildActions(
 export default function BookingsLayout() {
   const {
     upcomingBookings,
+    upcomingTotalCount,
     pastBookings,
     userIdentity,
     permissions,
@@ -231,12 +246,9 @@ export default function BookingsLayout() {
         userIdentity={userIdentity}
         headerActions={
           permissions.canCreate ? (
-            <Link
-              to="/bookings/new"
-              className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 transition-colors"
-            >
+            <Button to="/bookings/new" size="md">
               New Booking
-            </Link>
+            </Button>
           ) : undefined
         }
       >
@@ -259,12 +271,9 @@ export default function BookingsLayout() {
         userIdentity={userIdentity}
         headerActions={
           permissions.canCreate ? (
-            <Link
-              to="/bookings/new"
-              className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 transition-colors"
-            >
+            <Button to="/bookings/new" size="md">
               New Booking
-            </Link>
+            </Button>
           ) : undefined
         }
       >
@@ -288,12 +297,9 @@ export default function BookingsLayout() {
         <div className="flex items-center gap-4">
           <span className="text-xs text-slate-500 dark:text-slate-400">{userIdentity?.email ?? ""}</span>
           {permissions.canCreate ? (
-            <Link
-              to="/bookings/new"
-              className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 transition-colors"
-            >
+            <Button to="/bookings/new" size="md">
               New Booking
-            </Link>
+            </Button>
           ) : null}
           <Form method="post" action="/logout">
             <button type="submit" className="text-xs text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors">
@@ -340,7 +346,7 @@ export default function BookingsLayout() {
         <div className="mb-8">
           <h2 className="mb-4 text-lg font-semibold text-slate-800 dark:text-slate-100">
             Upcoming Trips
-            <span className="ml-2 text-sm font-normal text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <span className="ml-2 text-sm font-normal text-slate-500 dark:text-slate-400">
               ({upcomingBookings.length})
             </span>
           </h2>
@@ -365,23 +371,27 @@ export default function BookingsLayout() {
         </div>
       )}
 
+      {/* Truncation indicator */}
+      {upcomingTotalCount > 5 && upcomingBookings.length > 0 && upcomingTotalCount > upcomingBookings.length && (
+        <p className="mt-1 mb-4 text-sm text-slate-500 dark:text-slate-400 text-center">
+          Showing {upcomingBookings.length} of {upcomingTotalCount} upcoming bookings
+        </p>
+      )}
+
       {/* -- No upcoming, has past bookings ------------------------------------ */}
       {!hasUpcoming && hasPast && (
         <div className="mb-8">
           <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700 p-6 text-center">
             <p className="text-base font-medium text-slate-700 dark:text-slate-200">No upcoming trips</p>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               {permissions.canCreate
                 ? "Ready to plan your next adventure?"
                 : "Check back later for new trips."}
             </p>
             {permissions.canCreate && (
-              <Link
-                to="/bookings/new"
-                className="mt-4 inline-flex items-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 transition-colors"
-              >
+              <Button to="/bookings/new" size="md" className="mt-4">
                 Book a new trip
-              </Link>
+              </Button>
             )}
           </div>
         </div>
@@ -407,12 +417,12 @@ export default function BookingsLayout() {
                   </span>
                   {firstLeg && (
                     <span className="text-sm text-slate-600 dark:text-slate-300 truncate">
-                      {firstLeg.origin_code} &rarr; {firstLeg.destination_code}
+                      {firstLeg.origin_code} \u2192 {firstLeg.destination_code}
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
                     {firstLeg
                       ? new Date(firstLeg.leg_date).toLocaleDateString("en-GB")
                       : new Date(booking.created_at).toLocaleDateString("en-GB")}
@@ -435,22 +445,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-400 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <Button size="md" onClick={() => window.location.reload()}>Try Again</Button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <Button size="md" onClick={() => window.location.reload()}>Try Again</Button>
       </div>
     </div>
   );

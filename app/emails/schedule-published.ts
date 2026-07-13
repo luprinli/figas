@@ -24,7 +24,7 @@ export function schedulePublishedEmail(params: SchedulePublishedParams): EmailOp
         <table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
           <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Flight</td><td style="padding: 8px; border: 1px solid #ddd;">${params.flightNumber}</td></tr>
           <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Date</td><td style="padding: 8px; border: 1px solid #ddd;">${params.date}</td></tr>
-          <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Route</td><td style="padding: 8px; border: 1px solid #ddd;">${params.origin} → ${params.destination}</td></tr>
+          <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Route</td><td style="padding: 8px; border: 1px solid #ddd;">${params.origin} \u2192 ${params.destination}</td></tr>
           <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Departure</td><td style="padding: 8px; border: 1px solid #ddd;">${params.departureTime}</td></tr>
         </table>
         <p>Please review your briefing and acknowledge receipt.</p>
@@ -32,6 +32,6 @@ export function schedulePublishedEmail(params: SchedulePublishedParams): EmailOp
         <p style="color: #666; font-size: 12px;">Falkland Islands Government Air Service</p>
       </div>
     `,
-    text: `Schedule Published — ${params.flightNumber}\n\nDear ${params.pilotName},\n\nYou have been assigned to flight ${params.flightNumber}.\n\nDate: ${params.date}\nRoute: ${params.origin} → ${params.destination}\nDeparture: ${params.departureTime}\n\nFalkland Islands Government Air Service`,
+    text: `Schedule Published — ${params.flightNumber}\n\nDear ${params.pilotName},\n\nYou have been assigned to flight ${params.flightNumber}.\n\nDate: ${params.date}\nRoute: ${params.origin} \u2192 ${params.destination}\nDeparture: ${params.departureTime}\n\nFalkland Islands Government Air Service`,
   };
 }

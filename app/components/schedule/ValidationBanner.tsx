@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { X } from "lucide-react";
 
 export interface ValidationIssue {
@@ -27,7 +27,7 @@ export default function ValidationBanner({ issues }: ValidationBannerProps) {
     : "bg-amber-50 dark:bg-amber-900/30 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800";
 
   const textColor = hasError ? "text-red-800 dark:text-red-400 dark:text-red-400" : "text-amber-800 dark:text-amber-400 dark:text-amber-400";
-  const dotColor = hasError ? "bg-red-50 dark:bg-red-900/30 dark:bg-red-900/300" : "bg-amber-50 dark:bg-amber-900/30 dark:bg-amber-900/300";
+  const dotColor = hasError ? "bg-red-500 dark:bg-red-900/30" : "bg-amber-500 dark:bg-amber-900/30";
 
   return (
     <div

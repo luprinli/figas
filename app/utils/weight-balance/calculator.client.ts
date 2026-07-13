@@ -164,7 +164,7 @@ export function computeClientWeightBalance(input: WbInput): WbOutput {
       getDistance(distanceMap, leg.originCode, leg.destinationCode);
 
     if (distanceNm <= 0) {
-      errors.push(`Sector ${i + 1}: Unknown distance ${leg.originCode}→${leg.destinationCode}`);
+      errors.push(`Sector ${i + 1}: Unknown distance ${leg.originCode}\u2192${leg.destinationCode}`);
     }
 
     totalDistanceNmTotal += distanceNm;

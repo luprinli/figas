@@ -30,7 +30,7 @@ function getError(result: ActionResult): { error: string; status?: number } | un
 describe("handleAutoBuild()", () => {
   const testUserId = MOCK_USER_IDS.ops;
 
-  // ── Test: Auto-build with no bookings creates 0 flights ───────────────────
+  // â”€â”€ Test: Auto-build with no bookings creates 0 flights â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("auto-build with no bookings creates 0 flights", async () => {
     await withRollback(async () => {
       // Create a schedule with no booking legs
@@ -52,7 +52,7 @@ describe("handleAutoBuild()", () => {
     });
   });
 
-  // ── Test: Auto-build with 10+ bookings creates flights clustered by route ─
+  // â”€â”€ Test: Auto-build with 10+ bookings creates flights clustered by route â”€
   it("auto-build with 10+ bookings creates flights clustered by route", async () => {
     await withRollback(async () => {
       // Create a schedule
@@ -62,12 +62,12 @@ describe("handleAutoBuild()", () => {
       });
       const dateStr = formatDateOnly(new Date(schedule.schedule_date));
 
-      // Create 12 booking legs — 6 for PSY→MPA and 6 for PSY→SHR
+      // Create 12 booking legs â€” 6 for PSYâ†’MPA and 6 for PSYâ†’SHR
       // All use booking_id: 1 since that's the only booking in seed data
       for (let i = 0; i < 6; i++) {
         await createTestBookingLeg({
           booking_id: 1,
-          origin_code: "PSY",
+          origin_code: "STY",
           destination_code: "MPA",
           leg_date: new Date(schedule.schedule_date),
           leg_sequence: i + 1,
@@ -77,7 +77,7 @@ describe("handleAutoBuild()", () => {
       for (let i = 0; i < 6; i++) {
         await createTestBookingLeg({
           booking_id: 1,
-          origin_code: "PSY",
+          origin_code: "STY",
           destination_code: "SHR",
           leg_date: new Date(schedule.schedule_date),
           leg_sequence: i + 7,
@@ -97,7 +97,7 @@ describe("handleAutoBuild()", () => {
     });
   });
 
-  // ── Test: Auto-build on no-fly day fails ──────────────────────────────────
+  // â”€â”€ Test: Auto-build on no-fly day fails â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("auto-build on no-fly day fails", async () => {
     await withRollback(async () => {
       // Try to auto-build on a Sunday (2026-06-21 is a Sunday).
@@ -120,7 +120,7 @@ describe("handleAutoBuild()", () => {
     });
   });
 
-  // ── Test: Auto-build with insufficient aircraft warns ─────────────────────
+  // â”€â”€ Test: Auto-build with insufficient aircraft warns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("auto-build with insufficient aircraft warns", async () => {
     await withRollback(async () => {
       const schedule = await createTestSchedule({
@@ -134,7 +134,7 @@ describe("handleAutoBuild()", () => {
       for (let i = 0; i < 20; i++) {
         await createTestBookingLeg({
           booking_id: 1,
-          origin_code: "PSY",
+          origin_code: "STY",
           destination_code: "MPA",
           leg_date: new Date(schedule.schedule_date),
           leg_sequence: i + 1,
@@ -158,7 +158,7 @@ describe("handleAutoBuild()", () => {
     });
   });
 
-  // ── Test: Auto-build with available pilots assigns them ───────────────────
+  // â”€â”€ Test: Auto-build with available pilots assigns them â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("auto-build with available pilots assigns them", async () => {
     await withRollback(async () => {
       const schedule = await createTestSchedule({
@@ -172,7 +172,7 @@ describe("handleAutoBuild()", () => {
       for (let i = 0; i < 3; i++) {
         await createTestBookingLeg({
           booking_id: 1,
-          origin_code: "PSY",
+          origin_code: "STY",
           destination_code: "MPA",
           leg_date: new Date(schedule.schedule_date),
           leg_sequence: i + 1,
@@ -195,7 +195,7 @@ describe("handleAutoBuild()", () => {
     });
   });
 
-  // ── Test: Auto-build with no pilots creates flights without (warning logged) ─
+  // â”€â”€ Test: Auto-build with no pilots creates flights without (warning logged) â”€
   it("auto-build with no pilots creates flights without (warning logged)", async () => {
     await withRollback(async () => {
       const schedule = await createTestSchedule({
@@ -207,7 +207,7 @@ describe("handleAutoBuild()", () => {
       // Create a single booking leg (booking_id: 1 is the only booking in seed data)
       await createTestBookingLeg({
         booking_id: 1,
-        origin_code: "PSY",
+        origin_code: "STY",
         destination_code: "MPA",
         leg_date: new Date(schedule.schedule_date),
         leg_sequence: 1,
@@ -233,7 +233,7 @@ describe("handleAutoBuild()", () => {
     });
   });
 
-  // ── Test: Weight balance snapshots created per flight ─────────────────────
+  // â”€â”€ Test: Weight balance snapshots created per flight â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("weight balance snapshots created per flight", async () => {
     await withRollback(async () => {
       const schedule = await createTestSchedule({
@@ -246,7 +246,7 @@ describe("handleAutoBuild()", () => {
       for (let i = 0; i < 3; i++) {
         await createTestBookingLeg({
           booking_id: 1,
-          origin_code: "PSY",
+          origin_code: "STY",
           destination_code: "MPA",
           leg_date: new Date(schedule.schedule_date),
           leg_sequence: i + 1,
@@ -271,7 +271,7 @@ describe("handleAutoBuild()", () => {
     });
   });
 
-  // ── Test: Flight legs created with correct stop sequences ─────────────────
+  // â”€â”€ Test: Flight legs created with correct stop sequences â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("flight legs created with correct stop sequences", async () => {
     await withRollback(async () => {
       const schedule = await createTestSchedule({
@@ -284,7 +284,7 @@ describe("handleAutoBuild()", () => {
       for (let i = 0; i < 3; i++) {
         await createTestBookingLeg({
           booking_id: 1,
-          origin_code: "PSY",
+          origin_code: "STY",
           destination_code: "MPA",
           leg_date: new Date(schedule.schedule_date),
           leg_sequence: i + 1,

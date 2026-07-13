@@ -1,4 +1,5 @@
-﻿import type { FuelPlan } from "../../utils/scheduling/types";
+import type { FuelPlan } from "../../utils/scheduling/types";
+import { FuelStatusIndicator } from "./FuelStatusIndicator";
 
 export interface FuelSummaryLeg {
   legId: number;
@@ -34,14 +35,14 @@ export default function FuelSummary({ legs, className }: FuelSummaryProps) {
           return (
             <div
               key={leg.legId}
-              className="rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 bg-white dark:bg-slate-800 p-4"
+              className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4"
             >
               {/* Leg header */}
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                  {leg.origin} → {leg.destination}
+                  {leg.origin} {'\u2192'} {leg.destination}
                 </span>
-                <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Leg #{leg.legId}</span>
+                <span className="text-xs text-slate-500 dark:text-slate-500">Leg #{leg.legId}</span>
               </div>
 
               {/* Fuel state badge */}
@@ -49,7 +50,7 @@ export default function FuelSummary({ legs, className }: FuelSummaryProps) {
                 <span className="rounded bg-sky-100 dark:bg-sky-900/30 dark:bg-sky-900/30 px-2 py-0.5 text-xs font-medium text-sky-700 dark:text-sky-400 dark:text-sky-400">
                   {fp.fuelState}
                 </span>
-                <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                <span className="text-xs text-slate-500 dark:text-slate-500">
                   {fp.fuelRuleApplied}
                 </span>
               </div>
@@ -137,29 +138,10 @@ function FuelMetric({
 }) {
   return (
     <div className="flex items-center justify-between rounded bg-slate-50 dark:bg-slate-700 px-2 py-1">
-      <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{label}</span>
+      <span className="text-slate-500 dark:text-slate-500">{label}</span>
       <span className="font-medium text-slate-700 dark:text-slate-200">
         {value.toFixed(0)} {unit}
       </span>
-    </div>
-  );
-}
-
-function FuelStatusIndicator({
-  label,
-  ok,
-}: {
-  label: string;
-  ok: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-1.5 text-xs">
-      <span
-        className={`inline-block h-2 w-2 rounded-full ${
-          ok ? "bg-green-50 dark:bg-green-900/30 dark:bg-green-900/300" : "bg-red-50 dark:bg-red-900/30 dark:bg-red-900/300"
-        }`}
-      />
-      <span className={ok ? "text-green-700 dark:text-green-400 dark:text-green-400" : "text-red-700 dark:text-red-400 dark:text-red-400"}>{label}</span>
     </div>
   );
 }

@@ -104,32 +104,35 @@ ON CONFLICT (slug) DO NOTHING;
 -- ============================================================================
 INSERT INTO permissions (resource, action, description) VALUES
     -- Bookings
-    ('bookings', 'create', 'Create new bookings'),
-    ('bookings', 'read', 'View booking details'),
-    ('bookings', 'update', 'Modify existing bookings'),
-    ('bookings', 'cancel', 'Cancel bookings'),
-    ('bookings', 'list', 'List/search bookings'),
-    ('bookings', 'assign-seats', 'Assign seats to passengers'),
-    ('bookings', 'manage-passengers', 'Add/remove passengers'),
-    ('bookings', 'manage-freight', 'Manage freight on bookings'),
+    ('booking', 'create', 'Create new bookings'),
+    ('booking', 'read', 'View booking details'),
+    ('booking', 'update', 'Modify existing bookings'),
+    ('booking', 'cancel', 'Cancel bookings'),
+    ('booking', 'list', 'List/search bookings'),
+    ('booking', 'assign-seats', 'Assign seats to passengers'),
+    ('booking', 'manage-passengers', 'Add/remove passengers'),
+    ('booking', 'manage-freight', 'Manage freight on bookings'),
     -- Flights
-    ('flights', 'create', 'Create new flights'),
-    ('flights', 'read', 'View flight details'),
-    ('flights', 'update', 'Modify flight details'),
-    ('flights', 'cancel', 'Cancel flights'),
-    ('flights', 'list', 'List/search flights'),
-    ('flights', 'update-status', 'Update flight status (board/depart/arrive)'),
-    ('flights', 'manage-manifest', 'Manage flight manifests'),
+    ('flight', 'create', 'Create new flights'),
+    ('flight', 'read', 'View flight details'),
+    ('flight', 'update', 'Modify flight details'),
+    ('flight', 'cancel', 'Cancel flights'),
+    ('flight', 'list', 'List/search flights'),
+    ('flight', 'update-status', 'Update flight status (board/depart/arrive)'),
+    ('flight', 'manage-manifest', 'Manage flight manifests'),
     -- Schedules
-    ('schedules', 'create', 'Create schedules'),
-    ('schedules', 'read', 'View schedule details'),
-    ('schedules', 'update', 'Modify schedules'),
-    ('schedules', 'approve', 'Approve schedules'),
-    ('schedules', 'publish', 'Publish schedules'),
-    ('schedules', 'revise', 'Revise schedules'),
-    ('schedules', 'cancel', 'Cancel schedules'),
-    ('schedules', 'assign-pilot', 'Assign pilots to schedule flights'),
-    ('schedules', 'generate-loadsheets', 'Generate loadsheets'),
+    ('schedule', 'create', 'Create schedules'),
+    ('schedule', 'read', 'View schedule details'),
+    ('schedule', 'update', 'Modify schedules'),
+    ('schedule', 'approve', 'Approve schedules'),
+    ('schedule', 'publish', 'Publish schedules'),
+    ('schedule', 'revise', 'Revise schedules'),
+    ('schedule', 'cancel', 'Cancel schedules'),
+    ('schedule', 'assign-pilot', 'Assign pilots to schedule flights'),
+    ('schedule', 'generate-loadsheets', 'Generate loadsheets'),
+    -- Loadsheets
+    ('loadsheet', 'view', 'View flight loadsheets'),
+    ('loadsheet', 'edit', 'Create and modify flight loadsheets'),
     -- Users
     ('users', 'create', 'Create user accounts'),
     ('users', 'read', 'View user details'),
@@ -188,7 +191,7 @@ ON CONFLICT DO NOTHING;
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.slug = 'operations'
-AND p.resource IN ('bookings', 'flights', 'schedules', 'checkin')
+AND p.resource IN ('booking', 'flight', 'schedule', 'checkin', 'loadsheet')
 AND p.action NOT IN ('collect-payment')
 ON CONFLICT DO NOTHING;
 
@@ -197,7 +200,7 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.slug = 'finance'
 AND (
-    (p.resource = 'bookings' AND p.action IN ('read', 'list'))
+    (p.resource = 'booking' AND p.action IN ('read', 'list'))
     OR p.resource = 'finance'
     OR (p.resource = 'reports' AND p.action IN ('read', 'export'))
     OR (p.resource = 'audit' AND p.action = 'read')
@@ -209,9 +212,9 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.slug = 'checkin'
 AND (
-    (p.resource = 'bookings' AND p.action IN ('read', 'list'))
+    (p.resource = 'booking' AND p.action IN ('read', 'list'))
     OR (p.resource = 'checkin')
-    OR (p.resource = 'flights' AND p.action IN ('read', 'list'))
+    OR (p.resource = 'flight' AND p.action IN ('read', 'list'))
 )
 ON CONFLICT DO NOTHING;
 
@@ -220,9 +223,9 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.slug = 'pilot'
 AND (
-    (p.resource = 'flights' AND p.action IN ('read', 'list', 'manage-manifest'))
-    OR (p.resource = 'schedules' AND p.action IN ('read'))
-    OR (p.resource = 'bookings' AND p.action IN ('read', 'list'))
+    (p.resource = 'flight' AND p.action IN ('read', 'list', 'manage-manifest'))
+    OR (p.resource = 'schedule' AND p.action IN ('read'))
+    OR (p.resource = 'booking' AND p.action IN ('read', 'list'))
 )
 ON CONFLICT DO NOTHING;
 
@@ -232,7 +235,7 @@ SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.slug = 'engineer'
 AND (
     (p.resource = 'maintenance')
-    OR (p.resource = 'flights' AND p.action IN ('read', 'list'))
+    OR (p.resource = 'flight' AND p.action IN ('read', 'list'))
 )
 ON CONFLICT DO NOTHING;
 
@@ -241,8 +244,8 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.slug = 'passenger'
 AND (
-    (p.resource = 'bookings' AND p.action IN ('read', 'list', 'cancel'))
-    OR (p.resource = 'flights' AND p.action IN ('read'))
+    (p.resource = 'booking' AND p.action IN ('read', 'list', 'cancel'))
+    OR (p.resource = 'flight' AND p.action IN ('read'))
 )
 ON CONFLICT DO NOTHING;
 

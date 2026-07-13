@@ -1,4 +1,4 @@
-﻿import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import {
   QUICK_SELECTS,
   MONTH_NAMES,
@@ -273,7 +273,7 @@ export default function DateRangePicker({ dateFrom, dateTo, onDateChange }: Date
 
       {/* ── Calendar panel ───────────────────────────────────────── */}
       {isOpen && (
-        <div className="absolute left-0 top-full mt-2 z-50 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 shadow-lg dark:shadow-slate-900/50 dark:shadow-slate-900/50 p-4 w-full min-w-[320px] sm:min-w-[580px]">
+        <div className="absolute left-0 top-full mt-2 z-50 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-slate-900/50 p-4 w-full min-w-[320px] sm:min-w-[580px]">
           {/* Dual calendar months */}
           <div className="hidden sm:grid sm:grid-cols-2 sm:gap-6">
             <div>{renderMonth(leftMonth, leftGrid, true)}</div>

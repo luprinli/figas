@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Booking Data Integrity Audit Script
  *
@@ -323,7 +324,7 @@ async function main(): Promise<void> {
       "error",
       "bookings",
       dupBookingIds.map((r: any) => r.id),
-      `Found ${dupBookingRefs.length} duplicate booking_reference(s): ${dupBookingRefs.map((r: any) => `${r.booking_reference} (${r.cnt}×)`).join(", ")}`,
+      `Found ${dupBookingRefs.length} duplicate booking_reference(s): ${dupBookingRefs.map((r: any) => `${r.booking_reference} (${r.cnt}�—)`).join(", ")}`,
     );
   }
 

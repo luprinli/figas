@@ -1039,7 +1039,7 @@ Generate a simple boarding pass from `loadsheet_passengers`:
 
 #### 10.2.2 Fuel Reconciliation
 After finalization, compare:
-- Planned fuel burn vs actual (from ATD→ATA actual time × burn rate)
+- Planned fuel burn vs actual (from ATD→ATA actual time �— burn rate)
 - Flag discrepancies >10%
 
 #### 10.2.3 Cargo/Freight Handling

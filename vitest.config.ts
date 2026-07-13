@@ -10,8 +10,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    include: ["tests/**/*.test.ts", "tests/**/*.smoke.ts"],
     exclude: ["tests/e2e/**", "node_modules/**"],
+    globalSetup: ["./tests/global-setup.ts"],
     setupFiles: ["./tests/unit/setup.ts"],
     testTimeout: 10_000,
     // Run tests sequentially to avoid DB constraint collisions

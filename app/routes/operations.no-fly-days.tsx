@@ -1,173 +1,21 @@
-﻿import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import type { MetaFunction } from "@remix-run/node";
 import { useLoaderData, useActionData, Form, useSubmit, useNavigation , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+
+export { loader, action } from "./operations.no-fly-days.action.server";
+import type { loader, action } from "./operations.no-fly-days.action.server";
 
 import { useState, useMemo, useCallback } from "react";
 import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
-import { requirePermission } from "../utils/permissions.server";
-import { requireUser } from "../utils/layout.server";
-import { Permission } from "../utils/constants";
-import {
-  findAllRules,
-  createRule,
-  updateRule,
-  toggleRuleActive,
-  deleteRule,
-  getNoFlyCalendar,
-  type NoFlyRuleRow,
-} from "../utils/services/no-fly.service";
-import { todayISO, daysFromNow, MONTH_NAMES, DAY_NAMES_SHORT, getCalendarGrid, formatDate } from "../utils/dates";
+import type { NoFlyRuleRow } from "../utils/services/no-fly.service";
+import { MONTH_NAMES, DAY_NAMES_SHORT, getCalendarGrid, formatDate } from "../utils/dates";
 import DatePicker from "../components/DatePicker";
+import Button from "../components/Button";
 
-// ── Meta ──────────────────────────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬ Meta Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 export const meta: MetaFunction = () => [{ title: "No Fly Days - Operations - FIGAS" }];
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const CALENDAR_LOOKAHEAD_DAYS = 90;
-
-// ── Loader ────────────────────────────────────────────────────────────────────
-
-export async function loader({ request }: LoaderFunctionArgs) {
-  const { userIdentity } = await requireUser(request);
-  await requirePermission(request, Permission.NO_FLY_MANAGE);
-
-  const rules = await findAllRules();
-  const today = todayISO();
-  const endDate = daysFromNow(CALENDAR_LOOKAHEAD_DAYS);
-  const calendar = await getNoFlyCalendar(today, endDate);
-
-  return json({ rules, calendar, today, userIdentity });
-}
-
-// ── Action ────────────────────────────────────────────────────────────────────
-
-export async function action({ request }: ActionFunctionArgs) {
-  const { userId } = await requireUser(request);
-  const numericUserId = Number(userId);
-  await requirePermission(request, Permission.NO_FLY_MANAGE);
-
-  const formData = await request.formData();
-  const intent = formData.get("intent") as string;
-
-  switch (intent) {
-    case "create": {
-      const label = formData.get("label") as string;
-      const description = (formData.get("description") as string) || undefined;
-      const ruleType = formData.get("rule_type") as "recurring" | "one_off";
-      const dayOfWeekValues = formData.getAll("day_of_week");
-      const dayOfWeek = dayOfWeekValues.length > 0
-        ? dayOfWeekValues.map((v) => parseInt(v as string, 10))
-        : null;
-      const seasonStart = (formData.get("season_start") as string) || undefined;
-      const seasonEnd = (formData.get("season_end") as string) || undefined;
-      const specificDate = (formData.get("specific_date") as string) || undefined;
-      const priority = formData.get("priority")
-        ? parseInt(formData.get("priority") as string, 10)
-        : 0;
-      if (!label || !ruleType) {
-        return json({ error: "Label and rule type are required." }, { status: 400 });
-      }
-
-      try {
-        await createRule({
-          label,
-          description,
-          rule_type: ruleType,
-          day_of_week: dayOfWeek,
-          season_start: seasonStart ?? null,
-          season_end: seasonEnd ?? null,
-          specific_date: specificDate ?? null,
-          priority,
-          override_reason: (formData.get("override_reason") as string) || undefined,
-          created_by: numericUserId,
-        });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to create rule";
-        return json({ error: message }, { status: 400 });
-      }
-      break;
-    }
-
-    case "update": {
-      const id = parseInt(formData.get("rule_id") as string, 10);
-      if (isNaN(id)) {
-        return json({ error: "Invalid rule ID." }, { status: 400 });
-      }
-
-      const label = formData.get("label") as string | undefined;
-      const description = formData.get("description") as string | null | undefined;
-      const isActive = formData.has("is_active")
-        ? formData.get("is_active") === "true"
-        : undefined;
-      const dayOfWeekValues = formData.getAll("day_of_week");
-      const dayOfWeek = dayOfWeekValues.length > 0
-        ? dayOfWeekValues.map((v) => parseInt(v as string, 10))
-        : undefined;
-      const seasonStart = formData.get("season_start") as string | null | undefined;
-      const seasonEnd = formData.get("season_end") as string | null | undefined;
-      const specificDate = formData.get("specific_date") as string | null | undefined;
-      const priority = formData.get("priority")
-        ? parseInt(formData.get("priority") as string, 10)
-        : undefined;
-      const overrideReason = formData.get("override_reason") as string | null | undefined;
-
-      try {
-        await updateRule(id, {
-          label,
-          description: description === "" ? null : description,
-          is_active: isActive,
-          day_of_week: dayOfWeek,
-          season_start: seasonStart === "" ? null : seasonStart,
-          season_end: seasonEnd === "" ? null : seasonEnd,
-          specific_date: specificDate === "" ? null : specificDate,
-          priority,
-          override_reason: overrideReason === "" ? null : overrideReason,
-        });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to update rule";
-        return json({ error: message }, { status: 400 });
-      }
-      break;
-    }
-
-    case "toggle": {
-      const id = parseInt(formData.get("rule_id") as string, 10);
-      if (isNaN(id)) {
-        return json({ error: "Invalid rule ID." }, { status: 400 });
-      }
-      try {
-        await toggleRuleActive(id);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to toggle rule";
-        return json({ error: message }, { status: 400 });
-      }
-      break;
-    }
-
-    case "delete": {
-      const id = parseInt(formData.get("rule_id") as string, 10);
-      if (isNaN(id)) {
-        return json({ error: "Invalid rule ID." }, { status: 400 });
-      }
-      try {
-        await deleteRule(id);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to delete rule";
-        return json({ error: message }, { status: 400 });
-      }
-      break;
-    }
-
-    default:
-      return json({ error: "Unknown intent." }, { status: 400 });
-  }
-
-  return null; // Triggers revalidation of the loader
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬ Helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -197,12 +45,12 @@ function getRuleSummary(rule: NoFlyRuleRow): string {
   }
   const dayNames = rule.day_of_week?.map((d) => DAY_NAMES[d]).join(", ") ?? "Unknown";
   if (rule.season_start && rule.season_end) {
-    return `Recurring: Every ${dayNames} (${formatDisplayDate(rule.season_start)} – ${formatDisplayDate(rule.season_end)})`;
+    return `Recurring: Every ${dayNames} (${formatDisplayDate(rule.season_start)} Ã¢â‚¬â€œ ${formatDisplayDate(rule.season_end)})`;
   }
   return `Recurring: Every ${dayNames}`;
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬ Component Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 export default function NoFlyDaysPage() {
   const { rules, calendar, today } = useLoaderData<typeof loader>();
@@ -320,7 +168,7 @@ export default function NoFlyDaysPage() {
     return count;
   }, [calendar, calMonth]);
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Render Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
   return (
     <div className="mx-auto px-4 py-6 max-w-7xl">
@@ -332,14 +180,14 @@ export default function NoFlyDaysPage() {
             Manage days on which flight bookings cannot be made.
           </p>
         </div>
-        <button
+        <Button
           type="button"
           onClick={openCreateModal}
-          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
         >
           <Plus size={16} />
           Add Rule
-        </button>
+        </Button>
       </div>
 
       {/* Error banner */}
@@ -350,12 +198,12 @@ export default function NoFlyDaysPage() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* ── Left column: Effective Calendar ─────────────────────────────── */}
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Left column: Effective Calendar Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
         <div className="lg:col-span-2">
           <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm dark:shadow-slate-900/20">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 px-6 py-4">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Effective No-Fly Calendar</h2>
-              <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 {noFlyCountInMonth} no-fly day{noFlyCountInMonth !== 1 ? "s" : ""} this month
               </span>
             </div>
@@ -363,25 +211,25 @@ export default function NoFlyDaysPage() {
             <div className="p-6">
               {/* Month navigation */}
               <div className="flex items-center justify-between mb-4">
-                <button
+                <Button
                   type="button"
                   onClick={() => shiftMonth(-1)}
                   className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
                   aria-label="Previous month"
                 >
                   <ChevronLeft size={20} />
-                </button>
+                </Button>
                 <span className="text-base font-semibold text-slate-700 dark:text-slate-200">
                   {MONTH_NAMES[calMonth.month - 1]} {calMonth.year}
                 </span>
-                <button
+                <Button
                   type="button"
                   onClick={() => shiftMonth(1)}
                   className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
                   aria-label="Next month"
                 >
                   <ChevronRight size={20} />
-                </button>
+                </Button>
               </div>
 
               {/* Day-of-week header */}
@@ -429,7 +277,7 @@ export default function NoFlyDaysPage() {
               </div>
 
               {/* Legend */}
-              <div className="mt-4 flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <div className="mt-4 flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
                 <span className="flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-red-400" /> No-fly day
                 </span>
@@ -441,7 +289,7 @@ export default function NoFlyDaysPage() {
           </div>
         </div>
 
-        {/* ── Right column: Rules list ────────────────────────────────────── */}
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Right column: Rules list Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
         <div className="lg:col-span-1">
           <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm dark:shadow-slate-900/20">
             <div className="border-b border-slate-100 dark:border-slate-700 px-6 py-4">
@@ -493,7 +341,7 @@ export default function NoFlyDaysPage() {
                     {/* Action buttons */}
                     <div className="flex items-center gap-2 mt-2">
                       {/* Toggle */}
-                      <button
+                      <Button
                         type="button"
                         onClick={() => handleToggle(rule.id)}
                         disabled={isSubmitting}
@@ -504,26 +352,26 @@ export default function NoFlyDaysPage() {
                         }`}
                       >
                         {rule.is_active ? "Disable" : "Enable"}
-                      </button>
+                      </Button>
 
                       {/* Edit */}
-                      <button
+                      <Button
                         type="button"
                         onClick={() => openEditModal(rule)}
                         className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
                       >
                         Edit
-                      </button>
+                      </Button>
 
                       {/* Delete */}
-                      <button
+                      <Button
                         type="button"
                         onClick={() => handleDelete(rule.id)}
                         disabled={isSubmitting}
                         className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-red-600 hover:bg-red-50 dark:bg-red-900/30 transition-colors"
                       >
                         Delete
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 ))
@@ -533,7 +381,7 @@ export default function NoFlyDaysPage() {
         </div>
       </div>
 
-      {/* ── Add/Edit Modal ────────────────────────────────────────────────── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Add/Edit Modal Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl dark:shadow-slate-900/50 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
@@ -552,13 +400,13 @@ export default function NoFlyDaysPage() {
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
                   {editingRule ? "Edit Rule" : "Add Rule"}
                 </h2>
-                <button
+                <Button
                   type="button"
                   onClick={closeModal}
                   className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
                 >
                   <X size={20} />
-                </button>
+                </Button>
               </div>
 
               {/* Modal body */}
@@ -600,7 +448,7 @@ export default function NoFlyDaysPage() {
                     Rule Type
                   </span>
                   <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden" role="radiogroup" aria-label="Rule Type">
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setModalTab("recurring")}
                       className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
@@ -610,8 +458,8 @@ export default function NoFlyDaysPage() {
                       }`}
                     >
                       Recurring
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
                       onClick={() => setModalTab("one_off")}
                       className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
@@ -621,7 +469,7 @@ export default function NoFlyDaysPage() {
                       }`}
                     >
                       One-Off
-                    </button>
+                    </Button>
                   </div>
                   <input type="hidden" name="rule_type" value={modalTab} />
                 </div>
@@ -736,20 +584,20 @@ export default function NoFlyDaysPage() {
 
               {/* Modal footer */}
               <div className="flex items-center justify-end gap-3 border-t border-slate-200 dark:border-slate-700 px-6 py-4">
-                <button
+                <Button
                   type="button"
                   onClick={closeModal}
                   className="rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:opacity-60 transition-colors"
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50 dark:opacity-60 transition-colors"
                 >
                   {isSubmitting ? "Saving..." : editingRule ? "Update Rule" : "Create Rule"}
-                </button>
+                </Button>
               </div>
             </Form>
           </div>
@@ -765,22 +613,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <Button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</Button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <Button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</Button>
       </div>
     </div>
   );

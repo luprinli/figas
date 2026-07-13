@@ -6,8 +6,10 @@ import { sql } from "kysely";
 import { scheduleRepository } from "../utils/repositories/schedule";
 import { bookingRepository } from "../utils/repositories/booking";
 import type { BookingRow } from "../utils/repositories/booking";
-import DashboardCard from "../components/DashboardCard";
+import MetricCard from "../components/MetricCard";
 import NotificationBell from "../components/NotificationBell";
+import { TourTrigger } from "../components/TourTrigger";
+import { operationsDashboardTour } from "../utils/tour/definitions/operations-dashboard";
 import type { AlertItem } from "../components/AlertStrip";
 import StatusBadge from "../components/StatusBadge";
 import DataTable from "../components/DataTable";
@@ -20,8 +22,8 @@ function TimeInStatus({ updatedAt, status }: { updatedAt: string; status: string
     const hoursInStatus = Math.round(
         (new Date().getTime() - new Date(updatedAt).getTime()) / (1000 * 60 * 60)
     );
-    if (status === "cancelled" || status === "completed") return <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">&mdash;</span>;
-    if (hoursInStatus < 1) return <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{'<1h'}</span>;
+    if (status === "cancelled" || status === "completed") return <span className="text-slate-500 dark:text-slate-400">&mdash;</span>;
+    if (hoursInStatus < 1) return <span className="text-slate-500 dark:text-slate-400">{'<1h'}</span>;
     const critical = hoursInStatus > 48;
     const warn = hoursInStatus > 24;
     return (
@@ -123,7 +125,7 @@ export async function loader() {
     if (!todaySchedule) {
         alerts.push({
             id: "no-schedule",
-            message: "No schedule built for today — flights may not be assigned",
+            message: "No schedule built for today Ã¢â‚¬â€ flights may not be assigned",
             severity: "blue",
             action: { label: "Build Schedule", to: "/operations/schedule" },
         });
@@ -172,7 +174,7 @@ export default function OperationsDashboard() {
 
     const bookingColumns: Column<BookingDisplayItem>[] = [
         { key: "booking_reference", header: "Reference", render: (item) => <span className="font-medium text-slate-800 dark:text-slate-100">{item.booking.booking_reference}</span>, sortable: true },
-        { key: "passenger", header: "Passenger", render: (item) => <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">{item.passenger ? `${item.passenger.first_name} ${item.passenger.last_name}` : "—"}</span>, sortable: true },
+        { key: "passenger", header: "Passenger", render: (item) => <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">{item.passenger ? `${item.passenger.first_name} ${item.passenger.last_name}` : "Ã¢â‚¬â€"}</span>, sortable: true },
         { key: "status", header: "Status", render: (item) => <StatusBadge status={item.booking.status} />, sortable: true },
         { key: "date", header: "Date", render: (item) => <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">{item.firstLeg ? new Date(item.firstLeg.leg_date).toLocaleDateString("en-GB") : new Date(item.booking.created_at).toLocaleDateString("en-GB")}</span>, sortable: true },
         { key: "time-in-status", header: "Waiting", render: (item) => <TimeInStatus updatedAt={item.booking.updated_at} status={item.booking.status} />, sortable: true },
@@ -180,7 +182,7 @@ export default function OperationsDashboard() {
 
     const flightColumns: Column<Record<string, unknown>>[] = [
         { key: "flight_number", header: "Flight", render: (f) => <span className="font-medium text-slate-800 dark:text-slate-100">{f.flight_number as string}</span>, sortable: true },
-        { key: "route", header: "Route", render: (f) => <span>{f.origin_code as string} → {f.destination_code as string}</span> },
+        { key: "route", header: "Route", render: (f) => <span>{f.origin_code as string} \u2192 {f.destination_code as string}</span> },
         { key: "departure_time", header: "Departure", render: (f) => <span className="tabular-nums">{new Date(f.departure_time as string).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</span>, sortable: true },
         {
             key: "status", header: "Status", sortable: true,
@@ -194,13 +196,14 @@ export default function OperationsDashboard() {
             ),
         },
         { key: "aircraft_registration", header: "Aircraft" },
-        { key: "pilot_name", header: "Pilot", render: (f) => <span>{(f.pilot_name as string) ?? "—"}</span> },
+        { key: "pilot_name", header: "Pilot", render: (f) => <span>{(f.pilot_name as string) ?? "Ã¢â‚¬â€"}</span> },
     ];
 
     return (
         <div className="p-6 space-y-5">
             <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Operations Dashboard</h1>
+                <TourTrigger config={operationsDashboardTour} />
                 <div className="flex items-center gap-3">
                     <NotificationBell alerts={alerts} />
                     <span className="text-sm text-slate-500 dark:text-slate-400 hidden sm:inline">
@@ -212,22 +215,22 @@ export default function OperationsDashboard() {
                 </div>
             </div>
 
-            {/* KPI Row — 6 cards, single row */}
+            {/* KPI Row Ã¢â‚¬â€ 6 cards, single row */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                <DashboardCard label="Needs Attention" value={attentionCount} color={attentionCount > 0 ? "amber" : "emerald"} />
-                <DashboardCard label="Today's Flights" value={flightData.length} color="blue" />
-                <DashboardCard label="Today's Schedule" value={todaySchedule ? scheduleFlightCount : "—"} color="emerald" to={todaySchedule ? "/operations/schedule" : undefined} />
-                <DashboardCard label="Pending Manifests" value={pendingManifests} color={pendingManifests > 0 ? "amber" : "emerald"} to="/operations/loadsheets" />
-                <DashboardCard label="Upcoming" value={upcomingCount} color="purple" />
-                <DashboardCard label="Completed" value={completedCount} color="emerald" />
+                <MetricCard label="Needs Attention" value={attentionCount} color={attentionCount > 0 ? "amber" : "emerald"} />
+                <MetricCard label="Today's Flights" value={flightData.length} color="blue" />
+                <MetricCard label="Today's Schedule" value={todaySchedule ? scheduleFlightCount : "Ã¢â‚¬â€"} color="emerald" to={todaySchedule ? "/operations/schedule" : undefined} />
+                <MetricCard label="Pending Manifests" value={pendingManifests} color={pendingManifests > 0 ? "amber" : "emerald"} to="/operations/loadsheets" />
+                <MetricCard label="Upcoming" value={upcomingCount} color="purple" />
+                <MetricCard label="Completed" value={completedCount} color="emerald" />
             </div>
 
             {/* Recent Bookings */}
             {recentBookings.length > 0 && (
-                <div className="rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 overflow-hidden">
+                <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
                     <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex justify-between items-center">
                         <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Recent Bookings</h2>
-                        <Link to="/operations/bookings" className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400">View all →</Link>
+                        <Link to="/operations/bookings" className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400">View all \u2192</Link>
                     </div>
                     <DataTable
                         columns={bookingColumns}
@@ -244,7 +247,7 @@ export default function OperationsDashboard() {
             )}
 
             {/* Today's Flights */}
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 overflow-hidden">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex justify-between items-center">
                     <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Today&rsquo;s Flights</h2>
                 </div>
@@ -255,7 +258,7 @@ export default function OperationsDashboard() {
                     sortable
                     initialSortColumn="departure_time"
                     initialSortDirection="asc"
-                    emptyState={<div className="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No flights scheduled for today.</div>}
+                    emptyState={<div className="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">No flights scheduled for today.</div>}
                     actions={(f) => (
                         <Link to={`/ops/flight/${f.id as number}`} className="text-blue-600 hover:underline text-sm">View</Link>
                     )}
@@ -269,22 +272,22 @@ export function ErrorBoundary() {
     const error = useRouteError();
     if (isRouteErrorResponse(error)) {
         return (
-            <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+            <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
                 <div className="mx-auto max-w-lg text-center px-4">
-                    <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+                    <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
                     <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-                    <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-                    <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+                    <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+                    <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
                 </div>
             </div>
         );
     }
     return (
-        <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+        <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
             <div className="mx-auto max-w-lg text-center px-4">
                 <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-                <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-                <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+                <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+                <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
             </div>
         </div>
     );

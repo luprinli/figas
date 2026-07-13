@@ -1,15 +1,22 @@
-﻿import { useState } from "react";
-import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import { useState } from "react";
+import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { Form, Link, useActionData, useLoaderData, useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { Form, Link, useActionData, useLoaderData, useNavigation, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import { requireAuth } from "../utils/auth.server";
+import { createAuditLogEntry } from "../utils/permissions.server";
 import { bookingRepository } from "../utils/repositories/booking";
 import { bookingLegRepository } from "../utils/repositories/booking-leg";
 import { aerodromeRepository } from "../utils/repositories/aerodrome";
 import RouteSelector from "../components/RouteSelector";
 import DatePicker from "../components/DatePicker";
+import Button from "../components/Button";
+import Skeleton from "../components/Skeleton";
 
 export const meta: MetaFunction = () => [{ title: "New Booking - FIGAS" }];
+
+export const headers: HeadersFunction = () => ({
+  "Cache-Control": "no-cache, no-store, must-revalidate",
+});
 
 export async function loader({ request }: LoaderFunctionArgs) {
   await requireAuth(request);
@@ -72,6 +79,14 @@ export async function action({ request }: ActionFunctionArgs) {
     leg_sequence: 1,
   });
 
+  await createAuditLogEntry({
+    actorId: Number(userId),
+    action: "booking.created",
+    entityType: "booking",
+    entityId: booking.id,
+    newValues: { booking_reference: booking.booking_reference, origin, destination, departure_date: departureDate },
+  }).catch(() => {});
+
   return redirect(`/bookings/${booking.id}/passengers`);
 }
 
@@ -79,6 +94,19 @@ export default function NewBooking() {
   const { aerodromes } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const [departureDate, setDepartureDate] = useState(actionData?.fields?.departureDate ?? "");
+  const navigation = useNavigation();
+
+  const isLoading = navigation.state === "loading" && !navigation.formData;
+
+  if (isLoading) {
+    return (
+      <div className="max-w-lg mx-auto space-y-4 p-6">
+        <Skeleton className="h-6 w-32 rounded" />
+        <Skeleton className="h-12 w-full rounded" />
+        <Skeleton className="h-12 w-full rounded" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-lg mx-auto">
@@ -106,8 +134,8 @@ export default function NewBooking() {
             onChange={setDepartureDate}
             label="Departure Date"
           />
-          {/* Hidden input to submit the date value with the form */}
-          <input type="hidden" name="departure_date" value={departureDate} />
+          {/* Hidden input to submit the date value with the form — DatePicker handles accessibility */}
+          <input type="hidden" name="departure_date" value={departureDate} aria-hidden="true" />
         </div>
 
         <div>
@@ -119,17 +147,14 @@ export default function NewBooking() {
             id="preferred_time"
             name="preferred_time"
             defaultValue={actionData?.fields?.preferredTime ?? ""}
-            className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+            className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
           />
         </div>
 
         <div className="flex items-center gap-3 pt-2">
-          <button
-            type="submit"
-            className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 transition-colors"
-          >
+          <Button type="submit" size="md">
             Create Booking
-          </button>
+          </Button>
           <Link
             to="/bookings"
             className="text-sm text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:text-slate-100"
@@ -148,22 +173,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-400 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <Button size="md" onClick={() => window.location.reload()}>Try Again</Button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <Button size="md" onClick={() => window.location.reload()}>Try Again</Button>
       </div>
     </div>
   );

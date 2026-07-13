@@ -58,7 +58,7 @@ afterAll(async () => {
 describe("handleAssignBooking()", () => {
   const testUserId = MOCK_USER_IDS.ops;
 
-  // ── Test: Assigns a booking leg to a flight successfully ──────────────────
+  // â”€â”€ Test: Assigns a booking leg to a flight successfully â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("assigns a booking leg to a flight successfully", async () => {
     const schedule = await createTestSchedule({
       schedule_date: dateOnly(2026, 7, 15),
@@ -73,7 +73,7 @@ describe("handleAssignBooking()", () => {
 
     const bookingLeg = await createTestBookingLeg({
       booking_id: 1,
-      origin_code: "PSY",
+      origin_code: "STY",
       destination_code: "MPA",
       leg_date: dateOnly(2026, 7, 15),
       leg_sequence: 1,
@@ -97,7 +97,7 @@ describe("handleAssignBooking()", () => {
     expect(updatedRows[0]?.flight_id).toBe(flight.id);
   });
 
-  // ── Test: Returns error for non-existent booking leg (404) ────────────────
+  // â”€â”€ Test: Returns error for non-existent booking leg (404) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("returns error for non-existent booking leg (404)", async () => {
     const result = await handleAssignBooking(99999, 1);
     const err = getError(result);
@@ -107,11 +107,11 @@ describe("handleAssignBooking()", () => {
     expect(err!.error).toContain("not found");
   });
 
-  // ── Test: Returns error for non-existent flight (404) ─────────────────────
+  // â”€â”€ Test: Returns error for non-existent flight (404) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("returns error for non-existent flight (404)", async () => {
     const bookingLeg = await createTestBookingLeg({
       booking_id: 1,
-      origin_code: "PSY",
+      origin_code: "STY",
       destination_code: "MPA",
       leg_date: dateOnly(2026, 7, 15),
       leg_sequence: 1,
@@ -127,12 +127,12 @@ describe("handleAssignBooking()", () => {
       // If it doesn't throw, the FK constraint would fail on commit
       // (but we rollback anyway)
     } catch (e: unknown) {
-      // Prisma FK error is expected since flight 99999 doesn't exist
-      expect((e as { code: string }).code).toBe("P2003");
+      // Postgres FK error (23503 = foreign_key_violation) expected since flight 99999 doesn't exist
+      expect((e as { code: string }).code).toBe("23503");
     }
   });
 
-  // ── Test: Assigns multiple booking legs to the same flight ────────────────
+  // â”€â”€ Test: Assigns multiple booking legs to the same flight â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("assigns multiple booking legs to the same flight", async () => {
     const schedule = await createTestSchedule({
       schedule_date: dateOnly(2026, 7, 16),
@@ -147,7 +147,7 @@ describe("handleAssignBooking()", () => {
 
     const leg1 = await createTestBookingLeg({
       booking_id: 1,
-      origin_code: "PSY",
+      origin_code: "STY",
       destination_code: "MPA",
       leg_date: dateOnly(2026, 7, 15),
       leg_sequence: 1,
@@ -157,7 +157,7 @@ describe("handleAssignBooking()", () => {
 
     const leg2 = await createTestBookingLeg({
       booking_id: 1,
-      origin_code: "PSY",
+      origin_code: "STY",
       destination_code: "MPA",
       leg_date: dateOnly(2026, 7, 15),
       leg_sequence: 2,
@@ -195,7 +195,7 @@ describe("handleAssignBooking()", () => {
     );
   });
 
-  // ── Test: Handles race condition (simultaneous assignment) ────────────────
+  // â”€â”€ Test: Handles race condition (simultaneous assignment) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("handles race condition (simultaneous assignment)", async () => {
     const schedule = await createTestSchedule({
       schedule_date: dateOnly(2026, 7, 17),
@@ -210,7 +210,7 @@ describe("handleAssignBooking()", () => {
 
     const bookingLeg = await createTestBookingLeg({
       booking_id: 1,
-      origin_code: "PSY",
+      origin_code: "STY",
       destination_code: "MPA",
       leg_date: dateOnly(2026, 7, 15),
       leg_sequence: 1,

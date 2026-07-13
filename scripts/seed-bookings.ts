@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Seed script for generating realistic bookings with passengers.
  *
@@ -70,6 +71,23 @@ async function main() {
     validateReferenceData(refData);
     console.log("");
 
+    // 2b. Check no-fly dates — abort if target date is blocked
+    const noFlyResult = await pool.query(
+      `SELECT no_fly_date FROM no_fly_dates WHERE no_fly_date = $1`,
+      [targetDate],
+    );
+    if (noFlyResult.rows.length > 0) {
+      console.error(`\n  ❌ Cannot seed: ${targetDate} is a scheduled no-fly day.`);
+      console.error("     Choose a different date with --date YYYY-MM-DD\n");
+      process.exit(1);
+    }
+
+    // 2c. Fetch ALL upcoming no-fly dates for multi-day itinerary validation
+    const allNoFlyResult = await pool.query(
+      `SELECT no_fly_date FROM no_fly_dates WHERE no_fly_date >= CURRENT_DATE ORDER BY no_fly_date`,
+    );
+    const noFlyDates = new Set(allNoFlyResult.rows.map((r) => toISODate(r.no_fly_date)));
+
     // 3. Generate bookings
     const BOOKING_COUNT = 10;
     let successCount = 0;
@@ -80,6 +98,14 @@ async function main() {
         const passengerCount = pickPassengerCount();
         const passengers = generatePassengers(passengerCount);
         const itinerary = buildItinerary(refData, targetDate, i);
+
+        // Validate no leg date falls on a no-fly day
+        const blockedLegs = itinerary.legs.filter((l) => noFlyDates.has(l.leg_date));
+        if (blockedLegs.length > 0) {
+          const blocked = blockedLegs.map((l) => `${l.origin} → ${l.destination} (${l.leg_date})`).join(", ");
+          console.warn(`  ⚠  Skipping booking ${i + 1}: legs on no-fly dates — ${blocked}`);
+          continue;
+        }
 
         await writeBooking(pool, {
           legs: itinerary.legs,

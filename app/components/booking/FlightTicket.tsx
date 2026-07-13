@@ -1,4 +1,4 @@
-﻿import { useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import type { BookingLegRow } from "../../utils/repositories/booking-leg";
 import type { BookingPassengerRow } from "../../utils/repositories/booking-passenger";
 import type { BookingLegPassengerWithDetails } from "../../utils/repositories/booking-leg-passenger";
@@ -6,6 +6,7 @@ import BarcodeIcon from "../icons/BarcodeIcon";
 import BoardingPassIcon from "../icons/BoardingPassIcon";
 import AircraftIcon from "../icons/AircraftIcon";
 import "../../styles/ticket-print.css";
+import { formatDateFromISO } from "../../utils/dates";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -31,16 +32,6 @@ interface FlightTicketProps {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
-  if (isNaN(d.getTime())) return dateStr;
-  return d.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
 
 function getSeatForPassenger(
   passengerId: number,
@@ -97,7 +88,7 @@ function PassengerStrip({
       {primary.date_of_birth && (
         <div className="field">
           <span className="label">Date of Birth</span>
-          <span className="value">{formatDate(primary.date_of_birth)}</span>
+          <span className="value">{formatDateFromISO(primary.date_of_birth)}</span>
         </div>
       )}
       {extraCount > 0 && (
@@ -125,18 +116,18 @@ function TicketLeg({
     <div className="ticket-leg">
       <div className="ticket-leg-route">
         <span className="airport-code">{leg.origin_code}</span>
-        <span className="arrow">&rarr;</span>
+        <span className="arrow">{'\u2192'}</span>
         <span className="airport-code">{leg.destination_code}</span>
       </div>
       <div className="ticket-leg-details">
         <div className="detail">
           <span className="label">Date</span>
-          <span className="value">{formatDate(leg.leg_date)}</span>
+          <span className="value">{formatDateFromISO(leg.leg_date)}</span>
         </div>
         {leg.departure_date && (
           <div className="detail">
             <span className="label">Departure</span>
-            <span className="value">{formatDate(leg.departure_date)}</span>
+            <span className="value">{formatDateFromISO(leg.departure_date)}</span>
           </div>
         )}
         {leg.preferred_time && (
@@ -160,7 +151,7 @@ function TicketLeg({
                   key={p.id}
                   className="inline-flex items-center gap-1 mr-2"
                 >
-                  <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                  <span className="text-xs text-slate-500 dark:text-slate-500">
                     {p.first_name}
                   </span>
                   {status === "boarded" && (

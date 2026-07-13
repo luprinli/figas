@@ -34,7 +34,7 @@ export const paymentMethodRepository = {
       .selectFrom("payment_methods")
       .selectAll()
       .where("is_active", "=", true)
-      .orderBy("sort_order asc")
+      .orderBy("sort_order", "asc")
       .execute();
     return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
   },

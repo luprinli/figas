@@ -2,7 +2,7 @@ import { db } from "./db.server";
 
 /**
  * Convert an airframe_hours string ("HHHH:MM") to decimal hours.
- * Examples: "1234:30" → 1234.5, "0:45" → 0.75, null → 0
+ * Examples: "1234:30" \u2192 1234.5, "0:45" \u2192 0.75, null \u2192 0
  */
 export function parseHoursString(s: string | null | undefined): number {
   if (!s) return 0;
@@ -14,7 +14,7 @@ export function parseHoursString(s: string | null | undefined): number {
 
 /**
  * Convert decimal hours to airframe_hours string format ("HHHH:MM").
- * Examples: 1234.5 → "1234:30", 0.75 → "0:45"
+ * Examples: 1234.5 \u2192 "1234:30", 0.75 \u2192 "0:45"
  */
 export function formatHoursString(decimal: number): string {
   const h = Math.floor(decimal);
@@ -166,6 +166,7 @@ export async function updateAirframeHoursFromActual(
       hours_until_1000_check: formatHoursString(newUntil1000),
       hours_until_next_check: formatHoursString(newUntilNext),
       updated_at: new Date(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any)
     .where("id", "=", Number(record.id))
     .execute();

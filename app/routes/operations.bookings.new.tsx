@@ -1,13 +1,9 @@
-﻿import type { ActionFunctionArgs } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
+import type { HeadersFunction } from "@remix-run/node";
+import { json } from "@remix-run/node";
+export { action } from "./operations.bookings.new.action.server";
 import { Form, Link, useActionData, useLoaderData, useSubmit, useNavigation , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
-import { getUserId } from "../utils/auth.server";
-import { BookingSource, MAX_PASSENGERS_PER_BOOKING, DEFAULT_MAX_LEGS_PER_BOOKING } from "../utils/constants";
-import { bookingRepository } from "../utils/repositories/booking";
-import { bookingLegRepository } from "../utils/repositories/booking-leg";
-import { bookingPassengerRepository } from "../utils/repositories/booking-passenger";
-import { bookingLegPassengerRepository } from "../utils/repositories/booking-leg-passenger";
+import { MAX_PASSENGERS_PER_BOOKING, DEFAULT_MAX_LEGS_PER_BOOKING } from "../utils/constants";
 import { aerodromeRepository } from "../utils/repositories/aerodrome";
 import { getNoFlyDateStrings } from "../utils/services/no-fly.service";
 import { useState, useRef, useCallback, useMemo } from "react";
@@ -16,8 +12,10 @@ import LegsTable from "../components/LegsTable";
 import PassengersTable from "../components/PassengersTable";
 import Button from "../components/Button";
 import ConfirmDialog from "../components/ConfirmDialog";
-import { useDynamicFields, parseIndexedFormData } from "../utils/form-data";
+import { useDynamicFields } from "../utils/form-data";
 import { todayISO, daysFromNow } from "../utils/dates";
+import Skeleton from "../components/Skeleton";
+import PageLayout from "../components/PageLayout";
 
 /* ── Validation Types ─────────────────────────────────── */
 
@@ -50,6 +48,10 @@ function isValidTime(time: string): boolean {
   return TIME_REGEX.test(time);
 }
 
+export const headers: HeadersFunction = () => ({
+  "Cache-Control": "no-cache, no-store, must-revalidate",
+});
+
 /* ── Loader ────────────────────────────────────────────── */
 
 export async function loader() {
@@ -59,196 +61,6 @@ export async function loader() {
   const noFlyDates = await getNoFlyDateStrings(todayISO(), daysFromNow(90));
 
   return json({ aerodromes, noFlyDates });
-}
-
-/* ── Action ────────────────────────────────────────────── */
-
-export async function action({ request }: ActionFunctionArgs) {
-  const userId = await getUserId(request);
-
-  const formData = await request.formData();
-  const intent = formData.get("intent") as string;
-
-  if (intent === "search_passengers") {
-    const query = (formData.get("query") as string) ?? "";
-    if (query.trim().length < 2) {
-      return json({ passengers: [] });
-    }
-    try {
-      const passengers = await bookingPassengerRepository.search(query.trim(), 10);
-      return json({ passengers });
-    } catch (error) {
-      console.error("Passenger search failed:", error);
-      return json({ passengers: [] });
-    }
-  }
-
-  if (intent === "create") {
-    try {
-      const bookingSource = BookingSource.OPERATIONS_STAFF;
-      const createdBy = Number(userId);
-
-      // Parse legs from uncontrolled array-indexed fields
-      const legs = parseIndexedFormData<{
-        leg_origin: string;
-        leg_destination: string;
-        leg_date: string;
-        leg_preferred_time: string;
-      }>(formData, ["leg_origin", "leg_destination", "leg_date", "leg_preferred_time"], {
-        filterEmpty: true,
-      });
-
-      // Check raw formData for leg rows — filterEmpty may remove rows with empty fields
-      const rawOrigins = formData.getAll("leg_origin[]");
-      if (rawOrigins.length === 0) {
-        return json<{ error: string; fields?: Record<string, string> }>(
-          { error: "At least one leg is required." },
-          { status: 400 }
-        );
-      }
-
-      // Validate all leg dates are in the future and not no-fly days
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const noFlyDates = await getNoFlyDateStrings(todayISO(), daysFromNow(90));
-      const noFlySet = new Set(noFlyDates);
-      for (const leg of legs) {
-        if (leg.leg_origin === leg.leg_destination) {
-          return json<{ error: string; fields?: Record<string, string> }>(
-            { error: `Leg ${leg.leg_origin} → ${leg.leg_destination}: origin and destination must be different.` },
-            { status: 400 }
-          );
-        }
-        const legDate = new Date(leg.leg_date + "T00:00:00");
-        if (isNaN(legDate.getTime())) {
-          return json<{ error: string; fields?: Record<string, string> }>(
-            { error: `Leg ${leg.leg_origin} → ${leg.leg_destination}: invalid date.` },
-            { status: 400 }
-          );
-        }
-        if (legDate <= today) {
-          return json<{ error: string; fields?: Record<string, string> }>(
-            { error: `Leg ${leg.leg_origin} → ${leg.leg_destination} on ${leg.leg_date}: date must be in the future.` },
-            { status: 400 }
-          );
-        }
-        if (noFlySet.has(leg.leg_date)) {
-          return json<{ error: string; fields?: Record<string, string> }>(
-            { error: `Leg ${leg.leg_origin} → ${leg.leg_destination} on ${leg.leg_date}: this date is a no-fly day and cannot be booked.` },
-            { status: 400 }
-          );
-        }
-      }
-
-      // Parse passengers from uncontrolled array-indexed fields
-      const passengers = parseIndexedFormData<{
-        passenger_first_name: string;
-        passenger_last_name: string;
-        passenger_email: string;
-        passenger_phone: string;
-        passenger_dob: string;
-        passenger_weight: string;
-        passenger_residency: string;
-        passenger_special: string;
-        passenger_existing_id: string;
-      }>(formData, [
-        "passenger_first_name",
-        "passenger_last_name",
-        "passenger_email",
-        "passenger_phone",
-        "passenger_dob",
-        "passenger_weight",
-        "passenger_residency",
-        "passenger_special",
-        "passenger_existing_id",
-      ], { filterEmpty: true });
-
-      // Check raw formData for passenger rows — filterEmpty may remove rows with empty fields
-      const rawFirstNames = formData.getAll("passenger_first_name[]");
-      if (rawFirstNames.length === 0) {
-        return json<{ error: string; fields?: Record<string, string> }>(
-          { error: "At least one passenger is required." },
-          { status: 400 }
-        );
-      }
-
-      // ── Step 1: Create booking ──────────────────────────────
-      const booking = await bookingRepository.createPending(Number(userId), null, false, {
-        booking_source: bookingSource,
-        created_by: createdBy,
-      });
-
-      // ── Step 2: Create legs ─────────────────────────────────
-      const legIds: number[] = [];
-      for (let i = 0; i < legs.length; i++) {
-        const leg = legs[i];
-        const created = await bookingLegRepository.create({
-          booking_id: booking.id,
-          origin_code: leg.leg_origin,
-          destination_code: leg.leg_destination,
-          leg_date: leg.leg_date,
-          preferred_time: leg.leg_preferred_time || null,
-          preferred_time_start: null,
-          preferred_time_end: null,
-          leg_sequence: i + 1,
-        });
-        legIds.push(created.id);
-      }
-
-      // ── Step 3: Create passengers (new repository) ──────────
-      const passengerIds: number[] = [];
-      for (const p of passengers) {
-        const created = await bookingPassengerRepository.create({
-          booking_id: booking.id,
-          first_name: p.passenger_first_name,
-          last_name: p.passenger_last_name,
-          email: p.passenger_email,
-          phone: p.passenger_phone || null,
-          date_of_birth: p.passenger_dob,
-          clothed_weight_kg: Number(p.passenger_weight) || 0,
-          residency: p.passenger_residency,
-          special_requirements: p.passenger_special || null,
-        });
-        passengerIds.push(created.id);
-      }
-
-      // ── Step 4: Create junction records (link each passenger to each leg) ──
-      for (const passengerId of passengerIds) {
-        for (const legId of legIds) {
-          await bookingLegPassengerRepository.create({
-            booking_leg_id: legId,
-            booking_passenger_id: passengerId,
-            clothed_weight_kg: null, // will be set at check-in
-            baggage_weight_kg: 0,
-            baggage_description: null,
-            freight_description: null,
-            freight_weight_kg: 0,
-          });
-        }
-      }
-
-      // ── Step 5: Compute fares and update booking totals ──
-      const { computeBookingCost, updateBookingTotals } = await import("../utils/pricing/booking-costing.server");
-      const cost = await computeBookingCost({ bookingId: booking.id });
-      await updateBookingTotals(booking.id, cost.grandTotal);
-
-      return redirect(`/operations/bookings/${booking.id}?created=true&t=${Date.now()}`);
-    } catch (error) {
-      console.error("Booking creation failed:", error);
-      if (error instanceof Error && error.message.includes('origin and destination must be different')) {
-        return json<{ error: string }>(
-          { error: error.message },
-          { status: 400 }
-        );
-      }
-      return json<{ error: string }>(
-        { error: "Failed to create booking. Please try again." },
-        { status: 500 }
-      );
-    }
-  }
-
-  return json<{ error: string }>({ error: "Unknown intent" }, { status: 400 });
 }
 
 /* ── DOM Helper ───────────────────────────────────────── */
@@ -490,14 +302,29 @@ export default function OperationsNewBooking() {
     <Button
       type="button"
       variant="outlined"
+      size="sm"
       onClick={addSelfAsPassenger}
-      className="!px-3 !py-1.5 !text-sm"
     >
       + Self
     </Button>
   );
 
   /* ── Render ──────────────────────────────────────────── */
+
+  const isLoading = navigation.state === "loading" && !navigation.formData;
+
+  if (isLoading) {
+    return (
+      <PageLayout title="New Booking">
+        <div className="space-y-4" aria-live="polite" aria-busy="true">
+          <Skeleton className="h-8 w-48 rounded" />
+          <Skeleton className="h-12 w-full rounded" />
+          <Skeleton className="h-12 w-full rounded" />
+          <Skeleton className="h-64 w-full rounded" />
+        </div>
+      </PageLayout>
+    );
+  }
 
   return (
     <div className="mx-auto px-4">
@@ -546,8 +373,7 @@ export default function OperationsNewBooking() {
           <Button
             type="button"
             onClick={handleCreateClick}
-            variant="contained"
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            size="md"
           >
             Create Booking
           </Button>
@@ -584,7 +410,7 @@ export default function OperationsNewBooking() {
             {confirmLegs.map((leg, idx) => (
               <div
                 key={idx}
-                className="flex items-center gap-2 text-sm bg-slate-50 dark:bg-slate-700 rounded-lg px-3 py-2"
+                className="flex items-center gap-2 text-sm bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2"
               >
                 <span className="font-semibold text-slate-500 dark:text-slate-400 text-xs min-w-[2.5rem]">
                   Leg {idx + 1}
@@ -615,7 +441,7 @@ export default function OperationsNewBooking() {
                   </span>
                   {p.email && <span className="text-slate-500 text-xs">{p.email}</span>}
                   {p.existingId !== null && (
-                    <span className="text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded">existing</span>
+                    <span className="text-xs text-success bg-success/10 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded">existing</span>
                   )}
                 </div>
               ))}
@@ -633,22 +459,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-400 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <Button size="md" onClick={() => window.location.reload()}>Try Again</Button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <Button size="md" onClick={() => window.location.reload()}>Try Again</Button>
       </div>
     </div>
   );

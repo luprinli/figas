@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { kdb } from "../db.server";
 import { sql } from "kysely";
 import type { Kysely } from "kysely";
@@ -246,22 +247,43 @@ export async function unassignFromFlightLeg(
   `.execute(dbClient);
 }
 
+// ───────────────────────────────────────────────────────────────────────────────
+// Canonical passenger query — single source of truth for flight-loadsheet
+// consistency.  All callers (schedule loader, flight card, loadsheet) MUST use
+// this or `countAssignedByFlightId` to avoid drift.
+//
+// Derives from booking_legs.flight_id (the canonical assignment column), not
+// booking_leg_passengers.flight_leg_id (an optimisation column that may be NULL
+// during assignment windows).
+// ───────────────────────────────────────────────────────────────────────────────
+
+export interface PassengerManifestRow {
+  id: number;
+  booking_leg_id: number;
+  flight_leg_id: number | null;
+  flight_id: number;
+  passenger_name: string;
+  body_weight_kg: number;
+  baggage_weight_kg: number;
+  freight_weight_kg: number;
+  origin_code: string;
+  destination_code: string;
+}
+
 export async function findManifestsByFlightId(
   flightIds: number[]
-): Promise<
-  Array<{
-    id: number;
-    booking_leg_id: number;
-    flight_leg_id: number;
-    flight_id: number;
-    passenger_name: string;
-    body_weight_kg: number;
-    baggage_weight_kg: number;
-    freight_weight_kg: number;
-    origin_code: string;
-    destination_code: string;
-  }>
-> {
+): Promise<PassengerManifestRow[]> {
+  // Self-healing: backfill flight_id on sibling unassigned legs for bookings
+  // that were assigned before the propagation logic existed.
+  const idList = flightIds.join(",");
+  await sql`
+    UPDATE booking_legs bl SET flight_id = sibling.flight_id
+     FROM booking_legs sibling
+     WHERE bl.booking_id = sibling.booking_id
+       AND sibling.flight_id = ANY(${sql.raw(`ARRAY[${idList}]::int[]`)})
+       AND bl.flight_id IS NULL
+  `.execute(kdb);
+
   const rows = await sql`
     SELECT blp.id, blp.booking_leg_id, blp.flight_leg_id, fl.flight_id,
             CONCAT(bp.first_name, ' ', bp.last_name) AS passenger_name,
@@ -270,14 +292,40 @@ export async function findManifestsByFlightId(
             COALESCE(blp.freight_weight_kg, 0)::int AS freight_weight_kg,
             bl.origin_code, bl.destination_code
      FROM booking_leg_passengers blp
-     JOIN flight_legs fl ON fl.id = blp.flight_leg_id
      JOIN booking_legs bl ON bl.id = blp.booking_leg_id
      JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
-     WHERE blp.flight_leg_id IS NOT NULL
-       AND fl.flight_id = ANY(${sql.raw(`ARRAY[${flightIds.join(",")}]::int[]`)})
+     LEFT JOIN flight_legs fl ON fl.id = blp.flight_leg_id
+     WHERE bl.flight_id = ANY(${sql.raw(`ARRAY[${idList}]::int[]`)})
      ORDER BY blp.id
   `.execute(kdb);
-  return rows.rows as any;
+  return rows.rows as PassengerManifestRow[];
+}
+
+/**
+ * Canonical passenger count for a flight — single source of truth for both
+ * flight card pax counts and loadsheet total_pax.
+ */
+export async function countAssignedByFlightId(
+  flightId: number
+): Promise<number> {
+  const rows = await sql`
+    SELECT COUNT(*)::int AS cnt
+     FROM booking_leg_passengers blp
+     JOIN booking_legs bl ON bl.id = blp.booking_leg_id
+     WHERE bl.flight_id = ${flightId}
+  `.execute(kdb);
+  return Number((rows.rows[0] as { cnt: number | bigint } | undefined)?.cnt ?? 0);
+}
+
+export async function flightHasAssignedPassengers(
+  flightId: number
+): Promise<boolean> {
+  const rows = await sql`
+    SELECT 1 FROM booking_legs bl
+     WHERE bl.flight_id = ${flightId}
+     LIMIT 1
+  `.execute(kdb);
+  return rows.rows.length > 0;
 }
 
 export async function findUnassignedByDate(
@@ -304,22 +352,11 @@ export async function findUnassignedByDate(
      JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
      WHERE blp.flight_leg_id IS NULL
        AND bl.leg_date = ${date}
+       AND bl.leg_sequence = 1
        AND b.status NOT IN ('cancelled', 'completed')
      ORDER BY b.booking_reference, bp.last_name, bp.first_name
   `.execute(kdb);
   return rows.rows as any;
-}
-
-export async function countAssignedByFlightId(
-  flightId: number
-): Promise<number> {
-  const rows = await sql`
-    SELECT COUNT(*)::int AS cnt
-     FROM booking_leg_passengers blp
-     JOIN flight_legs fl ON fl.id = blp.flight_leg_id
-     WHERE fl.flight_id = ${flightId}
-  `.execute(kdb);
-  return Number((rows.rows[0] as { cnt: number | bigint } | undefined)?.cnt ?? 0);
 }
 
 export async function findByBookingLegId(
@@ -350,8 +387,114 @@ export async function findByBookingLegId(
      FROM booking_leg_passengers blp
      JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
      JOIN booking_legs bl ON bl.id = blp.booking_leg_id
-     WHERE blp.booking_leg_id = ${bookingLegId}
-     ORDER BY blp.id
+      WHERE blp.booking_leg_id = ${bookingLegId}
+      ORDER BY blp.id
   `.execute(kdb);
   return rows.rows as any;
+}
+
+export async function findByBookingLegIds(
+  legIds: number[]
+): Promise<
+  Array<{
+    id: number;
+    booking_leg_id: number;
+    flight_leg_id: number | null;
+    passenger_name: string;
+    passenger_count: number;
+    body_weight_kg: number;
+    baggage_weight_kg: number;
+    freight_weight_kg: number;
+    origin_code: string;
+    destination_code: string;
+  }>
+> {
+  if (legIds.length === 0) return [];
+  const idList = legIds.join(",");
+  const rows = await sql`
+    SELECT blp.id, blp.booking_leg_id, blp.flight_leg_id,
+            CONCAT(bp.first_name, ' ', bp.last_name) AS passenger_name,
+            1 AS passenger_count,
+            COALESCE(blp.clothed_weight_kg, 70) AS body_weight_kg,
+            COALESCE(blp.baggage_weight_kg, 0) AS baggage_weight_kg,
+            COALESCE(blp.freight_weight_kg, 0) AS freight_weight_kg,
+            bl.origin_code,
+            bl.destination_code
+     FROM booking_leg_passengers blp
+     JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
+     JOIN booking_legs bl ON bl.id = blp.booking_leg_id
+      WHERE blp.booking_leg_id = ANY(${sql.raw(`ARRAY[${idList}]::int[]`)})
+      ORDER BY blp.id
+  `.execute(kdb);
+  return rows.rows as any;
+}
+
+// ── Per-flight-leg assignment manifest lookup ─────────────────────────────────
+// Uses booking_leg_passengers.flight_leg_id (direct assignment column) to find
+// passengers assigned to a specific flight. Complements findManifestsByFlightId
+// which uses the canonical booking_legs.flight_id column.
+
+export interface AssignedManifestRow {
+  id: number;
+  booking_leg_id: number;
+  flight_leg_id: number;
+  passenger_name: string;
+  body_weight_kg: number;
+  baggage_weight_kg: number;
+  freight_weight_kg: number;
+  origin_code: string;
+  destination_code: string;
+}
+
+export async function findAssignedManifestsByFlightId(
+  flightId: number,
+  options?: {
+    bookingLegPassengerIds?: number[];
+    client?: Kysely<DB>;
+  }
+): Promise<AssignedManifestRow[]> {
+  const dbClient = options?.client ?? kdb;
+  const passengerFilter = options?.bookingLegPassengerIds?.length
+    ? sql`AND blp.id = ANY(${sql.raw(`ARRAY[${options.bookingLegPassengerIds.join(",")}]::int[]`)})`
+    : sql``;
+
+  const rows = await sql`
+    SELECT blp.id, blp.booking_leg_id, blp.flight_leg_id,
+            CONCAT(bp.first_name, ' ', bp.last_name) AS passenger_name,
+            COALESCE(blp.clothed_weight_kg, 70)::int AS body_weight_kg,
+            COALESCE(blp.baggage_weight_kg, 0)::int AS baggage_weight_kg,
+            COALESCE(blp.freight_weight_kg, 0)::int AS freight_weight_kg,
+            bl.origin_code, bl.destination_code
+     FROM booking_leg_passengers blp
+     JOIN booking_legs bl ON bl.id = blp.booking_leg_id
+     JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
+      WHERE blp.flight_leg_id IS NOT NULL
+        AND blp.flight_leg_id IN (SELECT id FROM flight_legs WHERE flight_id = ${flightId}) ${passengerFilter}
+      ORDER BY blp.id
+  `.execute(dbClient);
+  return rows.rows as AssignedManifestRow[];
+}
+
+// ── Check-in helpers ──────────────────────────────────────────────────────────
+
+export async function findUncheckedByFlightId(flightId: number): Promise<Array<{ id: number }>> {
+  const result = await sql<{ id: number }>`
+    SELECT blp.id
+     FROM booking_leg_passengers blp
+     JOIN booking_legs bl ON bl.id = blp.booking_leg_id
+     WHERE bl.flight_id = ${flightId} AND blp.checked_in = false
+  `.execute(kdb);
+  return result.rows;
+}
+
+export async function createPaymentForCheckin(
+  legPaxId: number,
+  amount: number,
+  method: string,
+  reference: string
+): Promise<void> {
+  await sql`
+    INSERT INTO payments (booking_id, amount, amount_gbp, method, status, transaction_reference, created_at)
+     VALUES ((SELECT bl.booking_id FROM booking_leg_passengers blp JOIN booking_legs bl ON bl.id = blp.booking_leg_id WHERE blp.id = ${legPaxId}), ${amount}, ${amount}, ${method}, 'completed', ${reference}, NOW())
+  `.execute(kdb);
 }

@@ -5,7 +5,7 @@ import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
 import { kdb } from "../utils/db.server.kysely";
 import { sql } from "kysely";
-import DashboardCard from "../components/DashboardCard";
+import MetricCard from "../components/MetricCard";
 import Skeleton from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import { Building2 } from "lucide-react";
@@ -86,14 +86,14 @@ export default function PilotDashboard() {
                 <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
                     Welcome, {user.name}
                 </h1>
-                <span className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                <span className="text-sm text-slate-500 dark:text-slate-400">
                     {new Date(today).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
                 </span>
             </div>
 
             {/* KPI Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <DashboardCard
+                <MetricCard
                     label="Today's Flights"
                     value={flights.length}
                     color="blue"
@@ -101,18 +101,18 @@ export default function PilotDashboard() {
                         <Building2 size={24} />
                     }
                 />
-                <DashboardCard
+                <MetricCard
                     label="Active Schedule"
-                    value={activeSchedule ? "Published" : "—"}
+                    value={activeSchedule ? "Published" : "Ã¢â‚¬â€"}
                     color="emerald"
                     to={activeSchedule ? `/pilot/schedule/${activeSchedule.id}` : undefined}
                 />
-                <DashboardCard
+                <MetricCard
                     label="Next Flight"
-                    value={nextFlight ? (nextFlight.departure_time as string).slice(11, 16) : "—"}
+                    value={nextFlight ? (nextFlight.departure_time as string).slice(11, 16) : "Ã¢â‚¬â€"}
                     color={nextFlight ? "blue" : "purple"}
                 />
-                <DashboardCard
+                <MetricCard
                     label="Upcoming Schedules"
                     value={schedules.length}
                     color="purple"
@@ -120,7 +120,7 @@ export default function PilotDashboard() {
             </div>
 
             {/* Today's Sorties */}
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 overflow-hidden">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex justify-between items-center">
                     <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
 Today&rsquo;s Sorties
@@ -142,7 +142,7 @@ Today&rsquo;s Sorties
                                         <p className="text-sm font-bold text-slate-800 dark:text-slate-100 tabular-nums">
                                             {(flight.departure_time as string).slice(11, 16)}
                                         </p>
-                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400">
                                             {(flight.arrival_time as string).slice(11, 16)}
                                         </p>
                                     </div>
@@ -151,7 +151,7 @@ Today&rsquo;s Sorties
                                             {flight.flight_number as string}
                                         </p>
                                         <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                                            {flight.origin_code as string} → {flight.destination_code as string}
+                                            {flight.origin_code as string} \u2192 {flight.destination_code as string}
                                         </p>
                                     </div>
                                 </div>
@@ -185,7 +185,7 @@ Today&rsquo;s Sorties
             </div>
 
             {/* Upcoming Schedule */}
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 overflow-hidden">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
                     <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
                         Upcoming Schedule
@@ -205,7 +205,7 @@ Today&rsquo;s Sorties
                                             weekday: "short", day: "numeric", month: "short",
                                         })}
                                     </p>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
                                         Status: {(s.status as string).replace("_", " ")}
                                     </p>
                                 </div>
@@ -228,22 +228,22 @@ export function ErrorBoundary() {
     const error = useRouteError();
     if (isRouteErrorResponse(error)) {
         return (
-            <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+            <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
                 <div className="mx-auto max-w-lg text-center px-4">
-                    <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+                    <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
                     <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-                    <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-                    <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+                    <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+                    <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
                 </div>
             </div>
         );
     }
     return (
-        <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+        <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
             <div className="mx-auto max-w-lg text-center px-4">
                 <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-                <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-                <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+                <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+                <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
             </div>
         </div>
     );

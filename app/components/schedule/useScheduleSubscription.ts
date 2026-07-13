@@ -17,6 +17,8 @@ export function useScheduleSubscription({ scheduleId, onUpdate }: UseScheduleSub
   const [connected, setConnected] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onUpdateRef = useRef(onUpdate);
+  onUpdateRef.current = onUpdate;
 
   useEffect(() => {
     if (!scheduleId) return;
@@ -35,7 +37,7 @@ export function useScheduleSubscription({ scheduleId, onUpdate }: UseScheduleSub
         try {
           const event: ScheduleEvent = JSON.parse(e.data);
           setLastEvent(event);
-          onUpdate?.(event);
+          onUpdateRef.current?.(event);
         } catch {
           // parse error — ignore
         }
@@ -54,7 +56,7 @@ export function useScheduleSubscription({ scheduleId, onUpdate }: UseScheduleSub
       if (eventSourceRef.current) eventSourceRef.current.close();
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
     };
-  }, [scheduleId, onUpdate]);
+  }, [scheduleId]);
 
   return { lastEvent, connected };
 }

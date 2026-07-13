@@ -1,0 +1,48 @@
+import { isRouteErrorResponse, useRouteError } from "@remix-run/react";
+
+export default function ErrorFallback() {
+  const error = useRouteError();
+
+  if (isRouteErrorResponse(error)) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
+        <div className="mx-auto max-w-lg text-center px-4">
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">
+            {error.status}
+          </div>
+          <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">
+            {error.statusText || "Something went wrong"}
+          </h1>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
+            {error.data || "An unexpected error occurred."}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            Try Again
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
+      <div className="mx-auto max-w-lg text-center px-4">
+        <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">
+          Unexpected Error
+        </h1>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
+          An unexpected error occurred. Please try again.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          Try Again
+        </button>
+      </div>
+    </main>
+  );
+}

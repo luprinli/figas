@@ -1,8 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { kdb } from "../db.server.kysely";
-import { sql } from "kysely";
-import type { DB } from "../../../generated/kysely/database";
 import { bankTransactionRepository } from "../repositories/bank-transaction";
-import { ReconciliationStatus } from "../constants";
+import { ReconciliationStatus, PaymentStatus } from "../constants";
 
 export interface GetUnmatchedTransactionsParams {
   dateFrom?: string;
@@ -149,7 +148,7 @@ export async function autoMatchTransactions(
     // Fetch payments with status 'paid' in the date range
     let paymentsQuery = kdb.selectFrom("payments")
       .select(["id", "amount_gbp"])
-      .where("status", "=", "paid");
+      .where("status", "=", PaymentStatus.PAID);
     if (params.dateFrom) {
       paymentsQuery = paymentsQuery.where("created_at", ">=", new Date(params.dateFrom) as any);
     }

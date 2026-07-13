@@ -1,4 +1,4 @@
-﻿import { useState, useRef, type ReactNode } from "react";
+import { useState, useRef, type ReactNode } from "react";
 import Button from "./Button";
 import DatePicker from "./DatePicker";
 import Delete from "./icons/Delete";
@@ -132,7 +132,7 @@ export default function LegsTable({
         key={stableKey}
         className={isCommitted ? "bg-sky-50/40" : undefined}
       >
-        <td className="whitespace-nowrap px-3 py-2 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <td className="whitespace-nowrap px-3 py-2 text-sm text-slate-500 dark:text-slate-500">
           {idx + 1}
         </td>
         <td className="whitespace-nowrap px-3 py-2">
@@ -140,8 +140,10 @@ export default function LegsTable({
             name="leg_origin[]"
             defaultValue={initialValues?.[idx]?.origin ?? ""}
             className={originError ? selectErrorClass : selectClass}
+            required
             onChange={() => onErrorClear?.(`leg_origin_${idx}`)}
             onBlur={() => onErrorClear?.(`leg_origin_${idx}`)}
+            aria-label={`Leg ${idx + 1} origin`}
           >
             <option value="">—</option>
             {aerodromes.map((a) => (
@@ -159,8 +161,10 @@ export default function LegsTable({
             name="leg_destination[]"
             defaultValue={initialValues?.[idx]?.destination ?? ""}
             className={destinationError ? selectErrorClass : selectClass}
+            required
             onChange={() => onErrorClear?.(`leg_destination_${idx}`)}
             onBlur={() => onErrorClear?.(`leg_destination_${idx}`)}
+            aria-label={`Leg ${idx + 1} destination`}
           >
             <option value="">—</option>
             {aerodromes.map((a) => (
@@ -192,6 +196,7 @@ export default function LegsTable({
               type="hidden"
               name="leg_date[]"
               value={legDates[idx] ?? ""}
+              required
             />
             {dateError && (
               <p className="text-red-500 text-xs mt-1">{dateError}</p>
@@ -210,6 +215,7 @@ export default function LegsTable({
             }`}
             onChange={() => onErrorClear?.(`leg_preferred_time_${idx}`)}
             onBlur={() => onErrorClear?.(`leg_preferred_time_${idx}`)}
+            aria-label={`Leg ${idx + 1} preferred time`}
           />
           {timeError && (
             <p className="text-red-500 text-xs mt-1">{timeError}</p>
@@ -230,26 +236,26 @@ export default function LegsTable({
       </div>
 
       {/* Table */}
-      <div className="overflow-x-visible">
+      <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
           <thead className="bg-slate-50 dark:bg-slate-700">
             <tr>
-              <th className="w-12 px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <th className="w-12 px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
                 #
               </th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
                 Origin
               </th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
                 Destination
               </th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
                 Date
               </th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
                 Preferred Time
               </th>
-              <th className="w-20 px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <th className="w-20 px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
                 Action
               </th>
             </tr>

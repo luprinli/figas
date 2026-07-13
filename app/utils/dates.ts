@@ -111,7 +111,7 @@ export function getDaysInMonth(year: number, month: number): number {
 
 /**
  * Generate a grid of day numbers for a month (including leading nulls for alignment).
- * The grid always has 42 cells (6 rows × 7 columns).
+ * The grid always has 42 cells (6 rows �— 7 columns).
  */
 export function getCalendarGrid(year: number, month: number): (number | null)[] {
   const daysInMonth = getDaysInMonth(year, month);
@@ -141,6 +141,35 @@ export function formatDate(year: number, month: number, day: number): string {
   const y = year;
   const m = String(month + 1).padStart(2, "0");
   const d = String(day).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Formats an ISO date string or Date object to a display-friendly date string.
+ * Returns "en-GB" locale format (e.g. "15 Jan 2026").
+ * Handles timezone-safe parsing by using noon UTC.
+ */
+export function formatDateFromISO(dateStr: string | Date): string {
+  try {
+    const d = dateStr instanceof Date ? dateStr : new Date(dateStr + "T12:00:00");
+    if (isNaN(d.getTime())) return String(dateStr);
+    return d.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return String(dateStr);
+  }
+}
+
+/**
+ * Formats a Date object to YYYY-MM-DD string.
+ */
+export function formatDateObj(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
 

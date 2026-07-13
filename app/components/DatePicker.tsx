@@ -1,4 +1,4 @@
-﻿import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import {
   MONTH_NAMES,
   DAY_NAMES_SHORT,
@@ -131,6 +131,7 @@ export default function DatePicker({
       <button
         type="button"
         onClick={() => setIsOpen((o) => !o)}
+        aria-label="Open date picker"
         className="flex items-center gap-2 px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 dark:hover:bg-slate-600 transition-colors text-slate-700 dark:text-slate-200 min-w-[220px] w-full"
       >
         <svg
@@ -164,7 +165,7 @@ export default function DatePicker({
 
       {/* ── Calendar panel ───────────────────────────────────────── */}
       {isOpen && (
-        <div className="absolute left-0 top-full mt-2 z-50 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 shadow-lg dark:shadow-slate-900/50 dark:shadow-slate-900/50 p-4 w-full min-w-[280px]">
+        <div className="absolute left-0 top-full mt-2 z-50 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-slate-900/50 p-4 w-full min-w-[280px]">
           {/* Month header */}
           <div className="flex items-center justify-between mb-2">
             <button

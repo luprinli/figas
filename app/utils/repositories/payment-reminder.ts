@@ -45,6 +45,7 @@ export const paymentReminderRepository = {
         reminder_type: params.reminder_type,
         scheduled_at: new Date(params.scheduled_at),
         sent_to: params.sent_to || undefined,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       .returningAll()
       .execute();
@@ -57,7 +58,7 @@ export const paymentReminderRepository = {
       .selectAll()
       .where("status", "=", "pending")
       .where("scheduled_at", "<=", new Date().toISOString())
-      .orderBy("scheduled_at asc")
+      .orderBy("scheduled_at", "asc")
       .execute();
     return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
   },
@@ -65,6 +66,7 @@ export const paymentReminderRepository = {
   async markSent(id: string, sentTo: string): Promise<PaymentReminderRow | null> {
     const rows = await kdb
       .updateTable("payment_reminders")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .set({ status: "sent", sent_at: new Date(), sent_to: sentTo } as any)
       .where("id", "=", id)
       .returningAll()
@@ -75,6 +77,7 @@ export const paymentReminderRepository = {
   async markFailed(id: string, errorMessage: string): Promise<PaymentReminderRow | null> {
     const rows = await kdb
       .updateTable("payment_reminders")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .set({ status: "failed", error_message: errorMessage } as any)
       .where("id", "=", id)
       .returningAll()

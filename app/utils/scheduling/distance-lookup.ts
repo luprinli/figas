@@ -75,8 +75,8 @@ function parseDistanceCSV(csvContent: string): Map<string, number> {
       const dest = headers[j - 1];
       const val = parseInt(cells[j], 10);
       if (dest && !isNaN(val) && val > 0) {
-        map.set(`${origin}→${dest}`, val);
-        map.set(`${dest}→${origin}`, val);
+        map.set(`${origin}\u2192${dest}`, val);
+        map.set(`${dest}\u2192${origin}`, val);
       }
     }
   }
@@ -88,8 +88,8 @@ function parseDistanceCSV(csvContent: string): Map<string, number> {
 function buildBidirectionalMap(distances: DistanceRow[]): Map<string, number> {
   const map = new Map<string, number>();
   for (const d of distances) {
-    map.set(`${d.origin}→${d.destination}`, d.distance_nm);
-    map.set(`${d.destination}→${d.origin}`, d.distance_nm);
+    map.set(`${d.origin}\u2192${d.destination}`, d.distance_nm);
+    map.set(`${d.destination}\u2192${d.origin}`, d.distance_nm);
   }
   return map;
 }
@@ -97,7 +97,7 @@ function buildBidirectionalMap(distances: DistanceRow[]): Map<string, number> {
 // ── Unified lookup API ────────────────────────────────────────────────────────
 
 export async function lookupDistance(from: string, to: string): Promise<number> {
-  const key = `${from}→${to}`;
+  const key = `${from}\u2192${to}`;
   if (!dbMap) await loadDistances();
   const dbVal = dbMap!.get(key);
   if (dbVal != null && dbVal > 0) return dbVal;
@@ -107,12 +107,12 @@ export async function lookupDistance(from: string, to: string): Promise<number> 
 
 export function getDistanceFast(from: string, to: string): number {
   if (!dbMap) return 0;
-  return dbMap.get(`${from}→${to}`) ?? 0;
+  return dbMap.get(`${from}\u2192${to}`) ?? 0;
 }
 
 export async function getCSVDistance(from: string, to: string): Promise<number> {
   if (!csvMap) await loadCSVMap();
-  return csvMap!.get(`${from}→${to}`) ?? 0;
+  return csvMap!.get(`${from}\u2192${to}`) ?? 0;
 }
 
 export function getDistance(

@@ -1,4 +1,4 @@
-﻿import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { Form, Link, useActionData, useLoaderData, useSubmit, useNavigation , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
@@ -58,6 +58,10 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => {
   if (!data?.booking) return [{ title: "Booking Not Found | FIGAS" }];
   return [{ title: `Edit Booking ${data.booking.booking_reference} | FIGAS Operations` }];
 };
+
+export const headers: HeadersFunction = () => ({
+  "Cache-Control": "no-cache, no-store, must-revalidate",
+});
 
 /* ── Loader ────────────────────────────────────────────── */
 
@@ -161,26 +165,26 @@ export async function action({ request, params }: ActionFunctionArgs) {
       for (const leg of legs) {
         if (leg.leg_origin === leg.leg_destination) {
           return json<{ error: string; fields?: Record<string, string> }>(
-            { error: `Leg ${leg.leg_origin} → ${leg.leg_destination}: origin and destination must be different.` },
+            { error: `Leg ${leg.leg_origin} \u2192 ${leg.leg_destination}: origin and destination must be different.` },
             { status: 400 }
           );
         }
         const legDate = new Date(leg.leg_date + "T00:00:00");
         if (isNaN(legDate.getTime())) {
           return json<{ error: string; fields?: Record<string, string> }>(
-            { error: `Leg ${leg.leg_origin} → ${leg.leg_destination}: invalid date.` },
+            { error: `Leg ${leg.leg_origin} \u2192 ${leg.leg_destination}: invalid date.` },
             { status: 400 }
           );
         }
         if (legDate <= today) {
           return json<{ error: string; fields?: Record<string, string> }>(
-            { error: `Leg ${leg.leg_origin} → ${leg.leg_destination} on ${leg.leg_date}: date must be in the future.` },
+            { error: `Leg ${leg.leg_origin} \u2192 ${leg.leg_destination} on ${leg.leg_date}: date must be in the future.` },
             { status: 400 }
           );
         }
         if (noFlySet.has(leg.leg_date)) {
           return json<{ error: string; fields?: Record<string, string> }>(
-            { error: `Leg ${leg.leg_origin} → ${leg.leg_destination} on ${leg.leg_date}: this date is a no-fly day and cannot be booked.` },
+            { error: `Leg ${leg.leg_origin} \u2192 ${leg.leg_destination} on ${leg.leg_date}: this date is a no-fly day and cannot be booked.` },
             { status: 400 }
           );
         }
@@ -563,8 +567,8 @@ export default function OperationsEditBooking() {
     <Button
       type="button"
       variant="outlined"
+      size="sm"
       onClick={addSelfAsPassenger}
-      className="!px-3 !py-1.5 !text-sm"
     >
       + Self
     </Button>
@@ -624,17 +628,17 @@ export default function OperationsEditBooking() {
 
         {/* ── Submit button ──────────────────────────────── */}
         <div className="flex items-center justify-end gap-3">
-          <Link
+          <Button
             to={`/operations/bookings/${bookingId}`}
-            className="rounded-lg border border-slate-300 dark:border-slate-600 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+            variant="outlined"
+            size="md"
           >
             Cancel
-          </Link>
+          </Button>
           <Button
             type="button"
             onClick={handleSaveClick}
-            variant="contained"
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            size="md"
           >
             Save Changes
           </Button>
@@ -671,7 +675,7 @@ export default function OperationsEditBooking() {
             {confirmLegs.map((leg, idx) => (
               <div
                 key={idx}
-                className="flex items-center gap-2 text-sm bg-slate-50 dark:bg-slate-700 rounded-lg px-3 py-2"
+                className="flex items-center gap-2 text-sm bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2"
               >
                 <span className="font-semibold text-slate-500 dark:text-slate-400 text-xs min-w-[2.5rem]">
                   Leg {idx + 1}
@@ -702,7 +706,7 @@ export default function OperationsEditBooking() {
                   </span>
                   {p.email && <span className="text-slate-500 text-xs">{p.email}</span>}
                   {p.existingId !== null && (
-                    <span className="text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded">existing</span>
+                    <span className="text-xs text-success bg-success/10 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded">existing</span>
                   )}
                 </div>
               ))}
@@ -720,22 +724,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <Button size="md" onClick={() => window.location.reload()}>Try Again</Button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <Button size="md" onClick={() => window.location.reload()}>Try Again</Button>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, useRef, useEffect, useId, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 
 interface ExpandableSectionProps {
@@ -22,6 +22,8 @@ function ExpandableSection({
 }: ExpandableSectionProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const contentRef = useRef<HTMLDivElement>(null);
+  const id = useId();
+  const headerId = `${id}-header`;
   const contentId = `expandable-content-${title.replace(/\s+/g, "-").toLowerCase()}`;
 
   const toggle = () => setExpanded((prev) => !prev);
@@ -45,6 +47,7 @@ function ExpandableSection({
       {/* Header */}
       <button
         type="button"
+        id={headerId}
         aria-expanded={expanded}
         aria-controls={contentId}
         onClick={toggle}
@@ -80,6 +83,7 @@ function ExpandableSection({
         ref={contentRef}
         id={contentId}
         role="region"
+        aria-labelledby={headerId}
         className="transition-all duration-300 ease-in-out overflow-hidden"
         style={{ maxHeight: "0" }}
       >

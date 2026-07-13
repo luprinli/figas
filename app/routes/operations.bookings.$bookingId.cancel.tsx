@@ -1,8 +1,9 @@
-import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
+import { useState } from "react";
 import { useLoaderData, useFetcher , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
-import { requirePermission } from "../utils/permissions.server";
+import { requirePermission, createAuditLogEntry } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
 import { kdb } from "../utils/db.server.kysely";
 import { sql } from "kysely";
@@ -11,6 +12,10 @@ import Button from "../components/Button";
 export const meta: MetaFunction<typeof loader> = ({ data }) => [
     { title: `Cancel Booking — ${data?.bookingRef ?? ""} - FIGAS` },
 ];
+
+export const headers: HeadersFunction = () => ({
+  "Cache-Control": "no-cache, no-store, must-revalidate",
+});
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
     await requirePermission(request, Permission.BOOKING_EDIT);
@@ -29,13 +34,22 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 }
 
 export async function action({ request, params }: ActionFunctionArgs) {
-    await requirePermission(request, Permission.BOOKING_EDIT);
+    const user = await requirePermission(request, Permission.BOOKING_EDIT);
     const formData = await request.formData();
     const reason = formData.get("reason") as string;
+    const bookingId = Number(params.bookingId);
+
+    await createAuditLogEntry({
+      actorId: Number(user.id),
+      action: "booking.cancelled",
+      entityType: "booking",
+      entityId: bookingId,
+      newValues: { status: "cancelled", cancellation_reason: reason || "No reason provided" },
+    }).catch(() => {});
 
     await sql`
         UPDATE bookings SET status = ${"cancelled"}, cancellation_reason = ${reason || "No reason provided"}, updated_at = NOW()
-     WHERE id = ${Number(params.bookingId)}
+     WHERE id = ${bookingId}
     `.execute(kdb);
 
     return redirect(`/operations/bookings/${params.bookingId}`);
@@ -45,6 +59,8 @@ export default function CancelBooking() {
     const { bookingRef, status } = useLoaderData<typeof loader>();
     const fetcher = useFetcher();
     const submitting = fetcher.state !== "idle";
+
+    const [reasonText, setReasonText] = useState("");
 
     if (status === "cancelled") {
         return (
@@ -72,12 +88,15 @@ export default function CancelBooking() {
                             id="reason"
                             name="reason"
                             rows={3}
-                            className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            required
+                            value={reasonText}
+                            onChange={(e) => setReasonText(e.target.value)}
+                            className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                             placeholder="Provide a reason for cancellation..."
                         />
                     </div>
                     <div className="flex gap-3">
-                        <Button type="submit" loading={submitting}>
+                        <Button type="submit" loading={submitting} disabled={reasonText.trim().length === 0}>
                             Confirm Cancellation
                         </Button>
                         <Button variant="outlined" to={`/operations/bookings/${bookingRef}`}>
@@ -96,22 +115,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <Button size="md" onClick={() => window.location.reload()}>Try Again</Button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <Button size="md" onClick={() => window.location.reload()}>Try Again</Button>
       </div>
     </div>
   );

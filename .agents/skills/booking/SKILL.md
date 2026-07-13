@@ -58,7 +58,7 @@ BookingWizard (4-step flow)
 │   └── Creates booking_passengers records
 │
 └── Step 4: Junction (Confirmation)
-    ├── Creates booking_leg_passengers (junction) for each passenger × leg
+    ├── Creates booking_leg_passengers (junction) for each passenger �— leg
     ├── Fare calculation via computeBookingCost()
     ├── Payment method selection
     ├── Stripe session creation OR invoice generation
@@ -140,7 +140,7 @@ Each booking has 1+ `booking_passengers` with:
 
 ### Junction Table (`booking_leg_passengers`)
 
-For each passenger × leg combination, a junction record is created:
+For each passenger �— leg combination, a junction record is created:
 ```
 booking_leg_passengers
 ├── booking_leg_id → booking_legs (which leg)
@@ -274,7 +274,7 @@ All status changes, cancellations, and payment records are tracked via `audit_lo
 - ✅ Do use `bookingRepository.createPending()` as the single entry point for booking creation
 - ✅ Do generate booking references exclusively via `generateReference()` in `booking.ts`
 - ✅ Do use `computeBookingCost()` from `booking-costing.server.ts` for all fare calculations
-- ✅ Do create `booking_leg_passengers` junction records for every passenger × leg combination
+- ✅ Do create `booking_leg_passengers` junction records for every passenger �— leg combination
 - ✅ Do maintain `leg_sequence` as sequential integers starting from 1
 - ✅ Do use `bookingRepository.search()` for ILIKE search across names/email/phone/reference
 - ✅ Do set `booking_source` appropriately: `"customer_direct"`, `"booking_agent"`, or `"manual_entry"`

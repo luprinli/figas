@@ -1,5 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { kdb } from "../db.server";
 import { sql } from "kysely";
+import { StripePaymentStatus } from "../constants";
 
 export interface StripePaymentRow {
   id: string;
@@ -69,7 +71,7 @@ export const stripePaymentRepository = {
         stripe_customer_id: params.stripe_customer_id || undefined,
         amount_gbp: String(params.amount_gbp),
         currency: params.currency || "GBP",
-        status: params.status ?? "pending",
+        status: params.status ?? StripePaymentStatus.PENDING,
         idempotency_key: params.idempotency_key || undefined,
       } as any)
       .returningAll()
@@ -115,7 +117,7 @@ export const stripePaymentRepository = {
       .selectAll("sp")
       .select("p.booking_id as payment_booking_id")
       .where("p.booking_id", "=", bookingId)
-      .orderBy("sp.created_at desc")
+      .orderBy("sp.created_at", "desc")
       .execute();
     return rows.length > 0 ? toRow(rows[0] as unknown as Record<string, unknown>) : null;
   },
@@ -145,9 +147,9 @@ export const stripePaymentRepository = {
   async atomicClaimProcessing(sessionId: string): Promise<boolean> {
     const result = await kdb
       .updateTable("stripe_payments")
-      .set({ status: "processing" } as any)
+      .set({ status: StripePaymentStatus.PROCESSING } as any)
       .where("stripe_session_id", "=", sessionId)
-      .where("status", "=", "pending")
+      .where("status", "=", StripePaymentStatus.PENDING)
       .execute();
     // Kysely execute() on updateTable returns UpdateResult[]; count via numUpdatedRows
     return (result as unknown as Array<{ numUpdatedRows: bigint | number }>)?.[0]?.numUpdatedRows > 0;

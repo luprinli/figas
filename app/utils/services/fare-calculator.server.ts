@@ -31,7 +31,7 @@ export async function calculateFareBreakdown(
     const legFareTotal = farePerPassenger * passengerCount;
 
     lineItems.push({
-      label: `Leg ${leg.leg_sequence}: ${leg.origin_code} → ${leg.destination_code}`,
+      label: `Leg ${leg.leg_sequence}: ${leg.origin_code} \u2192 ${leg.destination_code}`,
       amount: legFareTotal,
       type: "fare",
       legSequence: leg.leg_sequence,

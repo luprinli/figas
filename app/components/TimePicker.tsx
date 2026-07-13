@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MINUTES = [0, 15, 30, 45];
@@ -35,17 +35,32 @@ export default function TimePicker({ value, onChange, label = "Check-in" }: Time
   }, [isOpen]);
 
   const selectHour = useCallback(
-    (h: number) => {
-      onChange(`${pad(h)}:${pad(minute)}`);
-    },
+    (h: number) => { onChange(`${pad(h)}:${pad(minute)}`); },
     [onChange, minute]
   );
 
   const selectMinute = useCallback(
-    (m: number) => {
-      onChange(`${pad(hour)}:${pad(m)}`);
-    },
+    (m: number) => { onChange(`${pad(hour)}:${pad(m)}`); },
     [onChange, hour]
+  );
+
+  const handleHourKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "ArrowUp") { e.preventDefault(); selectHour((hour - 1 + 24) % 24); }
+      else if (e.key === "ArrowDown") { e.preventDefault(); selectHour((hour + 1) % 24); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); minuteRef.current?.focus(); }
+    },
+    [hour, selectHour]
+  );
+
+  const handleMinuteKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const idx = MINUTES.indexOf(minute);
+      if (e.key === "ArrowUp") { e.preventDefault(); selectMinute(MINUTES[(idx - 1 + MINUTES.length) % MINUTES.length]); }
+      else if (e.key === "ArrowDown") { e.preventDefault(); selectMinute(MINUTES[(idx + 1) % MINUTES.length]); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); hourRef.current?.focus(); }
+    },
+    [minute, selectMinute]
   );
 
   const selectQuick = useCallback(
@@ -91,7 +106,7 @@ export default function TimePicker({ value, onChange, label = "Check-in" }: Time
           <circle cx="12" cy="12" r="10" />
           <polyline points="12,6 12,12 16,14" />
         </svg>
-        <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
           {label}
         </span>
         <span className="font-mono font-bold text-cyan-700 text-xs">
@@ -123,7 +138,11 @@ export default function TimePicker({ value, onChange, label = "Check-in" }: Time
               </div>
               <div
                 ref={hourRef}
-                className="h-40 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700"
+                tabIndex={0}
+                role="listbox"
+                aria-label="Select hour"
+                onKeyDown={handleHourKeyDown}
+                className="h-40 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
               >
                 {HOURS.map((h) => (
                   <button
@@ -155,7 +174,11 @@ export default function TimePicker({ value, onChange, label = "Check-in" }: Time
               </div>
               <div
                 ref={minuteRef}
-                className="h-40 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700"
+                tabIndex={0}
+                role="listbox"
+                aria-label="Select minute"
+                onKeyDown={handleMinuteKeyDown}
+                className="h-40 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
               >
                 {MINUTES.map((m) => (
                   <button

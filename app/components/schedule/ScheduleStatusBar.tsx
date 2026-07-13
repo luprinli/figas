@@ -1,4 +1,4 @@
-﻿import { ScheduleStatus } from "../../utils/constants";
+import { ScheduleStatus } from "../../utils/constants";
 import StatusBadge from "../StatusBadge";
 
 export interface ScheduleStatusBarProps {
@@ -34,31 +34,31 @@ export default function ScheduleStatusBar({
         .join(" ")}
     >
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Status:</span>
+        <span className="text-sm font-medium text-slate-500 dark:text-slate-500">Status:</span>
         <StatusBadge status={status} />
         {statusLabel && (
-          <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">({statusLabel})</span>
+          <span className="text-xs text-slate-500 dark:text-slate-500">({statusLabel})</span>
         )}
       </div>
 
       <div className="h-4 w-px bg-slate-200 dark:bg-slate-600" aria-hidden="true" />
 
       <div className="flex items-center gap-2">
-        <span className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Date:</span>
+        <span className="text-sm text-slate-500 dark:text-slate-500">Date:</span>
         <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{scheduleDate}</span>
       </div>
 
       <div className="h-4 w-px bg-slate-200 dark:bg-slate-600" aria-hidden="true" />
 
       <div className="flex items-center gap-2">
-        <span className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Flights:</span>
+        <span className="text-sm text-slate-500 dark:text-slate-500">Flights:</span>
         <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{flightCount}</span>
       </div>
 
       <div className="h-4 w-px bg-slate-200 dark:bg-slate-600" aria-hidden="true" />
 
       <div className="flex items-center gap-2">
-        <span className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Assigned Legs:</span>
+        <span className="text-sm text-slate-500 dark:text-slate-500">Assigned Legs:</span>
         <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{assignedLegCount}</span>
       </div>
     </div>

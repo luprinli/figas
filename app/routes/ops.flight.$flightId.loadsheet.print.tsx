@@ -1,4 +1,4 @@
-﻿import { json, type LoaderFunctionArgs } from "@remix-run/node";
+import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { useLoaderData , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import { useEffect } from "react";
 
@@ -7,20 +7,7 @@ import { createLoadsheetFromFlight } from "../utils/loadsheet/create-loadsheet.s
 import { requireUser } from "../utils/layout.server";
 import { kdb } from "../utils/db.server.kysely";
 import { sql } from "kysely";
-
-function formatTime(val: unknown): string | null {
-  if (!val) return null;
-  if (typeof val === "string") {
-    const cleaned = val.replace(/^1970-01-01T/, "").replace(/\.000Z$/, "").replace(/:\d{2}\.\d{3}Z$/, "").substring(0, 5);
-    return cleaned?.replace(":", "") || null;
-  }
-  if (val instanceof Date) {
-    const h = String(val.getUTCHours()).padStart(2, "0");
-    const m = String(val.getUTCMinutes()).padStart(2, "0");
-    return `${h}${m}`;
-  }
-  return null;
-}
+import { formatTime } from "../utils/format-time";
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   await requireUser(request);
@@ -148,7 +135,7 @@ export default function PrintLoadsheet() {
       </div>
 
       {/* ── Page 1: Passenger Manifest ── */}
-      <div className="print-page mx-auto mb-4 max-w-[277mm] rounded border border-slate-300 dark:border-slate-600 dark:border-slate-600 bg-white dark:bg-slate-800 p-[8mm] shadow-sm dark:shadow-slate-900/20" style={{ width: "277mm", minHeight: "190mm" }}>
+      <div className="print-page mx-auto mb-4 max-w-[277mm] rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-[8mm] shadow-sm dark:shadow-slate-900/20" style={{ width: "277mm", minHeight: "190mm" }}>
         <PrintHeader flightNumber={data.flightNumber} depDate={data.depDate} aircraftType={data.aircraftType} aircraftReg={data.aircraftRegistration} pilotName={data.pilotName} pageTitle="PASSENGER MANIFEST" contactEmail={data.contactEmail} contactPhone={data.contactPhone} />
 
         <table className="my-3 w-full border-collapse text-[8pt]">
@@ -179,9 +166,9 @@ export default function PrintLoadsheet() {
                     const between = oi >= 0 && di >= 0 && i > oi && i < di;
                     return (
                       <td key={i} className="py-1 px-0.5 text-center">
-                        {isOrigin ? <span style={{ color: TEAL, fontWeight: "bold", fontSize: "14pt" }}>●</span>
+                        {isOrigin ? <span style={{ color: TEAL, fontWeight: "bold", fontSize: "14pt" }}>�—�</span>
                          : isDest ? <span style={{ color: TEAL, fontWeight: "bold", fontSize: "14pt" }}>▶</span>
-                         : between ? <span style={{ color: TEAL, opacity: 0.5 }}>━</span>
+                         : between ? <span style={{ color: TEAL, opacity: 0.5 }}>┝</span>
                          : <span className="text-slate-300 dark:text-slate-500">—</span>}
                       </td>
                     );
@@ -192,7 +179,7 @@ export default function PrintLoadsheet() {
             {data.totalBaggage > 0 && (
               <tr className="border-t-2 border-slate-300 dark:border-slate-600">
                 <td className="py-1 pr-2" colSpan={2}><span className="text-amber-700 dark:text-amber-400 font-medium">Aft Hold (Baggage)</span></td>
-                <td className="py-1 pr-2 text-right text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">—</td>
+                <td className="py-1 pr-2 text-right text-xs text-slate-500 dark:text-slate-500">—</td>
                 <td className="py-1 pr-2 text-right text-xs font-bold text-amber-700">{data.totalBaggage}kg</td>
                 {data.stopCodes.map((_: string, i: number) => (
                   <td key={i} className="py-1 px-0.5 text-center"><span className="text-amber-400">╌</span></td>
@@ -202,16 +189,16 @@ export default function PrintLoadsheet() {
           </tbody>
         </table>
 
-        <div className="mt-2 flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2 text-[7pt] text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <div className="mt-2 flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2 text-[7pt] text-slate-500 dark:text-slate-500">
           <span>Total Pax: {data.loadsheet.total_pax} · Pax Wt: {data.totalPaxWt}kg · Baggage: {data.totalBaggage}kg</span>
-          <span>● Board &nbsp; ▶ Alight &nbsp; ━ In transit</span>
+          <span>�—� Board &nbsp; ▶ Alight &nbsp; ┝ In transit</span>
         </div>
 
         <PrintFooter now={data.now} loadsheetId={`LS-${String(data.loadsheet.id).padStart(4, "0")}`} />
       </div>
 
       {/* ── Page 2: Sector Calculations & Weight/Fuel ── */}
-      <div className="print-page mx-auto max-w-[277mm] rounded border border-slate-300 dark:border-slate-600 dark:border-slate-600 bg-white dark:bg-slate-800 p-[8mm] shadow-sm dark:shadow-slate-900/20" style={{ width: "277mm", minHeight: "190mm" }}>
+      <div className="print-page mx-auto max-w-[277mm] rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-[8mm] shadow-sm dark:shadow-slate-900/20" style={{ width: "277mm", minHeight: "190mm" }}>
         <PrintHeader flightNumber={data.flightNumber} depDate={data.depDate} aircraftType={data.aircraftType} aircraftReg={data.aircraftRegistration} pilotName={data.pilotName} pageTitle="SECTOR CALCULATIONS & WEIGHT / FUEL PLANNING" contactEmail={data.contactEmail} contactPhone={data.contactPhone} />
 
         <table className="my-3 w-full border-collapse text-[7.5pt]">
@@ -238,7 +225,7 @@ export default function PrintLoadsheet() {
             {data.sectors.map((sec: typeof data.sectors[0]) => (
               <tr key={sec.id} className="border-b border-slate-200 dark:border-slate-700">
                 <td className="py-1 pr-1 text-xs">{sec.leg_sequence}</td>
-                <td className="py-1 pr-1">{sec.origin_code}→{sec.destination_code}</td>
+                <td className="py-1 pr-1">{sec.origin_code}{'\u2192'}{sec.destination_code}</td>
                 <td className="py-1 pr-1 text-right text-xs">{s(sec.distance_nm)}</td>
                 <td className="py-1 pr-1 text-right text-xs">{sec.planned_time_min}m</td>
                 <td className="py-1 pr-1 text-center text-xs">{sec.etd ?? "____"}</td>
@@ -268,7 +255,7 @@ export default function PrintLoadsheet() {
             <span>Reserve: 35 kg</span>
             <span>Remaining at STY: <strong className={data.finalRemaining >= 35 ? "text-green-700" : "text-red-700"}>{data.finalRemaining} kg</strong></span>
           </div>
-          <div className="mt-1 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+          <div className="mt-1 text-slate-500 dark:text-slate-400">
             CG Limits: 81.0″–101.0″ (2057–2565 mm) · MTOW: 2,994 kg · Only Stanley (STY) has refueling facilities.
           </div>
           <div className="mt-3 flex justify-between">
@@ -291,9 +278,9 @@ function PrintHeader({ flightNumber, depDate, aircraftType, aircraftReg, pilotNa
       <div className="flex items-center justify-between border-b-2 border-slate-800 pb-1 mb-2">
         <div>
           <div className="text-[9pt] font-bold tracking-wide">FIGAS</div>
-          <div className="text-[6pt] text-slate-500 dark:text-slate-400 dark:text-slate-500">Falkland Islands Government Air Service</div>
+          <div className="text-[6pt] text-slate-500 dark:text-slate-500">Falkland Islands Government Air Service</div>
         </div>
-        <div className="text-right text-[6pt] text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <div className="text-right text-[6pt] text-slate-500 dark:text-slate-500">
           <div>{contactEmail}</div>
           <div>{contactPhone}</div>
         </div>
@@ -301,13 +288,13 @@ function PrintHeader({ flightNumber, depDate, aircraftType, aircraftReg, pilotNa
       <div className="flex items-center justify-between text-[7pt]">
         <div>
           <span className="font-bold text-[9pt]">{flightNumber} LOADSHEET</span>
-          <span className="ml-4 text-slate-500 dark:text-slate-400 dark:text-slate-500">{depDate}</span>
+          <span className="ml-4 text-slate-500 dark:text-slate-500">{depDate}</span>
         </div>
-        <div className="text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <div className="text-slate-500 dark:text-slate-500">
           {aircraftType} {aircraftReg} · Pilot: {pilotName}
         </div>
       </div>
-      <div className="mt-1 border-b border-slate-300 dark:border-slate-600 pb-0.5 text-[7pt] font-bold text-slate-600 dark:text-slate-300 dark:text-slate-500">
+      <div className="mt-1 border-b border-slate-300 dark:border-slate-600 pb-0.5 text-[7pt] font-bold text-slate-600 dark:text-slate-500">
         {pageTitle}
       </div>
     </div>
@@ -331,22 +318,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-500">{error.statusText}</p>
+          <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
+        <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
       </div>
     </div>
   );

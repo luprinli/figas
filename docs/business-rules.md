@@ -1,7 +1,7 @@
 # FIGAS Business Rules — Authoritative Reference
 
-**Version:** 1.2.0
-**Date:** 2026-06-07
+**Version:** 1.3.0
+**Date:** 2026-07-12
 **Location:** `docs/business-rules.md` — this file is the single source of truth for all FIGAS business logic rules. All future development, refactoring, and testing MUST reference these rules.
 
 ---
@@ -255,25 +255,57 @@ GROUP BY leg_date;
 
 ## RULE 15: Per-Passenger Assignment Isolation
 
-**Principle:** When a single passenger from a group booking is assigned to a flight, other passengers on the same booking leg MUST remain visible in the unassigned pool and available for independent assignment to different flights.
+**Principle:** When a single passenger from a group booking is assigned to a flight, other passengers on the same booking leg MUST remain visible in the unassigned pool and available for independent assignment to different flights. The unassigned pool query MUST use only `blp.flight_leg_id IS NULL` — it MUST NOT also check `bl.flight_id IS NULL`.
 
-### Unassigned Pool Contract
+### Unassigned Pool Contract (Exact SQL)
 
 ```sql
 -- CORRECT (per-passenger check):
-WHERE blp.flight_leg_id IS NULL AND bl.leg_date = $1
--- WRONG (per-booking-leg check):
-WHERE bl.flight_id IS NULL AND bl.leg_date = $1
+WHERE blp.flight_leg_id IS NULL
+  AND bl.leg_date = ${date}
+  AND bl.leg_sequence = 1
+  AND b.status NOT IN ('cancelled', 'completed')
+
+-- WRONG — adding bl.flight_id IS NULL silently hides sibling passengers:
+WHERE blp.flight_leg_id IS NULL
+  AND bl.flight_id IS NULL          -- ← MUST NOT EXIST
+  AND bl.leg_date = ${date}
 ```
+
+**Reason:** `booking_legs.flight_id` is set by sibling propagation when ANY passenger from the booking is assigned, but `booking_leg_passengers.flight_leg_id` is only set for the specific passenger dragged. If `findUnassignedByDate` checks both, the sibling passengers disappear from the pool despite never having been individually assigned.
+
+### Why Sibling Propagation Sets `booking_legs.flight_id`
+
+When a booking has two legs (e.g., STY→MPA on Monday, MPA→STY on Tuesday), both legs are part of the same journey. RULE 16 manifest queries depend on `booking_legs.flight_id` to show all passengers of a flight. Setting `flight_id` on sibling legs is CORRECT for the manifest — it just must NOT affect the unassigned pool.
 
 ### Flight Creation Isolation
 
-When `handleCreateFlightFromBooking` receives `bookingLegPassengerId`:
-1. **Only the targeted passenger** gets `flight_leg_id` set to the flight's first leg
-2. **Other passengers** retain `flight_leg_id = NULL` and remain in unassigned pool
-3. **`booking_legs.flight_id`** is still set for backward compatibility
+When `handleCreateFlightFromBooking` receives `bookingLegPassengerIds`:
+1. **Only the targeted passengers** get `flight_leg_id` set to matching flight legs
+2. **Other passengers** on the same booking leg retain `flight_leg_id = NULL` and remain in the unassigned pool
+3. **`booking_legs.flight_id`** is still set for RULE 16 manifest compatibility
+4. **Sibling leg propagation** sets `flight_id` on other unassigned legs of the same booking (for manifest purposes), but does NOT set `flight_leg_id` on those siblings' passengers
 
-**Enforced at:** `schedule-handlers.server.ts:1179` — `if (blpRow.booking_passenger_id !== bookingLegPassengerId) continue`
+**Enforced by:**
+- `findUnassignedByDate()` in `booking-leg-passenger.ts` — MUST NOT contain `bl.flight_id IS NULL`
+- `handleAssignBooking()` in `schedule-handlers.server.ts` — filters passengers by `bookingLegPassengerId`
+- `handleCreateFlightFromBooking()` in `schedule-handlers.server.ts` — sets `flight_leg_id` only for `bookingLegPassengerIds`
+
+### Real-World Scenario: Why This Matters
+
+**Group booking of 5 company employees** on STY→MPA (same leg, same date):
+- The booking has 5 `booking_passengers` records, 1 `booking_leg`, and 5 `booking_leg_passengers` junction records
+- Each person may need to be on DIFFERENT flights (e.g., 3 on Flight A, 2 on Flight B due to seat limits)
+- Dragging one passenger assigns only that one — the other 4 remain draggable
+- Without this rule, dragging employee #1 would hide employees #2-#5 from the unassigned pool
+
+### Test Contract
+
+Tests for `findUnassignedByDate` MUST verify:
+1. Creating a booking leg with `flight_id = null` and one passenger → passenger found in results
+2. Assigning that passenger's `flight_leg_id` (via `handleAssignBooking` with `bookingLegPassengerId`) → passenger NOT found in results
+3. Setting `flight_id` on a SIBLING leg (but not `flight_leg_id` on its passengers) → sibling's passengers STILL found in results
+4. Setting `flight_id` on the SAME leg (but not `flight_leg_id` on its passengers) → passengers STILL found in results (because `flight_leg_id IS NULL`)
 
 ---
 
@@ -290,11 +322,62 @@ When `handleCreateFlightFromBooking` receives `bookingLegPassengerId`:
 
 ---
 
+## RULE 17: Optimistic Client State for Per-Passenger Drag
+
+**Principle:** When a passenger is dragged to a flight, the optimistic hide from the unassigned pool MUST use the specific `booking_leg_passengers.id` as the key — NOT `booking_leg_id`. Using `booking_leg_id` as the hide-key hides ALL passengers sharing that booking leg, violating RULE 15 at the UI layer.
+
+### Contract
+
+```typescript
+// CORRECT (per-passenger optimistic hide):
+const hideId = booking.id;  // booking_leg_passengers.id
+setOptimisticAssignedIds((prev) => new Set(prev).add(hideId));
+
+// WRONG (per-leg optimistic hide):
+const hideId = booking.booking_leg_id;  // hides all passengers on this leg
+setOptimisticAssignedIds((prev) => new Set(prev).add(hideId));
+```
+
+### Unassigned Pool Filter
+
+`UnassignPoolPanel` MUST accept the `optimisticAssignedIds` set and filter out items where `booking.id` (which is `blp.id`) matches. Currently the pool uses raw loader data with no client-side filter — this filter enables immediate visual feedback when a single passenger is dragged.
+
+### Buffered Assignments (Optimistic Flight Card)
+
+When a booking is dropped on an optimistic flight card (temp ID < 0), the `pendingAssignAfterCreateRef` buffer MUST store BOTH `bookingLegId` AND `bookingLegPassengerId`. When replayed after the `create-flight-from-booking` response, the buffered `assign-booking` request MUST include `bookingLegPassengerId` to prevent the server from assigning all passengers on the leg.
+
+**Enforced by:**
+- `handleDragEnd()` in `operations.schedule._index/route.tsx` — `pendingAssignAfterCreateRef` push includes `bookingLegPassengerId`
+- `UnassignPoolPanel` in `components/schedule/UnassignPoolPanel.tsx` — filters by `optimisticAssignedIds`
+- Replay loop in `route.tsx` — sets `bookingLegPassengerId` on buffered form data
+
+---
+
+## RULE 18: Booking Leg and Passenger Junction Column Architecture
+
+**Principle:** `booking_legs.flight_id` and `booking_leg_passengers.flight_leg_id` serve DISTINCT purposes and the system depends on their separation. They must NOT be conflated into a single column.
+
+| Column | Table | Purpose | Consumed By |
+|---|---|---|---|
+| `flight_id` | `booking_legs` | "Which flight is this booking leg assigned to?" — needed for manifest queries, booking management display | RULE 16 manifest queries |
+| `flight_leg_id` | `booking_leg_passengers` | "Which specific flight leg is this passenger on?" — the per-passenger assignment indicator | RULE 15 unassigned pool, per-passenger drag |
+
+### Critical Rules
+
+1. **Sibling propagation sets `booking_legs.flight_id` only** — it does NOT touch `booking_leg_passengers.flight_leg_id`
+2. **Per-passenger assignment sets `booking_leg_passengers.flight_leg_id`** — it may also set `booking_legs.flight_id` but the opposite is NOT true
+3. **`findUnassignedByDate` queries `blp.flight_leg_id IS NULL` only** — it MUST NOT query `bl.flight_id IS NULL`
+4. **Manifest queries use `bl.flight_id = $flightId`** — they MUST NOT add `blp.flight_leg_id IS NOT NULL`
+5. **Route-rebuild remaps use `booking_leg_passengers.flight_leg_id`** — after flight legs are replaced, all passengers on the flight must be re-mapped to new leg IDs
+
+---
+
 ## LOCATION INDEX
 
 | Rule | Primary Enforcement File | Line(s) |
 |------|------------------------|---------|
 | R1-R14 | (see above) | — |
-| R15: Per-Passenger Assignment Isolation | `schedule-handlers.server.ts` | 1179 |
+| R15: Per-Passenger Assignment Isolation | `booking-leg-passenger.ts`, `schedule-handlers.server.ts`, `UnassignPoolPanel.tsx` | 352, 633, filter |
 | R16: Manifest Query Persistence | `schedule-handlers.server.ts`, `operations.schedule._index.tsx` | 167, 739, 795, 941 |
-| R15: Auto-Build Booking Consumption | `schedule-handlers.server.ts` | 31 |
+| R17: Optimistic Client State | `operations.schedule._index/route.tsx`, `UnassignPoolPanel.tsx` | 593, 612, 504 |
+| R18: Column Architecture | `booking-leg-passenger.ts`, `schedule-handlers.server.ts` | 352, 1092, 842 |

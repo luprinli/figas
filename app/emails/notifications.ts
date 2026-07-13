@@ -24,14 +24,14 @@ export function pilotAssignmentEmail(params: PilotAssignmentParams): EmailOption
         <table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
           <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Flight</td><td style="padding: 8px; border: 1px solid #ddd;">${params.flightNumber}</td></tr>
           <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Date</td><td style="padding: 8px; border: 1px solid #ddd;">${params.date}</td></tr>
-          <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Route</td><td style="padding: 8px; border: 1px solid #ddd;">${params.origin} → ${params.destination}</td></tr>
+          <tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Route</td><td style="padding: 8px; border: 1px solid #ddd;">${params.origin} \u2192 ${params.destination}</td></tr>
         </table>
         <p>Please access your pilot dashboard to review the briefing and loadsheet.</p>
         <hr />
         <p style="color: #666; font-size: 12px;">Falkland Islands Government Air Service</p>
       </div>
     `,
-    text: `Flight Assignment — ${params.flightNumber}\n\nDear ${params.pilotName},\n\nYou have been assigned as pilot for flight ${params.flightNumber} on ${params.date}.\nRoute: ${params.origin} → ${params.destination}\n\nFalkland Islands Government Air Service`,
+    text: `Flight Assignment — ${params.flightNumber}\n\nDear ${params.pilotName},\n\nYou have been assigned as pilot for flight ${params.flightNumber} on ${params.date}.\nRoute: ${params.origin} \u2192 ${params.destination}\n\nFalkland Islands Government Air Service`,
   };
 }
 

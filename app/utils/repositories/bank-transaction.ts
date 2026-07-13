@@ -71,6 +71,7 @@ export const bankTransactionRepository = {
         import_batch_id: params.import_batch_id || undefined,
         raw_data: params.raw_data ? JSON.stringify(params.raw_data) : undefined,
         notes: params.notes || undefined,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       .returningAll()
       .execute();
@@ -82,7 +83,7 @@ export const bankTransactionRepository = {
       .selectFrom("bank_transactions")
       .selectAll()
       .where("reconciliation_status", "=", "unmatched")
-      .orderBy("transaction_date desc")
+      .orderBy("transaction_date", "desc")
       .execute();
     return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
   },
@@ -95,6 +96,7 @@ export const bankTransactionRepository = {
         reconciliation_status: "matched",
         matched_at: sql`NOW()`,
         matched_by: parseInt(matchedBy, 10),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       .where("id", "=", id)
       .returningAll()
@@ -125,7 +127,7 @@ export const bankTransactionRepository = {
       .selectFrom("bank_transactions")
       .selectAll()
       .where("import_batch_id", "=", batchId)
-      .orderBy("transaction_date asc")
+      .orderBy("transaction_date", "asc")
       .execute();
     return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
   },

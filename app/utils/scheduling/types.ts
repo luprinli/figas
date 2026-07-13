@@ -110,6 +110,9 @@ export interface WeightBalanceResult {
   mtowUsedPct: number;
   mlwUsedPct: number;
   bindingConstraint: BindingConstraintInfo;
+  cgForwardLimit: number;
+  cgAftLimit: number;
+  cgWithinEnvelope: boolean;
 }
 
 // ── Phase 5: Pilot Assignment ────────────────────────────────────────────────

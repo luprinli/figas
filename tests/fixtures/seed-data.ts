@@ -92,3 +92,22 @@ export const TEST_VALUES = {
   pilotAssignmentRole: "captain" as const,
   pilotAssignmentStatus: "assigned" as const,
 } as const;
+
+// ---------------------------------------------------------------------------
+// Aerodrome seeding — ensures FK constraints are satisfied for test factories
+// ---------------------------------------------------------------------------
+import { db } from "~/utils/db.server";
+import { sql } from "kysely";
+
+export async function ensureAerodromes(): Promise<void> {
+  await sql`
+    INSERT INTO aerodromes (code, name, city, runway_length, timezone, is_active, fuel_available)
+    VALUES
+      ('STY', 'Stanley Airport (Port Stanley)', 'Stanley', 1200.0, 'Atlantic/Stanley', true, true),
+      ('MPA', 'Mpa Airport', 'Mpa', 900.0, 'Atlantic/Stanley', true, false),
+      ('SHR', 'Shirley Airport', 'Shirley', 800.0, 'Atlantic/Stanley', true, false),
+      ('PPS', 'Pebble Island Settlement', 'Pebble Island', 750.0, 'Atlantic/Stanley', true, false),
+      ('SAU', 'Saunders Island Settlement', 'Saunders Island', 700.0, 'Atlantic/Stanley', true, false)
+    ON CONFLICT (code) DO NOTHING
+  `.execute(db);
+}

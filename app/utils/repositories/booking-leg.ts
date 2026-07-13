@@ -1,7 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { kdb } from "../db.server.kysely";
 import { sql } from "kysely";
 import type { Kysely } from "kysely";
 import type { DB } from "../../../generated/kysely/database";
+import { BookingStatus } from "../constants";
 
 export interface BookingLegRow {
   id: number;
@@ -45,7 +47,7 @@ export const bookingLegRepository = {
       .selectFrom("booking_legs")
       .selectAll()
       .where("booking_id", "=", bookingId)
-      .orderBy("leg_sequence asc")
+      .orderBy("leg_sequence", "asc")
       .execute();
     return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
   },
@@ -72,7 +74,7 @@ export const bookingLegRepository = {
   }): Promise<BookingLegRow> {
     if (data.origin_code === data.destination_code) {
       throw new Error(
-        `Origin and destination must be different: ${data.origin_code} → ${data.destination_code}`
+        `Origin and destination must be different: ${data.origin_code} \u2192 ${data.destination_code}`
       );
     }
     const rows = await kdb
@@ -151,7 +153,7 @@ export const bookingLegRepository = {
         "bl.updated_at",
       ])
       .where("blp.flight_leg_id", "is", null)
-      .where("b.status", "not in", ["cancelled", "completed"])
+      .where("b.status", "not in", [BookingStatus.CANCELLED, BookingStatus.COMPLETED])
       .distinct()
       .as("sub");
 

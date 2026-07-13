@@ -7,6 +7,7 @@ export interface NotificationRow {
   recipient_email: string;
   recipient_type: string;
   notification_type: string;
+  type: string;
   sent_at: string | null;
   status: string;
   created_at: string;
@@ -21,6 +22,7 @@ function toRow(r: Record<string, unknown>): NotificationRow {
     recipient_email: String(r.recipient_email ?? ""),
     recipient_type: String(r.recipient_type ?? ""),
     notification_type: String(r.notification_type ?? ""),
+    type: String(r.type ?? ""),
     sent_at: r.sent_at != null ? String(r.sent_at) : null,
     status: String(r.status ?? ""),
     created_at: String(r.created_at ?? ""),
@@ -46,6 +48,7 @@ export const notificationRepository = {
         recipient_type: data.recipient_type,
         notification_type: data.notification_type,
         type: data.notification_type,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       .returningAll()
       .execute();
@@ -64,6 +67,7 @@ export const notificationRepository = {
   async markAsSent(id: number): Promise<void> {
     await kdb
       .updateTable("notifications")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .set({ status: "sent", sent_at: new Date() } as any)
       .where("id", "=", id)
       .execute();
@@ -72,6 +76,7 @@ export const notificationRepository = {
   async markAsFailed(id: number): Promise<void> {
     await kdb
       .updateTable("notifications")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .set({ status: "failed" } as any)
       .where("id", "=", id)
       .execute();

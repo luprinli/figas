@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Schedule Workflow — End-to-End Test Suite
  *
@@ -30,7 +31,6 @@ import { SchedulePage } from "./pages/schedule-page";
 import {
   dragBookingToFlight,
   dragBookingToDraftFlight,
-  dragBookingBetweenFlights,
 } from "./helpers/drag-simulator";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -350,7 +350,7 @@ test.describe("Schedule Builder — End-to-End Workflow", () => {
       const opened = await openLoadsheet(page, 0, run);
       if (opened) {
         // The loadsheet manifest should now list at least one passenger
-        const hasPax = await page.locator('[data-testid="flight-card"]').first().isVisible().catch(() => true);
+        await page.locator('[data-testid="flight-card"]').first().isVisible().catch(() => true);
         run.log("loadsheet opened after assignment", opened);
         await page.keyboard.press("Escape");
         await page.waitForTimeout(500);

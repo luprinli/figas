@@ -1,8 +1,8 @@
 import { useRef, useState, useMemo } from "react";
 import { ArrowRight, CheckCircle2, Clock, Eye, Pencil, XCircle } from "lucide-react";
-import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { HeadersFunction, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Link, useLoaderData, useNavigation, useSearchParams, useSubmit , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { Link, useLoaderData, useNavigate, useNavigation, useRevalidator, useSearchParams, useSubmit , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { Permission } from "../utils/constants";
 import { bookingRepository } from "../utils/repositories/booking";
@@ -16,6 +16,10 @@ import EmptyState from "../components/EmptyState";
 import DataTable from "../components/DataTable";
 import type { Column } from "../components/DataTable";
 import DateRangePicker from "../components/DateRangePicker";
+import Button from "../components/Button";
+import { useKeyboardShortcuts } from "../utils/use-keyboard-shortcuts";
+import { TourTrigger } from "../components/TourTrigger";
+import { bookingsListTour } from "../utils/tour/definitions/bookings-list";
 
 // -- Types ------------------------------------------------------------------------
 
@@ -38,6 +42,10 @@ const STATUS_FILTERS = [
 
 // -- Loader ------------------------------------------------------------------------
 
+export const headers: HeadersFunction = () => ({
+  "Cache-Control": "max-age=60, stale-while-revalidate=300",
+});
+
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
@@ -46,59 +54,33 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const dateFrom = url.searchParams.get("dateFrom") || "";
   const dateTo = url.searchParams.get("dateTo") || "";
 
-  // Require booking:view permission
   const user = await requirePermission(request, Permission.BOOKING_VIEW);
 
-  // Fetch bookings with existing filter logic
-  let result: {
-    bookings: Array<{
-      booking: BookingRow;
-      firstLeg: { origin_code: string; destination_code: string; leg_date: string; flight_id: number | null } | null;
-      passenger: { first_name: string; last_name: string; email: string; phone: string | null } | null;
-    }>;
-    totalCount: number;
-    page: number;
-    totalPages: number;
-  };
+  type ResultType = { bookings: Array<{ booking: BookingRow; firstLeg: { origin_code: string; destination_code: string; leg_date: string; flight_id: number | null } | null; passenger: { first_name: string; last_name: string; email: string; phone: string | null } | null }>; totalCount: number; page: number; totalPages: number };
 
-  if (q) {
-    result = await bookingRepository.search(q, page);
-  } else if (dateFrom && dateTo) {
-    result = await bookingRepository.findByDateRange(dateFrom, dateTo, page);
-  } else if (status) {
-    result = await bookingRepository.findByStatus(status, page);
-  } else {
-    result = await bookingRepository.findAll(page);
-  }
+  let result: ResultType;
+  if (q) result = await bookingRepository.search(q, page);
+  else if (dateFrom && dateTo) result = await bookingRepository.findByDateRange(dateFrom, dateTo, page);
+  else if (status) result = await bookingRepository.findByStatus(status, page);
+  else result = await bookingRepository.findAll(page);
 
-  // -- Post-filter: "upcoming" tab must exclude past-date bookings ----------
   if (status === "upcoming" && result.bookings.length > 0) {
-    const today = new Date(new Date().toDateString()); // midnight today
+    const today = new Date(new Date().toDateString());
     result.bookings = result.bookings.filter((b) => {
-      if (!b.firstLeg) return false; // no leg date = can't be upcoming
+      if (!b.firstLeg) return false;
       const legDate = new Date(b.firstLeg.leg_date);
-      const legDateOnly = new Date(legDate.getFullYear(), legDate.getMonth(), legDate.getDate());
-      return legDateOnly >= today;
+      return new Date(legDate.getFullYear(), legDate.getMonth(), legDate.getDate()) >= today;
     });
     result.totalCount = result.bookings.length;
     result.totalPages = Math.ceil(result.totalCount / 20);
   }
 
-  // -- Compute tab counts from the fetched bookings data -------------------
-  // This ensures badge counts always match what's actually displayed.
   const todayStr = new Date(new Date().toDateString()).toISOString().slice(0, 10);
-  const tabCounts: Record<string, number> = {
-    total: result.totalCount,
-    upcoming: result.bookings.filter((b) => {
-      if (b.booking.status === "completed" || b.booking.status === "cancelled") return false;
-      if (!b.firstLeg) return false;
-      return b.firstLeg.leg_date >= todayStr;
-    }).length,
-    completed: result.bookings.filter((b) => b.booking.status === "completed").length,
-    cancelled: result.bookings.filter((b) => b.booking.status === "cancelled").length,
-  };
+  const tabCounts = { total: result.totalCount, upcoming: 0, completed: 0, cancelled: 0 };
+  tabCounts.upcoming = result.bookings.filter((b) => { if (b.booking.status === "completed" || b.booking.status === "cancelled") return false; if (!b.firstLeg) return false; return b.firstLeg.leg_date >= todayStr; }).length;
+  tabCounts.completed = result.bookings.filter((b) => b.booking.status === "completed").length;
+  tabCounts.cancelled = result.bookings.filter((b) => b.booking.status === "cancelled").length;
 
-  // Permission flags
   const canEdit = user.permissions.includes(Permission.BOOKING_EDIT);
   const canApprove = user.permissions.includes(Permission.BOOKING_APPROVE);
   const canCancel = user.permissions.includes(Permission.BOOKING_CANCEL);
@@ -109,27 +91,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const canCheckin = user.permissions.includes(Permission.BOOKING_CHECKIN);
   const canCreate = user.permissions.includes(Permission.BOOKING_CREATE);
 
-  return json({
-    bookings: result.bookings,
-    totalCount: result.totalCount,
-    page: result.page,
-    totalPages: result.totalPages,
-    status,
-    q,
-    dateFrom,
-    dateTo,
-    tabCounts,
-    canEdit,
-    canApprove,
-    canCancel,
-    canAssignFlight,
-    canManagePayment,
-    canManagePassengers,
-    canManageFreight,
-    canCheckin,
-    canCreate,
-  });
+  return json({ bookings: result.bookings, totalCount: result.totalCount, page: result.page, totalPages: result.totalPages, status, q, dateFrom, dateTo, tabCounts, canEdit, canApprove, canCancel, canAssignFlight, canManagePayment, canManagePassengers, canManageFreight, canCheckin, canCreate });
 }
+
+// -- Component ---------------------------------------------------------------------
 
 // -- Client-side sort/filter helpers -----------------------------------------------
 
@@ -266,10 +231,17 @@ export default function OperationsBookingsIndex() {
   } = data;
   const [searchParams, setSearchParams] = useSearchParams();
   const navigation = useNavigation();
+  const revalidator = useRevalidator();
   const submit = useSubmit();
   const searchRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
   const isSearching = navigation.state === "loading" && navigation.location.pathname === "/operations/bookings";
+
+  useKeyboardShortcuts({
+    "/": () => searchRef.current?.focus(),
+    "n": () => navigate("/operations/bookings/new"),
+  });
 
   // Client-side sort state
   const [sortColumn, setSortColumn] = useState("");
@@ -350,10 +322,10 @@ export default function OperationsBookingsIndex() {
               <div className="font-medium text-slate-900 dark:text-slate-100">
                 {passenger.first_name} {passenger.last_name}
               </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{passenger.email}</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">{passenger.email}</div>
             </div>
           ) : (
-            <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">&mdash;</span>
+            <span className="text-slate-500 dark:text-slate-400">&mdash;</span>
           ),
       },
       {
@@ -453,21 +425,21 @@ export default function OperationsBookingsIndex() {
 
     return (
       <div className="flex items-center justify-end gap-3">
-        {/* View — always active */}
+        {/* View ï¿½ always active */}
         <Link
           to={`/operations/bookings/${booking.id}`}
-          className="text-slate-500 hover:text-blue-600 transition-colors"
+          className="text-slate-500 hover:text-primary transition-colors"
           aria-label={`View booking ${booking.booking_reference}`}
           title={`View booking ${booking.booking_reference}`}
         >
           <Eye size={16} absoluteStrokeWidth />
         </Link>
 
-        {/* Edit — always rendered, grayed out when inactive */}
+        {/* Edit ï¿½ always rendered, grayed out when inactive */}
         {canEditActive ? (
           <Link
             to={`/operations/bookings/${booking.id}/edit`}
-            className="text-slate-500 hover:text-blue-600 transition-colors"
+            className="text-slate-500 hover:text-primary transition-colors"
             aria-label={`Edit booking ${booking.booking_reference}`}
             title={`Edit booking ${booking.booking_reference}`}
           >
@@ -477,13 +449,13 @@ export default function OperationsBookingsIndex() {
           <span
             className="text-slate-300 dark:text-slate-600 cursor-not-allowed"
             aria-label={`Edit booking ${booking.booking_reference}`}
-            title="Cannot edit — departure date has passed"
+            title="Cannot edit ï¿½ departure date has passed"
           >
             <Pencil size={16} absoluteStrokeWidth />
           </span>
         )}
 
-        {/* Cancel — always rendered, grayed out when inactive */}
+        {/* Cancel ï¿½ always rendered, grayed out when inactive */}
         {canCancelActive ? (
           <Link
             to={`/operations/bookings/${booking.id}/cancel`}
@@ -497,7 +469,7 @@ export default function OperationsBookingsIndex() {
           <span
             className="text-slate-300 dark:text-slate-600 cursor-not-allowed"
             aria-label={`Cancel booking ${booking.booking_reference}`}
-            title="Cannot cancel — departure date has passed"
+            title="Cannot cancel ï¿½ departure date has passed"
           >
             <XCircle size={16} absoluteStrokeWidth />
           </span>
@@ -511,7 +483,7 @@ export default function OperationsBookingsIndex() {
       {/* Skip to results link (accessibility) */}
       <a
         href="#booking-results"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-white dark:focus:bg-slate-800 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-blue-600 focus:shadow-lg focus:outline-none"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-white dark:focus:bg-slate-800 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary focus:shadow-lg focus:outline-none"
       >
         Skip to results
       </a>
@@ -519,18 +491,19 @@ export default function OperationsBookingsIndex() {
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Operations Bookings</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Operations Bookings</h1>
+            <TourTrigger config={bookingsListTour} />
+            <button onClick={() => revalidator.revalidate()} className="text-xs text-slate-500 hover:text-slate-700">Refresh</button>
+          </div>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             {totalCount} booking{totalCount !== 1 ? "s" : ""} found
           </p>
         </div>
         {canCreate && (
-          <Link
-            to="/operations/bookings/new"
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-          >
+          <Button to="/operations/bookings/new" size="md">
             + New Booking
-          </Link>
+          </Button>
         )}
       </div>
 
@@ -552,7 +525,7 @@ export default function OperationsBookingsIndex() {
             defaultValue={q}
             onChange={handleSearchInput}
             placeholder="Search by reference, passenger name, email or phone..."
-            className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 pr-10 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 pr-10 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
           {isSearching && (
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 text-xs">
@@ -568,7 +541,7 @@ export default function OperationsBookingsIndex() {
           <button
             type="button"
             onClick={clearFilters}
-            className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-600 underline"
+            className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline"
           >
             Clear filters
           </button>
@@ -582,13 +555,13 @@ export default function OperationsBookingsIndex() {
             const isActive =
               filterValue === status || (!filterValue && !status);
             const countKey = filterValue || "total";
-            const count = tabCounts ? tabCounts[countKey] ?? 0 : null;
+            const count = tabCounts ? (tabCounts as Record<string, number>)[countKey] ?? 0 : null;
             return (
               <Link
                 key={filterValue}
                 to={buildFilterUrl("status", filterValue)}
                 className={`whitespace-nowrap pb-2 text-sm font-medium border-b-2 transition-colors inline-flex items-center gap-1.5 ${isActive
-                  ? "border-blue-500 text-blue-600"
+                  ? "border-primary text-primary"
                   : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 hover:border-slate-300 dark:border-slate-600"
                   }`}
               >
@@ -735,11 +708,11 @@ export default function OperationsBookingsIndex() {
                         <span className="font-medium text-slate-800 dark:text-slate-200">{firstLeg.destination_code}</span>
                       </>
                     ) : (
-                      <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">No route</span>
+                      <span className="text-slate-500 dark:text-slate-400">No route</span>
                     )}
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
                     {firstLeg && (
                       <span>{new Date(firstLeg.leg_date).toLocaleDateString("en-GB")}</span>
                     )}
@@ -757,7 +730,7 @@ export default function OperationsBookingsIndex() {
         </div>
       </div>
 
-      {/* F. Pagination — always visible to maintain filter bar context */}
+      {/* F. Pagination ï¿½ always visible to maintain filter bar context */}
       <div className="flex items-center justify-center">
         {totalPages > 1 ? (
           <Pagination
@@ -766,7 +739,7 @@ export default function OperationsBookingsIndex() {
             baseUrl="/operations/bookings"
           />
         ) : (
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Page {page} of {totalPages || 1}
           </p>
         )}
@@ -781,22 +754,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-400 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <Button size="md" onClick={() => window.location.reload()}>Try Again</Button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <Button size="md" onClick={() => window.location.reload()}>Try Again</Button>
       </div>
     </div>
   );

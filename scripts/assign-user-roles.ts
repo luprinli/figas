@@ -26,7 +26,7 @@ const ROLE_MAP: Record<string, string> = {
 };
 
 async function main() {
-  console.log("\n🔗 Assigning users to PBAC roles...\n");
+  console.log("\n�— Assigning users to PBAC roles...\n");
 
   const roles = await prisma.roles.findMany();
   const roleBySlug = new Map(roles.map((r) => [r.slug, r]));

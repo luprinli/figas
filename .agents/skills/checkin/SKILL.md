@@ -140,7 +140,7 @@ Records a payment with method (`cash`/`card`), amount in GBP, transaction refere
 const waybill = `FW-${date}-${seq}`; // e.g., FW-20260619-00042
 ```
 
-Inserts into `freight_consignments` with consignor/consignee names, weight (kg), dimensions (cm), priority, hazardous flag, and payment mode. Calculates volumetric weight when dimensions provided: `(L × W × H) / 6000`.
+Inserts into `freight_consignments` with consignor/consignee names, weight (kg), dimensions (cm), priority, hazardous flag, and payment mode. Calculates volumetric weight when dimensions provided: `(L �— W �— H) / 6000`.
 
 ---
 
@@ -162,7 +162,7 @@ Defined in `app/routes/checkin.counter.tsx:17-18`. Baggage over 20kg incurs £5/
 Each freight waybill (`FW-YYYYMMDD-NNNNN`) must be unique. The `seq` is derived from `Date.now() % 100000` padded to 5 digits, which is statistically collision-resistant but not guaranteed unique at scale.
 
 ### Invariant 6: Volumetric Weight Override
-When freight dimensions are provided and `(L×W×H)/6000 > actual_weight`, the volumetric weight takes precedence for billing. The route redirects with a `warning=vol_weight` query param.
+When freight dimensions are provided and `(L�—W�—H)/6000 > actual_weight`, the volumetric weight takes precedence for billing. The route redirects with a `warning=vol_weight` query param.
 
 ---
 
@@ -193,7 +193,7 @@ Check-in routes are guarded by `requirePermission(request, Permission.CHECKIN_PR
 - ✅ Do calculate outstanding balance as `total_amount_gbp - SUM(payments.amount_gbp)` per booking
 - ✅ Do respect `organization_billing` flag — skip payment collection when true
 - ✅ Do generate freight waybills with format `FW-YYYYMMDD-NNNNN`
-- ✅ Do validate volumetric weight `(L×W×H)/6000` for freight dimensions
+- ✅ Do validate volumetric weight `(L�—W�—H)/6000` for freight dimensions
 - ✅ Do use `PaymentEntry` interface with `cardState: "idle" | "processing" | "approved" | "declined"` for card transactions
 - ✅ Do guard freight creation with `requirePermission(request, Permission.CHECKIN_PROCESS)`
 - ✅ Do handle the `payment_mode` field on freight consignments (`cash`, `invoice`, `credit_account`)

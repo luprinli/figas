@@ -7,7 +7,7 @@
  *
  * Strategy:
  * - If the origin is already a stop on the route, only the destination needs
- *   to be inserted (as a new leg from origin → destination).
+ *   to be inserted (as a new leg from origin \u2192 destination).
  * - If the destination is already a stop, only the origin needs to be inserted.
  * - If neither exists, find the edge where inserting both stops adds the
  *   least additional distance.
@@ -30,7 +30,7 @@ export interface InsertionResult {
 
 /**
  * Compute the ordered list of unique stops from a set of route legs.
- * e.g., [{STY→MPA}, {MPA→STY}] → ["STY", "MPA", "STY"]
+ * e.g., [{STY\u2192MPA}, {MPA\u2192STY}] \u2192 ["STY", "MPA", "STY"]
  */
 function getStopSequence(legs: RouteLeg[]): string[] {
   if (legs.length === 0) return [];
@@ -43,7 +43,7 @@ function getStopSequence(legs: RouteLeg[]): string[] {
 
 /**
  * Rebuild route legs from an ordered list of stops.
- * e.g., ["STY", "MPA", "STY"] → [{STY→MPA}, {MPA→STY}]
+ * e.g., ["STY", "MPA", "STY"] \u2192 [{STY\u2192MPA}, {MPA\u2192STY}]
  */
 function stopsToLegs(stops: string[]): RouteLeg[] {
   const legs: RouteLeg[] = [];
@@ -75,16 +75,16 @@ async function findBestInsertionIndex(
 
     let extraDistance = 0;
     if (prev && next) {
-      // Replacing edge prev→next with prev→newStop + newStop→next
+      // Replacing edge prev\u2192next with prev\u2192newStop + newStop\u2192next
       const originalDist = await getDistance(prev, next);
       const newDist1 = await getDistance(prev, newStop);
       const newDist2 = await getDistance(newStop, next);
       extraDistance = newDist1 + newDist2 - originalDist;
     } else if (prev) {
-      // Appending at end: prev→newStop
+      // Appending at end: prev\u2192newStop
       extraDistance = await getDistance(prev, newStop);
     } else if (next) {
-      // Prepending at start: newStop→next
+      // Prepending at start: newStop\u2192next
       extraDistance = await getDistance(newStop, next);
     }
 
@@ -98,7 +98,7 @@ async function findBestInsertionIndex(
 }
 
 /**
- * Insert a passenger's route (origin → destination) into an existing
+ * Insert a passenger's route (origin \u2192 destination) into an existing
  * flight's leg sequence.
  *
  * @param currentLegs - The flight's current legs (ordered by leg_sequence)

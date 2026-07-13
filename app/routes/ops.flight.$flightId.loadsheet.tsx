@@ -1,290 +1,10 @@
-﻿import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from "@remix-run/node";
-import { useLoaderData, useFetcher, Link, useNavigate , useRouteError, isRouteErrorResponse, type ShouldRevalidateFunctionArgs } from "@remix-run/react";
-
+import { useLoaderData, useFetcher, Link, useNavigate, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import { useEffect, useCallback } from "react";
 import { X } from "lucide-react";
-import { loadsheetRepository, canEditLoadsheet, canEnterActualData, isImmutable } from "../utils/loadsheet/loadsheet-repository.server";
-import { kdb } from "../utils/db.server.kysely";
-import { sql } from "kysely";
-import { updateAirframeHoursFromActual, computeActualMinutes } from "../utils/airframe-hours.server";
-import { createLoadsheetFromFlight } from "../utils/loadsheet/create-loadsheet.server";
-import { countAssignedByFlightId } from "../utils/repositories/booking-leg-passenger";
-import { requireUser } from "../utils/layout.server";
-import { hasPermission, requirePermission } from "../utils/permissions.server";
-
 import SeatMap from "../components/seat-map/SeatMap";
 
-export function shouldRevalidate({ formAction }: ShouldRevalidateFunctionArgs) {
-  if (!formAction) return true;
-  return formAction.includes("/loadsheet");
-}
-
-function formatTime(val: unknown): string | null {
-  if (!val) return null;
-  if (typeof val === "string") {
-    const cleaned = val.replace(/^1970-01-01T/, "").replace(/\.000Z$/, "").replace(/:\d{2}\.\d{3}Z$/, "").substring(0, 5);
-    return cleaned || null;
-  }
-  if (val instanceof Date) {
-    const h = String(val.getUTCHours()).padStart(2, "0");
-    const m = String(val.getUTCMinutes()).padStart(2, "0");
-    return `${h}${m}`;
-  }
-  return null;
-}
-
-export async function loader({ params, request }: LoaderFunctionArgs) {
-  const { userId } = await requireUser(request);
-  const flightId = Number(params.flightId);
-  if (!flightId) throw new Response("Flight ID required", { status: 400 });
-
-  console.log("[LoadsheetLoader] REQUEST — flightId:", flightId, "userId:", userId);
-
-  let loadsheet = await loadsheetRepository.findByFlightId(flightId);
-  if (!loadsheet) {
-    console.log("[LoadsheetLoader] PATH: no existing loadsheet, creating from flight");
-    const createdId = await createLoadsheetFromFlight(flightId);
-    loadsheet = createdId ? await loadsheetRepository.findById(createdId) : null;
-  } else {
-    const currentCount = await countAssignedByFlightId(flightId);
-    if (currentCount !== loadsheet.total_pax) {
-      console.log("[LoadsheetLoader] PATH: pax count mismatch — loadsheet:", loadsheet.total_pax, "actual:", currentCount, "— regenerating");
-      await loadsheetRepository.deleteByFlightId(flightId);
-      const createdId = await createLoadsheetFromFlight(flightId);
-      loadsheet = createdId ? await loadsheetRepository.findById(createdId) : null;
-    } else {
-      console.log("[LoadsheetLoader] PATH: existing loadsheet found, pax count OK —", loadsheet.total_pax, "pax");
-    }
-  }
-
-  if (!loadsheet) throw new Response("Loadsheet not found", { status: 404 });
-
-  const passengers = await loadsheetRepository.findPassengers(loadsheet.id);
-  let sectors = await loadsheetRepository.findSectors(loadsheet.id);
-
-  if (sectors.length === 0) {
-    console.log("[LoadsheetLoader] PATH: sectors empty, regenerating loadsheet");
-    await loadsheetRepository.deleteByFlightId(flightId);
-    const createdId = await createLoadsheetFromFlight(flightId);
-    const regenerated = createdId ? await loadsheetRepository.findById(createdId) : null;
-    if (!regenerated) {
-      throw new Response("Failed to regenerate loadsheet", { status: 500 });
-    }
-    loadsheet = regenerated;
-    sectors = await loadsheetRepository.findSectors(loadsheet.id);
-  }
-
-  console.log("[LoadsheetLoader] RESPONSE — loadsheet.id:", loadsheet.id, "status:", loadsheet.status, "pax:", loadsheet.total_pax, "sectors:", sectors.length, "passengers:", passengers.length);
-
-  // ── Flight metadata (number, pilot, aircraft) ───────────────────────────
-  const flight = (await kdb.selectFrom("flights").select(["flight_number", "departure_time", "arrival_time"]).where("id", "=", flightId).execute())[0] ?? null;
-  const pilot = loadsheet.pilot_id
-    ? (await kdb.selectFrom("pilots").select("name").where("id", "=", Number(loadsheet.pilot_id)).execute())[0] ?? null
-    : null;
-  const aircraft = loadsheet.aircraft_id
-    ? (await kdb.selectFrom("aircraft").select(["registration", "type"]).where("id", "=", Number(loadsheet.aircraft_id)).execute())[0] ?? null
-    : null;
-
-  // ── Passenger names + origin/destination ────────────────────────────────
-  const passengerIds = passengers.map((p) => p.booking_passenger_id);
-  const passengerNames: Record<number, string> = {};
-  const passengerLegData: Record<number, { origin: string; destination: string }> = {};
-  if (passengerIds.length > 0) {
-    const nameRows = await sql<{ id: number | bigint; name: string }>`
-      SELECT bp.id, CONCAT(bp.first_name, ' ', bp.last_name) AS name
-       FROM booking_passengers bp
-       WHERE bp.id = ANY(${passengerIds}::int[])
-    `.execute(kdb);
-    for (const r of nameRows.rows) {
-      passengerNames[Number(r.id)] = r.name;
-    }
-  }
-  const legIds = [...new Set(passengers.map((p) => p.booking_leg_id))];
-  if (legIds.length > 0) {
-    const legRows = await sql<{ id: number | bigint; origin_code: string; destination_code: string }>`
-      SELECT id, origin_code, destination_code FROM booking_legs WHERE id = ANY(${legIds}::int[])
-    `.execute(kdb);
-    for (const r of legRows.rows) {
-      passengerLegData[Number(r.id)] = { origin: r.origin_code, destination: r.destination_code };
-    }
-  }
-
-  // ── Build route stops (STY → ... → STY) ────────────────────────────────
-  const stopCodes: string[] = ["STY"];
-  for (const s of sectors) {
-    if (s.destination_code && s.destination_code !== "STY") {
-      if (!stopCodes.includes(s.destination_code)) stopCodes.push(s.destination_code);
-    }
-  }
-  if (stopCodes[stopCodes.length - 1] !== "STY") stopCodes.push("STY");
-
-  const canPerformInFlight = await hasPermission(Number(userId), "loadsheet:edit");
-
-  return json({
-    loadsheet: {
-      ...loadsheet,
-      created_at: loadsheet.created_at?.toString() ?? null,
-      updated_at: loadsheet.updated_at?.toString() ?? null,
-      finalized_at: loadsheet.finalized_at?.toString() ?? null,
-      archived_at: loadsheet.archived_at?.toString() ?? null,
-    },
-    flightNumber: flight?.flight_number ?? `Flight #${flightId}`,
-    departureTime: flight?.departure_time ? new Date(String(flight.departure_time)).toISOString() : null,
-    pilotName: pilot?.name ?? "Unassigned",
-    aircraftRegistration: aircraft?.registration ?? "Unassigned",
-    aircraftType: aircraft?.type ?? "",
-    passengers: passengers.map((p) => ({
-      id: p.id,
-      seat: `${p.seat_row ?? "?"}${p.seat_side ?? ""}`,
-      name: passengerNames[p.booking_passenger_id] ?? `Passenger #${p.booking_passenger_id}`,
-      bookingLegId: p.booking_leg_id,
-      origin: passengerLegData[p.booking_leg_id]?.origin ?? "?",
-      destination: passengerLegData[p.booking_leg_id]?.destination ?? "?",
-      clothedWeightKg: Number(p.clothed_weight_kg ?? 0),
-      baggageWeightKg: Number(p.baggage_weight_kg ?? 0),
-      boarded: p.boarded,
-    })),
-    sectors: sectors.map((s) => ({
-      ...s,
-      etd: formatTime(s.etd),
-      eta: formatTime(s.eta),
-      atd: formatTime(s.atd),
-      ata: formatTime(s.ata),
-    })),
-    stopCodes,
-    canEdit: canEditLoadsheet(loadsheet.status) && canPerformInFlight,
-    canEnterActual: canEnterActualData(loadsheet.status) && canPerformInFlight,
-    isLocked: isImmutable(loadsheet.status),
-    canPerformInFlight,
-  });
-}
-
-export async function action({ request, params }: ActionFunctionArgs) {
-  const { userId } = await requireUser(request);
-  const formData = await request.formData();
-  const intent = formData.get("intent")?.toString();
-  const flightId = Number(params.flightId);
-
-  console.log("[LoadsheetAction] intent:", intent, "flightId:", flightId, "userId:", userId);
-
-  await requirePermission(request, "loadsheet:edit");
-
-  const loadsheet = await loadsheetRepository.findByFlightId(flightId);
-  if (!loadsheet) return json({ error: "Not found" }, { status: 404 });
-
-  switch (intent) {
-    case "regenerate": {
-      await loadsheetRepository.deleteByFlightId(flightId);
-      const newId = await createLoadsheetFromFlight(flightId);
-      if (!newId) {
-        return json({ error: "Failed to regenerate loadsheet" }, { status: 500 });
-      }
-      return json({ success: true });
-    }
-    case "toggle-boarding": {
-      const passengerId = Number(formData.get("passengerId"));
-      const current = formData.get("boarded") === "true";
-      if (!canEnterActualData(loadsheet.status)) {
-        return json({ error: "Cannot modify this loadsheet" }, { status: 400 });
-      }
-      await loadsheetRepository.updatePassengerBoarding(passengerId, !current);
-      return json({ success: true });
-    }
-    case "update-sector": {
-      const sectorId = Number(formData.get("sectorId"));
-      const atd = formData.get("atd")?.toString() || null;
-      const ata = formData.get("ata")?.toString() || null;
-      if (!canEnterActualData(loadsheet.status)) {
-        return json({ error: "Cannot modify sector times" }, { status: 400 });
-      }
-      let actualTimeMin: number | null = null;
-      if (atd && ata) {
-        const [atdH, atdM] = atd.split(":").map(Number);
-        const [ataH, ataM] = ata.split(":").map(Number);
-        actualTimeMin = (ataH * 60 + ataM) - (atdH * 60 + atdM);
-        if (actualTimeMin < 0) actualTimeMin += 24 * 60;
-      }
-      await loadsheetRepository.updateSectorATD(sectorId, atd, ata, actualTimeMin);
-
-      // Also update flight_legs.atd/ata for persistence
-      const sector = (await kdb.selectFrom("loadsheet_sectors").select("flight_leg_id").where("id", "=", sectorId).execute())[0] ?? null;
-      if (sector?.flight_leg_id) {
-        await kdb.updateTable("flight_legs").set({
-          atd: atd ? new Date(`1970-01-01T${atd}:00Z`) : null,
-          ata: ata ? new Date(`1970-01-01T${ata}:00Z`) : null,
-        } as any).where("id", "=", sector.flight_leg_id).execute();
-
-        // Update aircraft hours using actual flight time
-        if (atd && ata) {
-          const actualMin = computeActualMinutes(atd, ata);
-          if (actualMin > 0) {
-            const leg = (await kdb.selectFrom("flight_legs")
-              .select(["flight_id"])
-              .where("id", "=", sector.flight_leg_id)
-              .execute())[0] ?? null;
-            if (leg?.flight_id) {
-              const flight = (await kdb.selectFrom("flights")
-                .select("aircraft_id")
-                .where("id", "=", leg.flight_id)
-                .execute())[0] ?? null;
-              if (flight?.aircraft_id) {
-                await updateAirframeHoursFromActual(flight.aircraft_id, actualMin);
-              }
-            }
-          }
-        }
-      }
-
-      return json({ success: true });
-    }
-    case "finalize": {
-      if (!canEditLoadsheet(loadsheet.status) && loadsheet.status !== "active") {
-        return json({ error: "Can only finalize active loadsheets" }, { status: 400 });
-      }
-      const checksum = "";
-      await loadsheetRepository.finalize(loadsheet.id, Number(userId), checksum);
-      await loadsheetRepository.logAudit({ loadsheet_id: loadsheet.id, action: "finalized", actor_id: Number(userId) });
-      return json({ success: true });
-    }
-    case "sign-off": {
-      if (!canEditLoadsheet(loadsheet.status) && loadsheet.status !== "active") {
-        return json({ error: "Can only sign off active or editable loadsheets" }, { status: 400 });
-      }
-      const hasManifestPerm = await hasPermission(Number(userId), "flight:manage-manifest");
-      if (!hasManifestPerm) {
-        return json({ error: "Missing required permission: flight:manage-manifest" }, { status: 403 });
-      }
-      const sectors = await loadsheetRepository.findSectors(loadsheet.id);
-      const violations = sectors.filter(
-        (s) => s.tow_status === "violation" || s.cog_status === "violation"
-      );
-      if (violations.length > 0) {
-        return json({
-          error: `Cannot sign off: ${violations.length} sector(s) have W&B violations. Resolve violations before sign-off.`,
-          violations: violations.map((v) => ({
-            legSequence: v.leg_sequence,
-            origin: v.origin_code,
-            destination: v.destination_code,
-            towStatus: v.tow_status,
-            cogStatus: v.cog_status,
-          })),
-        }, { status: 400 });
-      }
-      const checksum = sectors
-        .map((s) => `${s.leg_sequence}:${s.takeoff_weight_kg}:${s.cog_position_mm}`)
-        .join("|");
-      await loadsheetRepository.finalize(loadsheet.id, Number(userId), checksum);
-      await loadsheetRepository.logAudit({
-        loadsheet_id: loadsheet.id,
-        action: "signed_off",
-        actor_id: Number(userId),
-      });
-      return json({ success: true, signedOffBy: Number(userId) });
-    }
-    default:
-      return json({ error: "Unknown intent" }, { status: 400 });
-  }
-}
+import type { loader } from "./ops.flight.$flightId.loadsheet.server";
+export { loader, action } from "./ops.flight.$flightId.loadsheet.server";
 
 export default function LoadsheetPage() {
   const { loadsheet, flightNumber, departureTime, pilotName, aircraftRegistration, aircraftType, passengers, sectors, stopCodes, canEdit, canEnterActual, isLocked, canPerformInFlight } = useLoaderData<typeof loader>();
@@ -319,7 +39,7 @@ export default function LoadsheetPage() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto">
-      {/* Overlay backdrop — click to close */}
+      {/* Overlay backdrop Ã¢â‚¬â€ click to close */}
       <div
         className="fixed inset-0 bg-slate-900/50 dark:bg-slate-950/70 backdrop-blur-sm"
         onClick={handleClose}
@@ -327,7 +47,7 @@ export default function LoadsheetPage() {
       />
       {/* Content panel */}
       <div className="relative z-10 w-full max-w-5xl min-h-screen my-0">
-        {/* Close button — fixed position */}
+        {/* Close button Ã¢â‚¬â€ fixed position */}
         <button
           type="button"
           onClick={handleClose}
@@ -339,13 +59,13 @@ export default function LoadsheetPage() {
         {/* Main content */}
         <div className="bg-slate-50 dark:bg-slate-900">
           <div className="mx-auto max-w-5xl px-3 py-4 sm:px-6 sm:py-6">
-        {/* ── Header ──────────────────────────────────────────────────── */}
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Header Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
         <div className="mb-4 rounded-lg bg-white dark:bg-slate-800 p-3 shadow-sm dark:shadow-slate-900/20 sm:p-4">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <div>
-              <Link to="/operations/schedule" className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:text-slate-300 dark:text-slate-500">← Schedule</Link>
+              <Link to="/operations/schedule" className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:text-slate-300 dark:text-slate-500">Ã¢â€ Â Schedule</Link>
               <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100 sm:text-xl">{flightNumber} Loadsheet</h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{depDate}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{depDate}</p>
             </div>
             <div className="flex items-center gap-2">
               <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[loadsheet.status] ?? "bg-slate-100 dark:bg-slate-700"}`}>
@@ -366,48 +86,48 @@ export default function LoadsheetPage() {
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-300 dark:text-slate-500">
             <span>
-              <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Pilot:</span>{" "}
+              <span className="text-slate-500 dark:text-slate-400">Pilot:</span>{" "}
               <span className="font-medium">{pilotName}</span>
             </span>
             <span>
-              <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Aircraft:</span>{" "}
+              <span className="text-slate-500 dark:text-slate-400">Aircraft:</span>{" "}
               <span className="font-medium">{aircraftType} {aircraftRegistration}</span>
             </span>
             <span>
-              <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Empty Wt:</span>{" "}
+              <span className="text-slate-500 dark:text-slate-400">Empty Wt:</span>{" "}
               <span className="font-medium">{Number(loadsheet.empty_weight_kg)}kg</span>
             </span>
             <span>
-              <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Pax:</span>{" "}
+              <span className="text-slate-500 dark:text-slate-400">Pax:</span>{" "}
               <span className="font-medium">{loadsheet.total_pax}</span>
             </span>
             <span>
-              <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Fuel:</span>{" "}
-              <span className="font-medium">{sectors.length > 0 ? `${Number(sectors[0].fuel_on_board_kg)}kg` : "—"}</span>
+              <span className="text-slate-500 dark:text-slate-400">Fuel:</span>{" "}
+              <span className="font-medium">{sectors.length > 0 ? `${Number(sectors[0].fuel_on_board_kg)}kg` : "Ã¢â‚¬â€"}</span>
             </span>
           </div>
         </div>
 
-        {/* ── Key metrics ─────────────────────────────────────────────── */}
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Key metrics Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
         <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
           <div className="rounded-lg bg-white dark:bg-slate-800 p-2.5 shadow-sm dark:shadow-slate-900/20 text-center">
-            <div className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">Crew Wt</div>
+            <div className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Crew Wt</div>
             <div className="text-sm font-bold text-slate-800 dark:text-slate-100">{Number(loadsheet.pilot_weight_kg)}kg</div>
           </div>
           <div className="rounded-lg bg-white dark:bg-slate-800 p-2.5 shadow-sm dark:shadow-slate-900/20 text-center">
-            <div className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">Total Pax Wt</div>
+            <div className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Pax Wt</div>
             <div className="text-sm font-bold text-slate-800 dark:text-slate-100">{passengers.reduce((s, p) => s + p.clothedWeightKg, 0)}kg</div>
           </div>
           <div className="rounded-lg bg-white dark:bg-slate-800 p-2.5 shadow-sm dark:shadow-slate-900/20 text-center">
-            <div className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">Baggage</div>
+            <div className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Baggage</div>
             <div className="text-sm font-bold text-slate-800 dark:text-slate-100">{passengers.reduce((s, p) => s + p.baggageWeightKg, 0)}kg</div>
           </div>
           <div className="rounded-lg bg-white dark:bg-slate-800 p-2.5 shadow-sm dark:shadow-slate-900/20 text-center">
-            <div className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">Legs</div>
+            <div className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Legs</div>
             <div className="text-sm font-bold text-slate-800 dark:text-slate-100">{sectors.length}</div>
           </div>
           <div className="rounded-lg bg-white dark:bg-slate-800 p-2.5 shadow-sm dark:shadow-slate-900/20 text-center">
-            <div className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">W&amp;B</div>
+            <div className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">W&amp;B</div>
             <div className={`text-sm font-bold ${
               sectors.some((s) => s.tow_status === "violation" || s.cog_status === "violation") ? "text-red-600" :
               sectors.some((s) => s.tow_status === "warning" || s.cog_status === "warning") ? "text-amber-600" :
@@ -419,7 +139,7 @@ export default function LoadsheetPage() {
           </div>
         </div>
 
-        {/* ── Passenger Manifest ───────────────────────────────────────── */}
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Passenger Manifest Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
         <div className="mb-4 overflow-x-auto rounded-lg bg-white dark:bg-slate-800 shadow-sm dark:shadow-slate-900/20">
           <div className="p-3 sm:p-4">
             <h2 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Passenger Manifest</h2>
@@ -457,11 +177,11 @@ export default function LoadsheetPage() {
                         <td className="py-1.5 pr-2 border-b border-slate-100 dark:border-slate-700 font-medium text-slate-700 dark:text-slate-200 truncate max-w-[140px] sticky left-[56px] bg-white dark:bg-slate-800">
                           {p.name}
                         </td>
-                        <td className="py-1.5 pr-2 border-b border-slate-100 dark:border-slate-700 font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                        <td className="py-1.5 pr-2 border-b border-slate-100 dark:border-slate-700 font-mono text-slate-500 dark:text-slate-400">
                           {p.clothedWeightKg}kg
                         </td>
-                        <td className="py-1.5 pr-2 border-b border-slate-100 dark:border-slate-700 font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500">
-                          {p.baggageWeightKg > 0 ? `${p.baggageWeightKg}kg` : "—"}
+                        <td className="py-1.5 pr-2 border-b border-slate-100 dark:border-slate-700 font-mono text-slate-500 dark:text-slate-400">
+                          {p.baggageWeightKg > 0 ? `${p.baggageWeightKg}kg` : "Ã¢â‚¬â€"}
                         </td>
                         {stopCodes.map((code, i) => {
                           const isOrigin = p.origin === code;
@@ -484,7 +204,7 @@ export default function LoadsheetPage() {
                               ) : isBetween ? (
                                 <span className="h-0.5 w-full bg-cyan-300 inline-block rounded" />
                               ) : (
-                                <span className="text-[10px] text-slate-200">—</span>
+                                <span className="text-[10px] text-slate-200">Ã¢â‚¬â€</span>
                               )}
                             </td>
                           );
@@ -497,8 +217,8 @@ export default function LoadsheetPage() {
                     <td className="py-1.5 pr-2 sticky left-0 bg-white dark:bg-slate-800" colSpan={2}>
                       <span className="text-[10px] font-medium text-amber-600">Aft Hold (Baggage)</span>
                     </td>
-                    <td className="py-1.5 pr-2 text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">—</td>
-                    <td className="py-1.5 pr-2 font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                    <td className="py-1.5 pr-2 text-[10px] text-slate-500 dark:text-slate-400">Ã¢â‚¬â€</td>
+                    <td className="py-1.5 pr-2 font-mono text-slate-500 dark:text-slate-400">
                       {passengers.reduce((s, p) => s + p.baggageWeightKg, 0)}kg
                     </td>
                     {stopCodes.map((_, i) => (
@@ -510,7 +230,7 @@ export default function LoadsheetPage() {
                 </tbody>
               </table>
             </div>
-            <div className="mt-2 flex items-center gap-4 text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <div className="mt-2 flex items-center gap-4 text-[10px] text-slate-500 dark:text-slate-400">
               <span className="inline-flex items-center gap-1">
                 <span className="h-2 w-2 rounded-full bg-cyan-500 ring-1 ring-cyan-200" /> Board
               </span>
@@ -524,7 +244,7 @@ export default function LoadsheetPage() {
           </div>
         </div>
 
-        {/* ── Sector Calculations + Weight & Balance ────────────────── */}
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Sector Calculations + Weight & Balance Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
         <div className="mb-4 overflow-x-auto rounded-lg bg-white dark:bg-slate-800 shadow-sm dark:shadow-slate-900/20">
           <div className="p-3 sm:p-4">
             <h2 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Sector Calculations &amp; Weight/Balance</h2>
@@ -533,7 +253,7 @@ export default function LoadsheetPage() {
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-700 text-left">
                     <th className="py-1.5 pr-2 font-medium text-slate-500 dark:text-slate-400 w-6">#</th>
-                    <th className="py-1.5 pr-2 font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">From→To</th>
+                    <th className="py-1.5 pr-2 font-medium text-slate-500 dark:text-slate-400">From{'\u2192'}To</th>
                     <th className="py-1.5 pr-2 font-medium text-slate-500 dark:text-slate-400 w-11">Dist</th>
                     <th className="py-1.5 pr-2 font-medium text-slate-500 dark:text-slate-400 w-11">Plan</th>
                     <th className="py-1.5 pr-2 font-medium text-slate-500 dark:text-slate-400 w-12">ETD</th>
@@ -544,12 +264,12 @@ export default function LoadsheetPage() {
                         <th className="py-1.5 pr-2 font-medium text-slate-500 dark:text-slate-400 w-12">ATA</th>
                       </>
                     )}
-                    {/* ── W&B columns ── */}
+                    {/* Ã¢â€â‚¬Ã¢â€â‚¬ W&B columns Ã¢â€â‚¬Ã¢â€â‚¬ */}
                     <th className="py-1.5 pr-2 font-medium text-slate-500 dark:text-slate-400 w-14 border-l-2 border-indigo-200 pl-2">TOW</th>
                     <th className="py-1.5 pr-2 font-medium text-slate-500 dark:text-slate-400 w-14 bg-indigo-50/50">LW</th>
                     <th className="py-1.5 pr-2 font-medium text-slate-500 dark:text-slate-400 w-14 bg-indigo-50/50">CG</th>
                     <th className="py-1.5 pr-2 font-medium text-slate-500 dark:text-slate-400 w-16 bg-indigo-50/50">W&amp;B</th>
-                    {/* ── Fuel columns ── */}
+                    {/* Ã¢â€â‚¬Ã¢â€â‚¬ Fuel columns Ã¢â€â‚¬Ã¢â€â‚¬ */}
                     <th className="py-1.5 pr-2 font-medium text-slate-500 dark:text-slate-400 w-11 border-l-2 border-amber-200 pl-2">FOB</th>
                     <th className="py-1.5 pr-2 font-medium text-slate-500 dark:text-slate-400 w-11 bg-amber-50/30">Burn</th>
                     <th className="py-1.5 pr-2 font-medium text-slate-500 dark:text-slate-400 w-11 bg-amber-50/30">Rem</th>
@@ -563,9 +283,9 @@ export default function LoadsheetPage() {
                     return (
                     <tr key={s.leg_sequence} className="border-b border-slate-100 dark:border-slate-700">
                       <td className="py-1.5 pr-2 font-mono text-slate-600 dark:text-slate-300 dark:text-slate-500">{s.leg_sequence}</td>
-                      <td className="py-1.5 pr-2 font-medium text-slate-700 dark:text-slate-200">{s.origin_code}→{s.destination_code}</td>
-                      <td className="py-1.5 pr-2 font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500">{Number(s.distance_nm)}</td>
-                      <td className="py-1.5 pr-2 font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500">{s.planned_time_min}m</td>
+                      <td className="py-1.5 pr-2 font-medium text-slate-700 dark:text-slate-200">{s.origin_code}{'\u2192'}{s.destination_code}</td>
+                      <td className="py-1.5 pr-2 font-mono text-slate-500 dark:text-slate-400">{Number(s.distance_nm)}</td>
+                      <td className="py-1.5 pr-2 font-mono text-slate-500 dark:text-slate-400">{s.planned_time_min}m</td>
                       <td className="py-1.5 pr-2 font-mono text-slate-600 dark:text-slate-300 dark:text-slate-500">{s.etd}</td>
                       <td className="py-1.5 pr-2 font-mono text-slate-600 dark:text-slate-300 dark:text-slate-500">{s.eta}</td>
                       {canEnterActual && canPerformInFlight && (
@@ -584,7 +304,7 @@ export default function LoadsheetPage() {
                           </td>
                         </>
                       )}
-                      {/* ── W&B cells ── */}
+                      {/* Ã¢â€â‚¬Ã¢â€â‚¬ W&B cells Ã¢â€â‚¬Ã¢â€â‚¬ */}
                       <td className={`py-1.5 pr-2 font-mono border-l-2 border-indigo-100 pl-2 ${
                         s.tow_status === "violation" ? "text-red-600 bg-red-50 dark:bg-red-900/30 font-bold" :
                         s.tow_status === "warning" ? "text-amber-600 bg-amber-50" : "text-slate-600 dark:text-slate-300 dark:text-slate-500"
@@ -617,7 +337,7 @@ export default function LoadsheetPage() {
                           </span>
                         )}
                       </td>
-                      {/* ── Fuel cells ── */}
+                      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Fuel cells Ã¢â€â‚¬Ã¢â€â‚¬ */}
                       <td className="py-1.5 pr-2 font-mono text-slate-600 dark:text-slate-300 border-l-2 border-amber-100 pl-2">{Number(s.fuel_on_board_kg)}</td>
                       <td className="py-1.5 pr-2 font-mono text-slate-600 dark:text-slate-300 bg-amber-50/30">{Number(s.fuel_burn_kg)}</td>
                       <td className={`py-1.5 pr-2 font-mono bg-amber-50/30 font-semibold ${fuelLow ? "text-red-600" : "text-slate-600 dark:text-slate-300 dark:text-slate-500"}`}>
@@ -628,17 +348,17 @@ export default function LoadsheetPage() {
                 </tbody>
               </table>
             </div>
-            <div className="mt-2 flex items-center gap-4 text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">
-              <span>CG limits: 81.0″–101.0″ (2057–2565 mm)</span>
+            <div className="mt-2 flex items-center gap-4 text-[10px] text-slate-500 dark:text-slate-400">
+              <span>CG limits: 81.0Ã¢â‚¬Â³Ã¢â‚¬â€œ101.0Ã¢â‚¬Â³ (2057Ã¢â‚¬â€œ2565 mm)</span>
               <span className="text-slate-300 dark:text-slate-500">|</span>
-              <span>MTOW: {sectors[0]?.takeoff_weight_kg ? `${Number(sectors[0].takeoff_weight_kg)}kg` : "—"}</span>
+              <span>MTOW: {sectors[0]?.takeoff_weight_kg ? `${Number(sectors[0].takeoff_weight_kg)}kg` : "Ã¢â‚¬â€"}</span>
               <span className="text-slate-300 dark:text-slate-500">|</span>
               <span>Bordered columns = Weight &amp; Balance</span>
             </div>
           </div>
         </div>
 
-        {/* ── Actions ──────────────────────────────────────────────────── */}
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Actions Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */}
         <div className="flex flex-wrap items-center gap-2">
           {canEdit && canPerformInFlight && (
             <fetcher.Form method="post">
@@ -689,22 +409,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
       </div>
     </div>
   );

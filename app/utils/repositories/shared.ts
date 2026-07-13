@@ -16,5 +16,6 @@ import type { DB } from "../../../generated/kysely/database";
 export async function withTransaction<T>(
   fn: (tx: Kysely<DB>) => Promise<T>
 ): Promise<T> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return db.transaction().execute(fn as any);
 }

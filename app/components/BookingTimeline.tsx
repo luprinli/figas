@@ -1,4 +1,4 @@
-﻿import { BookingStatus } from "../utils/constants";
+import { BookingStatus } from "../utils/constants";
 
 interface BookingTimelineProps {
   currentStatus: string;
@@ -55,7 +55,7 @@ export default function BookingTimeline({
                       ? "bg-green-500 text-white"
                       : isCurrent
                       ? "bg-sky-500 text-white ring-2 ring-sky-200"
-                      : "bg-slate-100 text-slate-500 dark:text-slate-400 dark:text-slate-500"
+                      : "bg-slate-100 text-slate-500 dark:text-slate-500"
                   }`}
                 >
                   {isCompleted ? (
@@ -75,7 +75,7 @@ export default function BookingTimeline({
                         ? "text-green-700"
                         : isCurrent
                         ? "text-sky-700"
-                        : "text-slate-500 dark:text-slate-400 dark:text-slate-500"
+                        : "text-slate-500 dark:text-slate-500"
                     }`}
                   >
                     {STATUS_LABELS[status]}

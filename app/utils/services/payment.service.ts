@@ -1,7 +1,6 @@
 import { getStripe } from "../stripe.server";
 import { kdb } from "../db.server.kysely";
 import { sql } from "kysely";
-import type { DB } from "../../../generated/kysely/database";
 import { bookingRepository } from "../repositories/booking";
 import { bookingPassengerRepository } from "../repositories/booking-passenger";
 import { paymentMethodRepository } from "../repositories/payment-method";
@@ -125,6 +124,7 @@ export async function initiateStripePayment(params: {
         amount_gbp: String(params.amount),
         method: PaymentMethod.STRIPE,
         status: PaymentStatus.PROCESSING,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       .returningAll()
       .execute();

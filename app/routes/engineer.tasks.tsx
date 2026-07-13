@@ -1,15 +1,16 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, Form } from "@remix-run/react";
-import { requirePermission } from "../utils/permissions.server";
+import { useLoaderData, Form, useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { requirePermission, createAuditLogEntry } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
 import { requireUser } from "../utils/layout.server";
+import { validateCsrfRequest } from "../utils/csrf-check.server";
 import { kdb } from "../utils/db.server.kysely";
 import { sql } from "kysely";
 import DataGrid from "../components/DataGrid";
 import type { Column } from "../components/DataTable";
 import EmptyState from "../components/EmptyState";
-import DashboardCard from "../components/DashboardCard";
+import MetricCard from "../components/MetricCard";
 import Card from "../components/Card";
 import Button from "../components/Button";
 
@@ -36,6 +37,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export async function action({ request }: ActionFunctionArgs) {
   const { userId } = await requireUser(request);
   const formData = await request.formData();
+
+  if (!(await validateCsrfRequest(request, formData))) {
+    return json({ error: "CSRF token validation failed" }, { status: 403 });
+  }
+
   const intent = formData.get("intent") as string;
 
   switch (intent) {
@@ -57,6 +63,12 @@ export async function action({ request }: ActionFunctionArgs) {
         INSERT INTO maintenance_tasks (aircraft_id, title, task_type, ata_chapter, interval_type, interval_value, priority, status, assigned_to)
          VALUES (${aircraftId}, ${title}, ${taskType}, ${ataChapter}, ${intervalType}, ${intervalValue}, ${priority}, 'open', ${userId})
       `.execute(kdb);
+      await createAuditLogEntry({
+        actorId: Number(userId),
+        action: "maintenance_task.created",
+        entityType: "maintenance_task",
+        newValues: { aircraft_id: aircraftId, title, task_type: taskType, priority },
+      });
       return redirect("/engineer/tasks");
     }
 
@@ -66,6 +78,13 @@ export async function action({ request }: ActionFunctionArgs) {
       await sql`
         UPDATE maintenance_tasks SET status = 'in_progress', updated_at = NOW() WHERE id = ${taskId}
       `.execute(kdb);
+      await createAuditLogEntry({
+        actorId: Number(userId),
+        action: "maintenance_task.started",
+        entityType: "maintenance_task",
+        entityId: taskId,
+        newValues: { status: "in_progress" },
+      });
       return redirect("/engineer/tasks");
     }
 
@@ -75,6 +94,13 @@ export async function action({ request }: ActionFunctionArgs) {
       await sql`
         UPDATE maintenance_tasks SET status = 'completed', completed_at = NOW(), completed_by = ${userId} WHERE id = ${taskId}
       `.execute(kdb);
+      await createAuditLogEntry({
+        actorId: Number(userId),
+        action: "maintenance_task.completed",
+        entityType: "maintenance_task",
+        entityId: taskId,
+        newValues: { status: "completed", completed_by: userId },
+      });
       return redirect("/engineer/tasks");
     }
 
@@ -120,9 +146,9 @@ export default function EngineerTaskBoard() {
     <div className="p-6 space-y-5">
       <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Task Board</h1>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <DashboardCard label="Open Tasks" value={openCount} color="blue" />
-        <DashboardCard label="In Progress" value={inProgress} color="amber" />
-        <DashboardCard label="Overdue" value={overdue} color={overdue > 0 ? 'red' : 'emerald'} />
+        <MetricCard label="Open Tasks" value={openCount} color="blue" />
+        <MetricCard label="In Progress" value={inProgress} color="amber" />
+        <MetricCard label="Overdue" value={overdue} color={overdue > 0 ? 'red' : 'emerald'} />
       </div>
 
       {/* Create Task Form */}
@@ -229,6 +255,31 @@ export default function EngineerTaskBoard() {
           emptyState={<EmptyState title="No maintenance tasks" description="Create a task above to begin tracking inspections." />}
         />
       </Card>
+    </div>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  if (isRouteErrorResponse(error)) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
+        <div className="mx-auto max-w-lg text-center px-4">
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
+          <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
+      <div className="mx-auto max-w-lg text-center px-4">
+        <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
+      </div>
     </div>
   );
 }

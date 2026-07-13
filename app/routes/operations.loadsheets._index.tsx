@@ -9,7 +9,7 @@ import { getUserPermissions } from "../utils/permissions.server";
 import DataTable from "../components/DataTable";
 import type { Column } from "../components/DataTable";
 import DatePicker from "../components/DatePicker";
-import DashboardCard from "../components/DashboardCard";
+import MetricCard from "../components/MetricCard";
 import Skeleton from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import Button from "../components/Button";
@@ -217,7 +217,7 @@ export default function LoadsheetsIndex() {
       </span>
     )},
     { key: "route", header: "Route", render: (f) => (
-      <span className="text-slate-600 dark:text-slate-300">{f.origin_code} → {f.destination_code}</span>
+      <span className="text-slate-600 dark:text-slate-300">{f.origin_code} \u2192 {f.destination_code}</span>
     )},
     {
       key: "loadsheet_status", header: "Status", sortable: true,
@@ -269,10 +269,10 @@ export default function LoadsheetsIndex() {
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <DashboardCard label="Total Flights" value={stats.total} color="blue" />
-        <DashboardCard label="With Loadsheet" value={stats.withLoadsheet} color="emerald" />
-        <DashboardCard label="Finalized" value={stats.finalized} color="purple" />
-        <DashboardCard label="Draft" value={stats.draft} color={stats.draft > 0 ? "amber" : "emerald"} />
+        <MetricCard label="Total Flights" value={stats.total} color="blue" />
+        <MetricCard label="With Loadsheet" value={stats.withLoadsheet} color="emerald" />
+        <MetricCard label="Finalized" value={stats.finalized} color="purple" />
+        <MetricCard label="Draft" value={stats.draft} color={stats.draft > 0 ? "amber" : "emerald"} />
       </div>
 
       {/* Date Quick Filters */}
@@ -375,7 +375,7 @@ export function ErrorBoundary() {
           <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
           <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
         </div>
       </div>
     );
@@ -385,7 +385,7 @@ export function ErrorBoundary() {
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
         <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
       </div>
     </div>
   );

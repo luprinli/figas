@@ -1,7 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { randomBytes } from "node:crypto";
 import { kdb } from "../db.server.kysely";
 import { sql } from "kysely";
-import type { DB } from "../../../generated/kysely/database";
 
 export async function publishSchedule(scheduleId: number, publishedBy: number, amendmentNote?: string): Promise<{
   success: boolean;
@@ -18,7 +18,7 @@ export async function publishSchedule(scheduleId: number, publishedBy: number, a
     .selectAll("f")
     .select(["a.type", "a.registration", "p.name"])
     .where("f.schedule_id", "=", scheduleId)
-    .orderBy("f.id asc")
+    .orderBy("f.id", "asc")
     .execute();
 
   if (flights.length === 0) return { success: false, error: "No flights on this schedule" };
@@ -28,7 +28,7 @@ export async function publishSchedule(scheduleId: number, publishedBy: number, a
     .selectAll()
     .where("schedule_id", "=", scheduleId)
     .where("is_active", "=", true)
-    .orderBy("version desc")
+    .orderBy("version", "desc")
     .limit(1)
     .execute())[0] ?? null;
 
@@ -50,18 +50,18 @@ export async function publishSchedule(scheduleId: number, publishedBy: number, a
 
   // Snapshot flights
   for (const f of flights) {
-    // Snapshot the true STY → … → STY path from the ordered flight legs so the
+    // Snapshot the true STY \u2192 … \u2192 STY path from the ordered flight legs so the
     // public view shows the real route, not the flight-level STY↔STY round trip.
     const legs = await kdb.selectFrom("flight_legs")
       .select(["origin_code", "destination_code"])
       .where("flight_id", "=", f.id)
-      .orderBy("leg_number asc")
+      .orderBy("leg_number", "asc")
       .execute();
     const routePath =
       legs.length > 0
-        ? [legs[0].origin_code, ...legs.map((l) => l.destination_code)].join(" → ")
+        ? [legs[0].origin_code, ...legs.map((l) => l.destination_code)].join(" \u2192 ")
         : f.origin_code && f.destination_code
-          ? `${f.origin_code} → ${f.destination_code}`
+          ? `${f.origin_code} \u2192 ${f.destination_code}`
           : null;
     await kdb.insertInto("published_schedule_flights").values({
       published_schedule_id: pub.id,
@@ -82,6 +82,9 @@ export async function publishSchedule(scheduleId: number, publishedBy: number, a
 
   // Queue notifications for passengers, agents, and subscribers
   await queuePublishNotifications(scheduleId, token, nextVersion);
+
+  // Dispatch queued notifications immediately (non-blocking)
+  import("../email.server").then((m) => m.processPendingNotifications().catch(() => {}));
 
   return { success: true, token, version: nextVersion };
 }
@@ -128,10 +131,20 @@ export async function getPublicSchedule(token: string): Promise<{
 
   if (!pub) return { schedule: null, flights: [], error: "Schedule not found or has been superseded" };
 
+  // Token expires 30 days after publication
+  const publishedAt = pub.published_at ? new Date(String(pub.published_at)) : null;
+  if (publishedAt) {
+    const expiryDate = new Date(publishedAt);
+    expiryDate.setDate(expiryDate.getDate() + 30);
+    if (new Date() > expiryDate) {
+      return { schedule: null, flights: [], error: "This schedule link has expired. Please request a new link." };
+    }
+  }
+
   const flights = await kdb.selectFrom("published_schedule_flights")
     .selectAll()
     .where("published_schedule_id", "=", pub.id)
-    .orderBy("departure_time asc")
+    .orderBy("departure_time", "asc")
     .execute();
 
   return {

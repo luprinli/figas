@@ -24,7 +24,7 @@ function buildLineItems(baggageWeight: number): LineItem[] {
   if (excessCharge <= 0) return [];
   return [{
     id: "excess",
-    label: `Excess Baggage (${excessBaggage}kg × £${EXCESS_RATE_PER_KG}/kg)`,
+    label: `Excess Baggage (${excessBaggage}kg �— £${EXCESS_RATE_PER_KG}/kg)`,
     amount: excessCharge,
     type: "excess_baggage",
     quantity: excessBaggage,

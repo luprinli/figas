@@ -1,13 +1,11 @@
 import { kdb } from "../db.server.kysely";
-import { sql } from "kysely";
-import type { DB } from "../../../generated/kysely/database";
 import { bookingRepository } from "../repositories/booking";
 import { bookingPassengerRepository } from "../repositories/booking-passenger";
 import { bookingLegRepository } from "../repositories/booking-leg";
 import { fareRouteRepository } from "../repositories/fare-route";
 import { invoiceRepository } from "../repositories/invoice";
 import { invoiceItemRepository } from "../repositories/invoice-item";
-import { accountingEntryRepository, resolveAccountId } from "../repositories/accounting-entry";
+import { accountingEntryRepository, resolveAccountId, type AccountingJournalEntryRow } from "../repositories/accounting-entry";
 import { createAuditLogEntry, validateApproval } from "../permissions.server";
 import {
   InvoiceStatus,
@@ -189,7 +187,7 @@ export async function generateInvoice(
 
       if (legFreightTotal > 0) {
         lineItems.push({
-          description: `Freight — ${leg.origin_code} → ${leg.destination_code} (${legFreightTotal}kg)`,
+          description: `Freight — ${leg.origin_code} \u2192 ${leg.destination_code} (${legFreightTotal}kg)`,
           quantity: 1,
           unitPrice: legFreightTotal * FREIGHT_RATE_PER_KG,
           type: InvoiceItemType.FREIGHT,
@@ -302,37 +300,41 @@ export async function issueInvoice(
     // Set issue_date via Kysely (updateStatus doesn't set issue_date)
     await kdb.updateTable("invoices").set({
       issue_date: new Date(new Date().toISOString().split("T")[0]),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any).where("id", "=", params.invoiceId).execute();
 
-    // Create accounting journal entry
-    const entry = await accountingEntryRepository.createEntry({
-      entry_number: `INV-${Date.now()}`,
-      entry_type: AccountingEntryType.INVOICE_ISSUED,
-      description: `Invoice ${invoice.invoice_number} issued`,
-      invoice_id: params.invoiceId,
-      booking_id: invoice.booking_id || undefined,
-      entry_date: new Date().toISOString().split("T")[0],
-      created_by: params.userId,
-    });
+    // Create accounting journal entry (atomic: entry + both lines)
+    let entry: AccountingJournalEntryRow;
+    await kdb.transaction().execute(async (tx) => {
+      entry = await accountingEntryRepository.createEntry({
+        entry_number: `INV-${Date.now()}`,
+        entry_type: AccountingEntryType.INVOICE_ISSUED,
+        description: `Invoice ${invoice.invoice_number} issued`,
+        invoice_id: params.invoiceId,
+        booking_id: invoice.booking_id || undefined,
+        entry_date: new Date().toISOString().split("T")[0],
+        created_by: params.userId,
+      }, tx);
 
-    // Resolve chart of accounts UUIDs
-    const accountsReceivableId = await resolveAccountId("1020");
-    const passengerFareRevenueId = await resolveAccountId("4010");
+      // Resolve chart of accounts UUIDs
+      const accountsReceivableId = await resolveAccountId("1020");
+      const passengerFareRevenueId = await resolveAccountId("4010");
 
-    // Debit: Accounts Receivable (1020)
-    await accountingEntryRepository.createLine({
-      entry_id: entry.id,
-      account_id: accountsReceivableId,
-      debit_amount_gbp: invoice.total_gbp,
-      description: "Accounts Receivable — invoice issued",
-    });
+      // Debit: Accounts Receivable (1020)
+      await accountingEntryRepository.createLine({
+        entry_id: entry.id,
+        account_id: accountsReceivableId,
+        debit_amount_gbp: invoice.total_gbp,
+        description: "Accounts Receivable — invoice issued",
+      }, tx);
 
-    // Credit: Passenger Fare Revenue (4010)
-    await accountingEntryRepository.createLine({
-      entry_id: entry.id,
-      account_id: passengerFareRevenueId,
-      credit_amount_gbp: invoice.total_gbp,
-      description: "Passenger Fare Revenue — invoice issued",
+      // Credit: Passenger Fare Revenue (4010)
+      await accountingEntryRepository.createLine({
+        entry_id: entry.id,
+        account_id: passengerFareRevenueId,
+        credit_amount_gbp: invoice.total_gbp,
+        description: "Passenger Fare Revenue — invoice issued",
+      }, tx);
     });
 
     // Re-fetch the updated invoice
@@ -350,7 +352,7 @@ export async function issueInvoice(
         status: InvoiceStatus.ISSUED,
         invoice_number: invoice.invoice_number,
         total_gbp: invoice.total_gbp,
-        entry_id: entry.id,
+        entry_id: entry!.id,
       },
       oldValues: {
         status: InvoiceStatus.DRAFT,
@@ -406,6 +408,7 @@ export async function getAgingSummary(
     const overdueInvoices = await kdb.selectFrom("invoices")
       .select(["due_date", "total_gbp", "amount_paid_gbp"])
       .where("status", "=", InvoiceStatus.ISSUED)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .where("due_date", "<", asOf as any)
       .execute();
 
@@ -420,7 +423,7 @@ export async function getAgingSummary(
     const now = new Date(asOfDate);
 
     for (const inv of overdueInvoices) {
-      const dueDate = (inv.due_date as any) instanceof Date ? inv.due_date as any as Date : new Date(inv.due_date as any);
+      const dueDate = new Date(inv.due_date as string);
       const daysOverdue = Math.floor(
         (now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)
       );
@@ -549,36 +552,39 @@ export async function recordPaymentAgainstInvoice(
       return { success: false, error: "Invoice not found" };
     }
 
-    // If invoice becomes fully paid, create accounting entry
+    // If invoice becomes fully paid, create accounting entry (atomic)
     if (updatedInvoice.status === InvoiceStatus.PAID) {
-      const entry = await accountingEntryRepository.createEntry({
-        entry_number: `PAY-${Date.now()}`,
-        entry_type: AccountingEntryType.INVOICE_PAYMENT,
-        description: `Payment received for invoice ${updatedInvoice.invoice_number}`,
-        invoice_id: params.invoiceId,
-        payment_id: params.paymentId,
-        entry_date: new Date().toISOString().split("T")[0],
-        created_by: params.userId,
-      });
+      let entry: AccountingJournalEntryRow;
+      await kdb.transaction().execute(async (tx) => {
+        entry = await accountingEntryRepository.createEntry({
+          entry_number: `PAY-${Date.now()}`,
+          entry_type: AccountingEntryType.INVOICE_PAYMENT,
+          description: `Payment received for invoice ${updatedInvoice.invoice_number}`,
+          invoice_id: params.invoiceId,
+          payment_id: params.paymentId,
+          entry_date: new Date().toISOString().split("T")[0],
+          created_by: params.userId,
+        }, tx);
 
-      // Resolve chart of accounts UUIDs
-      const cashAtBankId = await resolveAccountId("1010");
-      const accountsReceivableId = await resolveAccountId("1020");
+        // Resolve chart of accounts UUIDs
+        const cashAtBankId = await resolveAccountId("1010");
+        const accountsReceivableId = await resolveAccountId("1020");
 
-      // Debit: Cash at Bank (1010)
-      await accountingEntryRepository.createLine({
-        entry_id: entry.id,
-        account_id: cashAtBankId,
-        debit_amount_gbp: params.amountGbp,
-        description: "Cash at Bank — payment received",
-      });
+        // Debit: Cash at Bank (1010)
+        await accountingEntryRepository.createLine({
+          entry_id: entry.id,
+          account_id: cashAtBankId,
+          debit_amount_gbp: params.amountGbp,
+          description: "Cash at Bank — payment received",
+        }, tx);
 
-      // Credit: Accounts Receivable (1020)
-      await accountingEntryRepository.createLine({
-        entry_id: entry.id,
-        account_id: accountsReceivableId,
-        credit_amount_gbp: params.amountGbp,
-        description: "Accounts Receivable — payment received",
+        // Credit: Accounts Receivable (1020)
+        await accountingEntryRepository.createLine({
+          entry_id: entry.id,
+          account_id: accountsReceivableId,
+          credit_amount_gbp: params.amountGbp,
+          description: "Accounts Receivable — payment received",
+        }, tx);
       });
     }
 

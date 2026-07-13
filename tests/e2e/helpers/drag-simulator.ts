@@ -8,6 +8,11 @@ import { type Page } from "@playwright/test";
  * @param dragSelector - Playwright selector string for the element to drag
  * @param dropSelector - Playwright selector string for the drop target element
  */
+/**
+ * Perform a drag-and-drop operation using Playwright's built-in dragTo.
+ * dnd-kit's PointerSensor listens for native pointer events, which
+ * Playwright's dragTo dispatches correctly.
+ */
 export async function simulateDragDrop(
   page: Page,
   dragSelector: string,
@@ -16,40 +21,13 @@ export async function simulateDragDrop(
   const dragEl = page.locator(dragSelector).first();
   const dropEl = page.locator(dropSelector).first();
 
-  // Ensure both elements exist
   await dragEl.waitFor({ state: "visible", timeout: 5_000 });
   await dropEl.waitFor({ state: "visible", timeout: 5_000 });
 
-  // Get bounding boxes for coordinates
-  const dragBox = await dragEl.boundingBox();
-  const dropBox = await dropEl.boundingBox();
+  await dragEl.dragTo(dropEl, { force: true });
 
-  if (!dragBox || !dropBox) {
-    throw new Error("Could not determine bounding box for drag or drop element");
-  }
-
-  const startX = dragBox.x + dragBox.width / 2;
-  const startY = dragBox.y + dragBox.height / 2;
-  const endX = dropBox.x + dropBox.width / 2;
-  const endY = dropBox.y + dropBox.height / 2;
-
-  // Perform the drag sequence using pointer events (dnd-kit uses PointerSensor)
-  await page.mouse.move(startX, startY);
-  await page.mouse.down();
-  // Small pause to let dnd-kit register the drag start
-  await page.waitForTimeout(200);
-  // Move in steps so dnd-kit can track the movement
-  const steps = 10;
-  for (let i = 1; i <= steps; i++) {
-    const x = startX + (endX - startX) * (i / steps);
-    const y = startY + (endY - startY) * (i / steps);
-    await page.mouse.move(x, y);
-    await page.waitForTimeout(50);
-  }
-  await page.waitForTimeout(100);
-  await page.mouse.up();
-  // Wait for the UI to settle after drop
-  await page.waitForTimeout(500);
+  // Wait for server response and UI re-render
+  await page.waitForTimeout(1500);
   await page.waitForLoadState("networkidle");
 }
 

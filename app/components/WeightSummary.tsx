@@ -1,4 +1,5 @@
-﻿import WeightIcon from "./icons/WeightIcon";
+import WeightIcon from "./icons/WeightIcon";
+import WeightBar from "./WeightBar";
 
 interface PassengerWeight {
   name: string;
@@ -25,10 +26,6 @@ export default function WeightSummary({
   const totalPassengerWeight = totalBodyWeight + totalBaggageWeight;
   const totalWeight = totalPassengerWeight + freightWeightKg;
   const remainingPayload = maxPayloadKg - totalWeight;
-  const pctUsed = Math.min(100, Math.round((totalWeight / maxPayloadKg) * 100));
-
-  const barColor =
-    pctUsed > 90 ? "bg-red-500" : pctUsed > 75 ? "bg-amber-500" : "bg-green-500";
 
   return (
     <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20">
@@ -39,20 +36,11 @@ export default function WeightSummary({
 
       {/* Weight bar */}
       <div className="mb-4">
-        <div className="flex items-center justify-between text-sm mb-1">
-          <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">
-            {totalWeight.toFixed(1)} kg / {maxPayloadKg} kg
-          </span>
-          <span className={`font-medium ${pctUsed > 90 ? "text-red-600" : "text-slate-600 dark:text-slate-300 dark:text-slate-500"}`}>
-            {pctUsed}%
-          </span>
-        </div>
-        <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2.5">
-          <div
-            className={`h-2.5 rounded-full transition-all ${barColor}`}
-            style={{ width: `${pctUsed}%` }}
-          />
-        </div>
+        <WeightBar
+          currentWeight={totalWeight}
+          maxWeight={maxPayloadKg}
+          label="Payload"
+        />
       </div>
 
       {/* Breakdown */}
@@ -78,7 +66,7 @@ export default function WeightSummary({
           <span>{totalWeight.toFixed(1)} kg</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Remaining payload</span>
+          <span className="text-slate-500 dark:text-slate-500">Remaining payload</span>
           <span className={`font-medium ${remainingPayload < 0 ? "text-red-600" : "text-green-600"}`}>
             {remainingPayload.toFixed(1)} kg
           </span>

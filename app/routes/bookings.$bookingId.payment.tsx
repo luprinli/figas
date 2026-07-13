@@ -1,16 +1,23 @@
-import type { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { Form, Link, useActionData, useLoaderData, useNavigation } from "@remix-run/react";
+import { useEffect } from "react";
+import { requireAuth } from "../utils/auth.server";
 import { bookingRepository } from "../utils/repositories/booking";
 import { bookingLegRepository } from "../utils/repositories/booking-leg";
 import { bookingLegPassengerRepository } from "../utils/repositories/booking-leg-passenger";
 import { PaymentMethod, FREIGHT_RATE_PER_KG } from "../utils/constants";
 import { calculateBookingCost, getAvailableMethods, initiateStripePayment, recordInvoiceSelection, recordOfflinePaymentSelection } from "../utils/services/payment.service";
 import PaymentMethodSelector from "../components/booking/PaymentMethodSelector";
+import Skeleton from "../components/Skeleton";
 import { CreditCard } from "lucide-react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 
 export const meta: MetaFunction = () => [{ title: "Payment - FIGAS" }];
+
+export const headers: HeadersFunction = () => ({
+  "Cache-Control": "no-cache, no-store, must-revalidate",
+});
 
 // ── Bank Account Configuration (should come from env or admin settings) ───────────
 
@@ -23,14 +30,15 @@ const BANK_CONFIG = {
 
 // ── Loader ──────────────────────────────────────────────────────────────────────
 
-export async function loader({ params }: LoaderFunctionArgs) {
+export async function loader({ request, params }: LoaderFunctionArgs) {
+  const userId = await requireAuth(request);
   const bookingId = Number(params.bookingId);
   if (isNaN(bookingId)) {
     throw json({ error: "Invalid booking ID" }, { status: 400 });
   }
 
   const booking = await bookingRepository.findById(bookingId);
-  if (!booking) {
+  if (!booking || booking.user_id !== Number(userId)) {
     throw json({ error: "Booking not found" }, { status: 404 });
   }
 
@@ -51,6 +59,7 @@ export async function loader({ params }: LoaderFunctionArgs) {
 // ── Action ──────────────────────────────────────────────────────────────────────
 
 export async function action({ request, params }: ActionFunctionArgs) {
+  const userId = await requireAuth(request);
   const bookingId = Number(params.bookingId);
   if (isNaN(bookingId)) {
     return json({ error: "Invalid booking ID" }, { status: 400 });
@@ -67,13 +76,12 @@ export async function action({ request, params }: ActionFunctionArgs) {
       return json({ success: false, error: "Invalid payment amount" }, { status: 400 });
     }
 
-    const userId = 0; // Will be set from session in production
     const result = await initiateStripePayment({
       bookingId,
       amount,
       successUrl: `${url.origin}/bookings/${bookingId}/payment-success`,
       cancelUrl: `${url.origin}/bookings/${bookingId}/payment-cancel`,
-      userId,
+      userId: Number(userId),
     });
 
     return json(result);
@@ -102,7 +110,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
       if (legFreightTotal > 0) {
         lineItems.push({
-          description: `Freight — ${leg.origin_code} → ${leg.destination_code} (${legFreightTotal}kg)`,
+          description: `Freight — ${leg.origin_code} \u2192 ${leg.destination_code} (${legFreightTotal}kg)`,
           quantity: 1,
           unitPrice: legFreightTotal * FREIGHT_RATE_PER_KG,
           type: "freight",
@@ -202,10 +210,28 @@ export default function BookingPayment() {
 
   const { booking, bookingId, availableMethods, totalCost } = data;
   const isSubmitting = navigation.state === "submitting";
+  const isLoading = navigation.state === "loading" && !navigation.formData;
 
-  // Handle Stripe redirect
-  if (actionData?.success && actionData.stripeSessionUrl) {
-    window.location.href = actionData.stripeSessionUrl;
+  useEffect(() => {
+    if (actionData?.stripeSessionUrl) {
+      window.location.href = actionData.stripeSessionUrl;
+    }
+  }, [actionData?.stripeSessionUrl]);
+
+  if (isLoading) {
+    return (
+      <div className="p-6 max-w-2xl mx-auto space-y-4" aria-live="polite" aria-busy="true">
+        <Skeleton className="h-4 w-32 rounded" />
+        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm dark:shadow-slate-900/20 space-y-4">
+          <Skeleton className="h-6 w-48 rounded" />
+          <Skeleton className="h-4 w-64 rounded" />
+          <Skeleton className="h-4 w-40 rounded" />
+          <Skeleton className="h-12 w-full rounded" />
+          <Skeleton className="h-12 w-full rounded" />
+          <Skeleton className="h-12 w-full rounded" />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -219,7 +245,7 @@ export default function BookingPayment() {
 
       <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm dark:shadow-slate-900/20">
         <div className="flex items-center gap-3 mb-4">
-          <CreditCard className="w-6 h-6 text-sky-600" />
+          <CreditCard className="w-6 h-6 text-primary" />
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Make Payment</h1>
         </div>
 

@@ -501,6 +501,139 @@ test.describe("Workflow 3 — Flight Scheduling Pipeline", () => {
 
     console.log(run.summary());
   });
+
+  test("should drag-and-drop all unassigned bookings to a flight and verify loadsheet consistency", async ({ page }) => {
+    const run = new TestRun();
+    const assignedPassengers: Array<{ name: string; origin: string; dest: string; weight: string; ref: string }> = [];
+
+    await test.step("navigate to schedule and collect unassigned bookings", async () => {
+      await schedulePage.goto();
+
+      const bookingCount = await schedulePage.getUnassignedBookingCount();
+      if (bookingCount === 0) {
+        run.warn("No unassigned bookings");
+        test.skip();
+        return;
+      }
+
+      const bookingItems = page.locator('[data-testid="booking-item"]');
+      const itemCount = await bookingItems.count();
+
+      for (let i = 0; i < itemCount; i++) {
+        const item = bookingItems.nth(i);
+        const label = await item.getAttribute("aria-label").catch(() => "");
+        const text = await item.textContent().catch(() => "");
+        const nameMatch = label?.match(/Passenger\s+(.+?),\s*booking\s+(\w+)/);
+        const routeMatch = label?.match(/(\w{3})\s+to\s+(\w{3})/);
+        const weightMatch = (text ?? "").match(/(\d+)\s*kg/);
+        if (nameMatch) {
+          assignedPassengers.push({
+            name: nameMatch[1], ref: nameMatch[2],
+            origin: routeMatch?.[1] ?? "?", dest: routeMatch?.[2] ?? "?",
+            weight: weightMatch?.[1] ?? "0",
+          });
+        }
+      }
+      run.log("unassigned bookings collected", assignedPassengers.length > 0, `count=${assignedPassengers.length}`);
+      if (assignedPassengers.length === 0) { test.skip(); return; }
+    });
+
+    await test.step("create flight if none exists, then drag all bookings to it using keyboard sensor", async () => {
+      let flightId: number | null = null;
+
+      const flightCards = page.locator('[data-testid="flight-card"]');
+      if (await flightCards.count() === 0) {
+        const draftVisible = await schedulePage.draftFlightPlaceholder.isVisible({ timeout: 5_000 }).catch(() => false);
+        if (!draftVisible) { test.skip(); return; }
+        const firstBooking = page.locator('[data-testid="booking-item"]').first();
+        const idAttr = await firstBooking.getAttribute("id");
+        if (!idAttr) { test.skip(); return; }
+        // Space activates keyboard drag, then Tab to target
+        await firstBooking.focus();
+        await page.keyboard.press("Space");
+        await page.waitForTimeout(500);
+        await schedulePage.draftFlightPlaceholder.focus();
+        await page.keyboard.press("Enter");
+        await page.waitForTimeout(1500);
+        await page.waitForLoadState("networkidle");
+      }
+
+      const firstFlight = page.locator('[data-testid="flight-card"]').first();
+      const fIdAttr = await firstFlight.getAttribute("id");
+      if (!fIdAttr) { test.skip(); return; }
+      flightId = parseInt(fIdAttr.replace("flight-", ""), 10);
+      if (isNaN(flightId)) { test.skip(); return; }
+
+      // Drag remaining bookings using keyboard: Space to pick up, navigate to flight, Enter to drop
+      const initialCount = assignedPassengers.length;
+      let remaining = await page.locator('[data-testid="booking-item"]').count();
+      let dragged = 0;
+      while (remaining > 0 && dragged < initialCount) {
+        const booking = page.locator('[data-testid="booking-item"]').first();
+        const bIdAttr = await booking.getAttribute("id");
+        if (!bIdAttr) break;
+
+        // Keyboard drag sequence: focus booking, press Space, focus flight, press Enter
+        await booking.focus();
+        await page.keyboard.press("Space");
+        await page.waitForTimeout(400);
+
+        // Focus the target flight card
+        await firstFlight.focus();
+        await page.keyboard.press("Enter");
+        await page.waitForTimeout(800);
+
+        await page.waitForLoadState("networkidle").catch(() => {});
+        remaining = await page.locator('[data-testid="booking-item"]').count();
+        dragged++;
+        run.log(`booking ${dragged} assigned`, remaining < initialCount, `remaining=${remaining}`);
+      }
+      run.log("drag phase complete", true, `${dragged}/${initialCount} bookings dragged, target flight=${flightId}`);
+    });
+
+    await test.step("open loadsheet and verify all assigned passengers", async () => {
+      const loadsheetBtn = page.locator('button[title="View Loadsheet"]').first();
+      if (!await loadsheetBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+        run.warn("Loadsheet button not visible");
+        return;
+      }
+      await loadsheetBtn.click();
+      await page.waitForTimeout(1500);
+
+      const dialog = page.locator('[role="dialog"]');
+      const dialogVisible = await dialog.isVisible({ timeout: 5_000 }).catch(() => false);
+      run.log("loadsheet modal opened", dialogVisible);
+      if (!dialogVisible) return;
+
+      const paxText = await dialog.textContent().catch(() => "");
+      const loadsheetPaxMatch = (paxText ?? "").match(/(\d+)\s*pax/);
+      const loadsheetPax = loadsheetPaxMatch ? parseInt(loadsheetPaxMatch[1]) : 0;
+      const expectedPax = assignedPassengers.length;
+      run.log("loadsheet pax count matches assigned", loadsheetPax >= expectedPax, `expected >= ${expectedPax}, actual=${loadsheetPax}`);
+
+      // Verify each passenger name appears
+      const missingNames: string[] = [];
+      for (const pax of assignedPassengers) {
+        const parts = pax.name.split(" ");
+        const firstName = parts[0] ?? "";
+        const lastName = parts[parts.length - 1] ?? "";
+        if (!(paxText ?? "").toLowerCase().includes(firstName.toLowerCase()) || !(paxText ?? "").toLowerCase().includes(lastName.toLowerCase())) {
+          missingNames.push(pax.name);
+        }
+      }
+      run.log("all assigned passengers found in loadsheet", missingNames.length === 0, missingNames.length > 0 ? `missing: ${missingNames.join(", ")}` : "");
+    });
+
+    await test.step("close loadsheet and verify flight card pax", async () => {
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(500);
+      const flightText = await page.locator('[data-testid="flight-card"]').first().textContent().catch(() => "");
+      const flightPax = parseInt((flightText ?? "").match(/(\d+)\s*pax/)?.[1] ?? "0");
+      run.log("flight card pax matches loadsheet", flightPax >= assignedPassengers.length, `flight=${flightPax}, expected >= ${assignedPassengers.length}`);
+    });
+
+    console.log(run.summary());
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -710,6 +843,94 @@ test.describe("Workflow 5 — Manifest Generation", () => {
       } else {
         run.warn("Loadsheet button not visible");
       }
+    });
+
+    console.log(run.summary());
+  });
+
+  test("should verify flight-loadsheet passenger consistency (no drift)", async ({ page }) => {
+    const run = new TestRun();
+    let flightPassengerNames: string[] = [];
+
+    await test.step("find a flight with passengers", async () => {
+      await schedulePage.goto();
+      const flightCards = page.locator('[data-testid="flight-card"]');
+      const fc = await flightCards.count();
+      if (fc === 0) { test.skip(); return; }
+
+      let flightPax = 0;
+      let targetIdx = -1;
+      for (let i = 0; i < fc; i++) {
+        const t = await flightCards.nth(i).textContent().catch(() => "");
+        const m = (t ?? "").match(/(\d+)\s*pax/);
+        if (m && parseInt(m[1]) > 0) { flightPax = parseInt(m[1]); targetIdx = i; break; }
+      }
+      if (targetIdx === -1) { run.warn("No flight with passengers"); test.skip(); return; }
+
+      // Extract passenger names from the flight card
+      const cardText = await flightCards.nth(targetIdx).textContent().catch(() => "");
+      flightPassengerNames = extractPassengerNames(cardText ?? "");
+      run.log("flight passenger count", flightPax > 0, `${flightPax} pax, ${flightPassengerNames.length} names`);
+    });
+
+    await test.step("open loadsheet and verify matching passengers", async () => {
+      const btn = page.locator('button[title="View Loadsheet"]').first();
+      if (!await btn.isVisible({ timeout: 5_000 }).catch(() => false)) { test.skip(); return; }
+      await btn.click();
+      await page.waitForTimeout(1500);
+
+      const dialog = page.locator('[role="dialog"]');
+      if (!await dialog.isVisible({ timeout: 5_000 }).catch(() => false)) {
+        run.warn("Loadsheet modal did not open"); return;
+      }
+
+      const lsText = await dialog.textContent().catch(() => "");
+      const lsPax = parseInt((lsText ?? "").match(/(\d+)\s*pax/)?.[1] ?? "0");
+      run.log("loadsheet pax count", lsPax >= flightPassengerNames.length, `loadsheet=${lsPax}, flight=${flightPassengerNames.length}`);
+
+      // Verify each flight passenger appears in loadsheet
+      const loadsheetNames = extractPassengerNames(lsText ?? "");
+      const missing = flightPassengerNames.filter(fn => !loadsheetNames.some(ln => namesOverlap(fn, ln)));
+      run.log("all flight passengers in loadsheet", missing.length === 0, missing.length > 0 ? `missing: ${missing.slice(0, 5).join(", ")}` : "");
+
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(300);
+    });
+
+    console.log(run.summary());
+  });
+
+  test("should verify flight-loadsheet counts match across all active flights", async ({ page }) => {
+    const run = new TestRun();
+
+    await test.step("scan all flights for pax count drift", async () => {
+      await schedulePage.goto();
+      const flightCards = page.locator('[data-testid="flight-card"]');
+      const fc = await flightCards.count();
+      if (fc === 0) { test.skip(); return; }
+
+      let driftCount = 0;
+      for (let i = 0; i < Math.min(fc, 5); i++) {
+        const cardText = await flightCards.nth(i).textContent().catch(() => "");
+        const cardPax = parseInt((cardText ?? "").match(/(\d+)\s*pax/)?.[1] ?? "0");
+        if (cardPax === 0) continue;
+
+        const btn = page.locator('button[title="View Loadsheet"]').nth(i);
+        if (!await btn.isVisible({ timeout: 2_000 }).catch(() => false)) continue;
+        await btn.click();
+        await page.waitForTimeout(1000);
+
+        const lsText = await page.locator('[role="dialog"]').textContent().catch(() => "");
+        const lsPax = parseInt((lsText ?? "").match(/(\d+)\s*pax/)?.[1] ?? "0");
+
+        const ok = lsPax >= cardPax;
+        if (!ok) driftCount++;
+        run.log(`flight ${i + 1} pax consistency`, ok, `card=${cardPax} loadsheet=${lsPax}`);
+
+        await page.keyboard.press("Escape");
+        await page.waitForTimeout(300);
+      }
+      run.log("no drift across flights", driftCount === 0, driftCount > 0 ? `${driftCount} drift(s) detected` : "");
     });
 
     console.log(run.summary());
@@ -1084,3 +1305,20 @@ test.describe("Workflow 7 — Booking Journey (Operations Detail)", () => {
     console.log(run.summary());
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+function extractPassengerNames(text: string): string[] {
+  const matches = text.match(/[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+/g) ?? [];
+  return matches.filter((m) =>
+    !m.match(/^(Flight|Loadsheet|Pilot|Aircraft|Passenger|Manifest|Schedule|Route|Operations|Summary|Draft|Status|Cancel|Check|Board|Alight|Arrival|Departure|Sector|Calculations|Planning|Empty|Crew|Starting|Fuel|Optimizing|Amend|Toggle|Progress|Remove|Manual|Auto|Publish|Revise|Print|Back)/i)
+  );
+}
+
+function namesOverlap(a: string, b: string): boolean {
+  const partsA = a.toLowerCase().split(/\s+/);
+  const partsB = b.toLowerCase().split(/\s+/);
+  return partsA.some((pa) => partsB.some((pb) => pa === pb));
+}

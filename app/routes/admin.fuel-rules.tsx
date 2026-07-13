@@ -1,8 +1,9 @@
-﻿import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { Form, useLoaderData, useActionData, Link, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import { requireAuth } from "../utils/auth.server";
 import { requirePermission } from "../utils/permissions.server";
+import { validateCsrfRequest } from "../utils/csrf-check.server";
 import { Permission, DEFAULT_PAGE_SIZE } from "../utils/constants";
 import { adminRepository } from "../utils/repositories/admin";
 import DataTable from "../components/DataTable";
@@ -31,6 +32,11 @@ export async function action({ request }: ActionFunctionArgs) {
   await requirePermission(request, Permission.SETTINGS_EDIT);
 
   const formData = await request.formData();
+
+  if (!(await validateCsrfRequest(request, formData))) {
+    return json({ error: "CSRF token validation failed" }, { status: 403 });
+  }
+
   const intent = formData.get("intent") as string;
 
   switch (intent) {
@@ -112,7 +118,7 @@ export default function ManageFuelRules() {
       )}
 
       {/* Create Fuel Rule Form */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow border border-slate-200 dark:border-slate-700 dark:border-slate-700 p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow border border-slate-200 dark:border-slate-700 p-4">
         <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">
           Add Fuel Rule
         </h2>
@@ -128,7 +134,7 @@ export default function ManageFuelRules() {
               name="flight_time_minutes"
               required
               min={1}
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div>
@@ -141,7 +147,7 @@ export default function ManageFuelRules() {
               name="sectors"
               required
               min={1}
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div>
@@ -155,7 +161,7 @@ export default function ManageFuelRules() {
               required
               step="any"
               min={0}
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div>
@@ -169,7 +175,7 @@ export default function ManageFuelRules() {
               required
               step="any"
               min={0}
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div>
@@ -182,7 +188,7 @@ export default function ManageFuelRules() {
               name="fuel_state"
               required
               placeholder="e.g. TAKEOFF, LANDING, ENROUTE"
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div className="flex items-end">
@@ -197,7 +203,7 @@ export default function ManageFuelRules() {
       </div>
 
       {/* Fuel Rules Table */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow border border-slate-200 dark:border-slate-700 dark:border-slate-700">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow border border-slate-200 dark:border-slate-700">
         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
             Fuel Rules ({totalCount})
@@ -229,7 +235,7 @@ export default function ManageFuelRules() {
               initialSortColumn="id"
               initialSortDirection="asc"
               emptyState={
-                <div className="px-4 py-8 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                <div className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
                   No fuel rules found.
                 </div>
               }
@@ -240,12 +246,12 @@ export default function ManageFuelRules() {
                     <summary className="text-blue-600 hover:underline text-xs cursor-pointer">
                       Edit
                     </summary>
-                    <div className="absolute left-0 top-6 z-10 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:border-slate-700 rounded-lg shadow-lg dark:shadow-slate-900/50 p-4 w-80">
+                    <div className="absolute left-0 top-6 z-10 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg dark:shadow-slate-900/50 p-4 w-80">
                       <Form method="post" className="space-y-2">
                         <input type="hidden" name="intent" value="update" />
                         <input type="hidden" name="id" value={rule.id as number} />
                         <div>
-                          <label htmlFor={`edit-flight-time-${rule.id}`} className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                          <label htmlFor={`edit-flight-time-${rule.id}`} className="block text-xs text-slate-500 dark:text-slate-400">
                             Flight Time (mins)
                           </label>
                           <input
@@ -254,11 +260,11 @@ export default function ManageFuelRules() {
                             name="flight_time_minutes"
                             defaultValue={rule.flight_time_minutes as number}
                             required
-                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-xs"
+                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs"
                           />
                         </div>
                         <div>
-                          <label htmlFor={`edit-sectors-${rule.id}`} className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                          <label htmlFor={`edit-sectors-${rule.id}`} className="block text-xs text-slate-500 dark:text-slate-400">
                             Sectors
                           </label>
                           <input
@@ -267,11 +273,11 @@ export default function ManageFuelRules() {
                             name="sectors"
                             defaultValue={rule.sectors as number}
                             required
-                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-xs"
+                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs"
                           />
                         </div>
                         <div>
-                          <label htmlFor={`edit-required-fuel-${rule.id}`} className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                          <label htmlFor={`edit-required-fuel-${rule.id}`} className="block text-xs text-slate-500 dark:text-slate-400">
                             Required Fuel (kg)
                           </label>
                           <input
@@ -281,11 +287,11 @@ export default function ManageFuelRules() {
                             defaultValue={rule.required_fuel_kg as number}
                             required
                             step="any"
-                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-xs"
+                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs"
                           />
                         </div>
                         <div>
-                          <label htmlFor={`edit-minimum-fuel-${rule.id}`} className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                          <label htmlFor={`edit-minimum-fuel-${rule.id}`} className="block text-xs text-slate-500 dark:text-slate-400">
                             Minimum Fuel (kg)
                           </label>
                           <input
@@ -295,11 +301,11 @@ export default function ManageFuelRules() {
                             defaultValue={rule.minimum_fuel_kg as number}
                             required
                             step="any"
-                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-xs"
+                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs"
                           />
                         </div>
                         <div>
-                          <label htmlFor={`edit-fuel-state-${rule.id}`} className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                          <label htmlFor={`edit-fuel-state-${rule.id}`} className="block text-xs text-slate-500 dark:text-slate-400">
                             Fuel State
                           </label>
                           <input
@@ -308,7 +314,7 @@ export default function ManageFuelRules() {
                             name="fuel_state"
                             defaultValue={rule.fuel_state as string}
                             required
-                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-xs"
+                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs"
                           />
                         </div>
                         <button
@@ -346,14 +352,14 @@ export default function ManageFuelRules() {
         {/* Pagination */}
         {totalPages > 1 && (
           <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
-            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Page {page} of {totalPages}
             </p>
             <div className="flex gap-2">
               {page > 1 && (
                 <Link
                   to={`/admin/fuel-rules?page=${page - 1}`}
-                  className="px-3 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-sm hover:bg-slate-50 dark:bg-slate-700"
+                  className="px-3 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm hover:bg-slate-50 dark:bg-slate-700"
                 >
                   Previous
                 </Link>
@@ -361,7 +367,7 @@ export default function ManageFuelRules() {
               {page < totalPages && (
                 <Link
                   to={`/admin/fuel-rules?page=${page + 1}`}
-                  className="px-3 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 rounded text-sm hover:bg-slate-50 dark:bg-slate-700"
+                  className="px-3 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm hover:bg-slate-50 dark:bg-slate-700"
                 >
                   Next
                 </Link>
@@ -380,22 +386,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
       </div>
     </div>
   );

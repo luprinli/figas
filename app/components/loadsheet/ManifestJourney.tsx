@@ -1,4 +1,4 @@
-﻿interface PassengerRow {
+interface PassengerRow {
   id: number;
   seat: string;
   name: string;
@@ -15,7 +15,6 @@ interface ManifestJourneyProps {
   className?: string;
 }
 
-const TEAL = "#06b6d4";
 const STOP_W = 62;
 const ROW_H = 28;
 const LABEL_W = 186;
@@ -42,14 +41,14 @@ export default function ManifestJourney({ passengers, stopCodes, className }: Ma
   const chartW = stopCodes.length * STOP_W;
 
   return (
-    <div className={`overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 bg-white dark:bg-slate-800 ${className ?? ""}`}>
+    <div className={`overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 ${className ?? ""}`}>
       {/* ── Section label ── */}
       <div className="px-4 pt-3">
         <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Passenger Manifest</h3>
       </div>
 
       {/* ── Stop headers ── */}
-      <div className="flex border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700 text-[10px] font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">
+      <div className="flex border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700 text-[10px] font-medium text-slate-500 dark:text-slate-500">
         <div className="shrink-0 px-2 py-1.5" style={{ width: LABEL_W }}>
           <span>Passenger</span>
         </div>
@@ -90,7 +89,7 @@ export default function ManifestJourney({ passengers, stopCodes, className }: Ma
                   y1={lineY}
                   x2={destIdx * STOP_W + STOP_W / 2 - ARROW_W}
                   y2={lineY}
-                  stroke={TEAL}
+                  stroke={"var(--color-teal)"}
                   strokeWidth="2"
                   strokeLinecap="round"
                   opacity="0.6"
@@ -101,7 +100,7 @@ export default function ManifestJourney({ passengers, stopCodes, className }: Ma
                   cx={originIdx * STOP_W + STOP_W / 2}
                   cy={lineY}
                   r={CIRCLE_R}
-                  fill={TEAL}
+                  fill={"var(--color-teal)"}
                 />
 
                 {/* Alighting arrowhead */}
@@ -109,7 +108,7 @@ export default function ManifestJourney({ passengers, stopCodes, className }: Ma
                   <polyline
                     points={`${destIdx * STOP_W + STOP_W / 2 - ARROW_W},${lineY - ARROW_W / 2} ${destIdx * STOP_W + STOP_W / 2},${lineY} ${destIdx * STOP_W + STOP_W / 2 - ARROW_W},${lineY + ARROW_W / 2}`}
                     fill="none"
-                    stroke={TEAL}
+                    stroke={"var(--color-teal)"}
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -125,7 +124,7 @@ export default function ManifestJourney({ passengers, stopCodes, className }: Ma
                         cx={i * STOP_W + STOP_W / 2}
                         cy={lineY}
                         r="1.5"
-                        fill={TEAL}
+                        fill={"var(--color-teal)"}
                         opacity="0.35"
                       />
                     );
@@ -160,15 +159,15 @@ export default function ManifestJourney({ passengers, stopCodes, className }: Ma
       {/* ── Legend ── */}
       <div className="flex items-center gap-4 px-4 py-1.5 text-[10px] text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-700">
         <span className="inline-flex items-center gap-1">
-          <svg width="10" height="10"><circle cx="5" cy="5" r="3.5" fill={TEAL} /></svg> Board
+          <svg width="10" height="10"><circle cx="5" cy="5" r="3.5" fill={"var(--color-teal)"} /></svg> Board
         </span>
         <span className="inline-flex items-center gap-1">
           <svg width="14" height="10">
-            <polyline points="2,2 8,5 2,8" fill="none" stroke={TEAL} strokeWidth="1.5" strokeLinecap="round" />
+            <polyline points="2,2 8,5 2,8" fill="none" stroke={"var(--color-teal)"} strokeWidth="1.5" strokeLinecap="round" />
           </svg> Alight
         </span>
         <span className="inline-flex items-center gap-1">
-          <svg width="14" height="4"><line x1="0" y1="2" x2="14" y2="2" stroke={TEAL} strokeWidth="1.5" opacity="0.5" /></svg> In transit
+          <svg width="14" height="4"><line x1="0" y1="2" x2="14" y2="2" stroke={"var(--color-teal)"} strokeWidth="1.5" opacity="0.5" /></svg> In transit
         </span>
       </div>
     </div>

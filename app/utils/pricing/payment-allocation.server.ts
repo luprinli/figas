@@ -1,6 +1,5 @@
 import { kdb } from "../db.server.kysely";
 import { sql } from "kysely";
-import type { DB } from "../../../generated/kysely/database";
 
 export async function allocatePayment(
   paymentId: number,
@@ -16,6 +15,7 @@ export async function allocatePayment(
     .select(kdb.fn.sum<number>("allocated_amount").as("sum_allocated_amount"))
     .where("payment_id", "=", paymentId)
     .execute();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let remaining = Number(payment.amount) - Number((alreadyAllocated[0] as any)?.sum_allocated_amount ?? 0);
   if (remaining <= 0) return { allocated: 0, remaining: 0 };
 
@@ -51,12 +51,14 @@ export async function allocatePayment(
         booking_leg_passenger_id: Number(item.id),
         allocated_amount: toAllocate,
         allocation_type: toAllocate >= owed ? "full" : "partial",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any).execute();
       allocated += toAllocate;
       remaining -= toAllocate;
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await kdb.updateTable("payments").set({ reconciled_at: new Date() } as any).where("id", "=", paymentId).execute();
 
   return { allocated: Math.round(allocated * 100) / 100, remaining: Math.round(remaining * 100) / 100 };

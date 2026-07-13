@@ -7,9 +7,12 @@ import { kdb } from "../utils/db.server.kysely";
 import { sql } from "kysely";
 import { requireUser } from "../utils/layout.server";
 import { requirePermission } from "../utils/permissions.server";
-import { Permission } from "../utils/constants";
-import { bookingLegPassengerRepository } from "../utils/repositories/booking-leg-passenger";
+import { Permission, DEFAULT_BN2_MTOW_KG, DEFAULT_BN2_EMPTY_WEIGHT_KG, DEFAULT_CLOTHED_BODY_WEIGHT_KG } from "../utils/constants";
+import { bookingLegPassengerRepository, createPaymentForCheckin } from "../utils/repositories/booking-leg-passenger";
+import { bookingPassengerRepository } from "../utils/repositories/booking-passenger";
+import { validateCsrfRequest } from "../utils/csrf-check.server";
 import Button from "../components/Button";
+import CardPaymentSimulator from "../components/CardPaymentSimulator";
 import PrintButton from "../components/PrintButton";
 
 export const meta = () => [{ title: "POS Terminal - FIGAS" }];
@@ -67,7 +70,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     `.execute(kdb),
     sql<Record<string, unknown>>`
       SELECT blp.id AS leg_pax_id, blp.booking_leg_id, bl.booking_id,
-         bp.first_name, bp.last_name, COALESCE(blp.clothed_weight_kg, bp.clothed_body_weight_kg, 70) AS body_kg,
+         bp.first_name, bp.last_name, COALESCE(blp.clothed_weight_kg, bp.clothed_body_weight_kg, ${DEFAULT_CLOTHED_BODY_WEIGHT_KG}) AS body_kg,
          COALESCE(blp.baggage_weight_kg, 0) AS baggage_kg
        FROM booking_leg_passengers blp
        JOIN booking_legs bl ON bl.id = blp.booking_leg_id
@@ -82,8 +85,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   const f = flight.rows[0] as Record<string, unknown>;
   const p = pax.rows[0] as Record<string, unknown>;
-  const mtow = Number(f.max_takeoff_weight_kg ?? 2994);
-  const empty = Number(f.empty_weight_kg ?? 1627);
+  const mtow = Number(f.max_takeoff_weight_kg ?? DEFAULT_BN2_MTOW_KG);
+  const empty = Number(f.empty_weight_kg ?? DEFAULT_BN2_EMPTY_WEIGHT_KG);
   const capacity = mtow - empty;
 
   const session: SaleSession = {
@@ -94,9 +97,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
     passengerId: Number(paxId),
     legPassengerId: Number(p.leg_pax_id),
     bookingId: Number(p.booking_id),
-    bodyWeightKg: Number(p.body_kg ?? 70),
-    baggageWeightKg: Number(p.baggage_kg ?? 0),
-    payloadTotal: Number(p.body_kg ?? 70) + Number(p.baggage_kg ?? 0),
+    bodyWeightKg: Number(p.body_kg),
+    baggageWeightKg: Number(p.baggage_kg),
+    payloadTotal: Number(p.body_kg) + Number(p.baggage_kg),
     payloadCapacity: capacity,
   };
 
@@ -105,10 +108,17 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export async function action({ request }: ActionFunctionArgs) {
   const formData = await request.formData();
+
+  if (!(await validateCsrfRequest(request, formData))) {
+    return json({ error: "CSRF token validation failed" }, { status: 403 });
+  }
+
   const intent = formData.get("intent")?.toString();
 
   if (intent === "process-card") {
-    // Mock card processing
+    // MOCK CARD PROCESSING \u2014 replace with real payment processor integration.
+    // This simulates a 2-second processing delay and approves amounts under \u00A35000.
+    console.warn("Using mock card processing \u2014 replace before production deployment");
     const amount = parseFloat(formData.get("amount")?.toString() ?? "0");
     await new Promise((r) => setTimeout(r, 2000));
     const approved = amount < 5000; // Mock: approve under £5000
@@ -116,6 +126,8 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 
   if (intent === "finalize") {
+    const user = await requirePermission(request, Permission.CHECKIN_PROCESS);
+    const userId = Number(user.id);
     const legPaxId = Number(formData.get("leg_pax_id"));
     const bodyWt = parseFloat(formData.get("body_weight_kg")?.toString() ?? "0");
     const bagWt = parseFloat(formData.get("baggage_weight_kg")?.toString() ?? "0");
@@ -125,9 +137,7 @@ export async function action({ request }: ActionFunctionArgs) {
     const weightOverrideCode = formData.get("weight_override_code")?.toString() || "";
 
     if (bodyWt > 0) {
-      await sql`
-        UPDATE booking_passengers SET clothed_body_weight_kg = ${bodyWt}, updated_at = NOW() WHERE id = (SELECT booking_passenger_id FROM booking_leg_passengers WHERE id = ${legPaxId})
-      `.execute(kdb);
+      await bookingPassengerRepository.updateWeightByLegPaxId(legPaxId, bodyWt);
     }
 
     await bookingLegPassengerRepository.update(legPaxId, {
@@ -135,27 +145,19 @@ export async function action({ request }: ActionFunctionArgs) {
       ...(bodyWt > 0 ? { clothed_weight_kg: bodyWt } : {}),
     });
 
-    // Record weight override in audit log if manual justification provided
     if (weightOverrideCode) {
-      await sql`
-        INSERT INTO payments (booking_id, amount, amount_gbp, method, status, transaction_reference, created_at)
-         VALUES ((SELECT bl.booking_id FROM booking_leg_passengers blp JOIN booking_legs bl ON bl.id = blp.booking_leg_id WHERE blp.id = ${legPaxId}), 0, 0, 'weight_override', 'completed', ${`WGT-OVERRIDE-${weightOverrideCode}-${Date.now()}`}, NOW())
-      `.execute(kdb);
+      await createPaymentForCheckin(legPaxId, 0, 'weight_override', `WGT-OVERRIDE-${weightOverrideCode}-${Date.now()}`);
     }
 
     const totalAmount = payments.reduce((s, p) => s + p.amount, 0);
     if (totalAmount > 0 && payments.length > 0) {
-      // Determine if this is split payment (multiple methods)
       for (const p of payments) {
         const ref = p.reference || (authorizationCode ? `AUTH-${authorizationCode}` : `POS-${Date.now()}-${p.method}`);
-        await sql`
-          INSERT INTO payments (booking_id, amount, amount_gbp, method, status, transaction_reference, created_at)
-           VALUES ((SELECT bl.booking_id FROM booking_leg_passengers blp JOIN booking_legs bl ON bl.id = blp.booking_leg_id WHERE blp.id = ${legPaxId}), ${p.amount}, ${p.amount}, ${p.method}, 'completed', ${ref}, NOW())
-        `.execute(kdb);
+        await createPaymentForCheckin(legPaxId, p.amount, p.method, ref);
       }
     }
 
-    await bookingLegPassengerRepository.checkIn(legPaxId, 0);
+    await bookingLegPassengerRepository.checkIn(legPaxId, userId);
     return json({ success: true });
   }
 
@@ -196,39 +198,6 @@ function CashKeypad({ onEnter, onQuick }: { onEnter: (val: string) => void; onQu
   );
 }
 
-function CardProcessor({ onComplete }: { onComplete: (approved: boolean, ref: string) => void }) {
-  const [state, setState] = useState<"idle" | "processing" | "approved" | "declined">("idle");
-
-  const process = () => {
-    setState("processing");
-    setTimeout(() => setState("approved"), 2000);
-  };
-
-  return (
-    <div className="space-y-3">
-      <div className={`p-4 rounded-lg border text-center ${
-        state === "idle" ? "bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600" :
-        state === "processing" ? "bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-700" :
-        state === "approved" ? "bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700" :
-        "bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700"
-      }`}>
-        {state === "idle" && <p className="text-sm text-slate-600 dark:text-slate-300">Card terminal ready</p>}
-        {state === "processing" && <p className="text-sm text-amber-700 dark:text-amber-400 animate-pulse">Processing...</p>}
-        {state === "approved" && <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">✓ Approved</p>}
-        {state === "declined" && <p className="text-sm font-medium text-red-700 dark:text-red-400">✗ Declined</p>}
-      </div>
-      {state === "idle" && (
-        <Button color="primary" onClick={process}>Process Card</Button>
-      )}
-      {state === "approved" && (
-        <Button color="success" onClick={() => onComplete(true, `CARD-${Date.now()}`)}>Confirm Card Payment</Button>
-      )}
-      {state === "declined" && (
-        <Button variant="outlined" onClick={() => setState("idle")}>Retry</Button>
-      )}
-    </div>
-  );
-}
 
 export default function PosTerminal() {
   const { session } = useLoaderData<typeof loader>();
@@ -250,12 +219,12 @@ export default function PosTerminal() {
   const totalPaid = useMemo(() => payments.reduce((s, p) => s + p.amount, 0), [payments]);
   const remaining = totalDue - totalPaid;
   const isBalanced = Math.abs(remaining) < 0.01;
-  const weightsValid = bodyWeight >= 20 && baggageWeight >= 0 && (baggageWeight > 0 ? true : true);
+  const weightsValid = bodyWeight >= 20 && baggageWeight >= 0;
 
   const recalculateItems = useCallback(() => {
     const items: LineItem[] = [];
     if (excessCharge > 0) {
-      items.push({ id: "excess", label: `Excess Baggage (${excessBaggage} kg × £${EXCESS_RATE_PER_KG}/kg)`, amount: excessCharge, type: "excess_baggage", quantity: excessBaggage, unitPrice: EXCESS_RATE_PER_KG });
+      items.push({ id: "excess", label: `Excess Baggage (${excessBaggage} kg �— £${EXCESS_RATE_PER_KG}/kg)`, amount: excessCharge, type: "excess_baggage", quantity: excessBaggage, unitPrice: EXCESS_RATE_PER_KG });
     }
     setLineItems(items);
   }, [excessCharge, excessBaggage]);
@@ -350,7 +319,7 @@ export default function PosTerminal() {
           </div>
           {excessCharge > 0 && (
             <div className="mt-2 p-2 rounded bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700">
-              <p className="text-xs text-amber-700 dark:text-amber-400">Excess baggage: {excessBaggage} kg × £{EXCESS_RATE_PER_KG} = £{excessCharge.toFixed(2)}</p>
+              <p className="text-xs text-amber-700 dark:text-amber-400">Excess baggage: {excessBaggage} kg �— £{EXCESS_RATE_PER_KG} = £{excessCharge.toFixed(2)}</p>
             </div>
           )}
         </div>
@@ -430,7 +399,7 @@ export default function PosTerminal() {
                   ],
                   footer: "FIGAS Flight Operations — Uncontrolled when printed",
                 }}
-                label="🖨️ Print Boarding Pass & Bag Tags"
+                label="🖨︝ Print Boarding Pass & Bag Tags"
                 variant="outlined"
                 className="w-full text-left text-sm"
               />
@@ -486,7 +455,7 @@ export default function PosTerminal() {
 
           {paymentStep === "card" && (
             <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700">
-              <CardProcessor onComplete={(approved, ref) => addCardPayment(approved, ref)} />
+              <CardPaymentSimulator onComplete={(approved, ref) => addCardPayment(approved, ref)} />
               <button type="button" onClick={() => setPaymentStep("method")} className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 mt-2">Cancel</button>
             </div>
           )}

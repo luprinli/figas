@@ -49,7 +49,7 @@ export default function CashKeypad({ onEnter, onQuick, quickAmounts = DEFAULT_QU
               else if (k === "\u21B5") { if (input) { onEnter(input); setInput(""); } }
               else setInput(input + k);
             }}
-            className={`h-10 text-sm font-medium rounded active:scale-95 transition-transform ${
+            className={`min-h-[44px] min-w-[44px] text-sm font-medium rounded active:scale-95 transition-transform ${
               k === "C"
                 ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
                 : k === "\u21B5"

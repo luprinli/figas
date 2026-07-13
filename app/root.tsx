@@ -5,13 +5,15 @@ import {
   Scripts,
   ScrollRestoration,
 } from "@remix-run/react";
-import type { LinksFunction } from "@remix-run/node";
+import type { LinksFunction, LoaderFunctionArgs } from "@remix-run/node";
+import { json } from "@remix-run/node";
 
+import { getSession } from "./session.server";
+import { generateCsrfToken } from "./utils/csrf.server";
 import styles from "./styles/tailwind.css?url";
 import printStyles from "./styles/print.css?url";
 import ToastContainer from "./components/Toast";
 import ThemeProvider from "./components/ThemeProvider";
-import { GlobalErrorBoundary } from "./components/GlobalErrorBoundary";
 
 export const links: LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -29,13 +31,20 @@ export const links: LinksFunction = () => [
   { rel: "manifest", href: "/manifest.json" },
 ];
 
+export async function loader({ request }: LoaderFunctionArgs) {
+  const session = await getSession(request.headers.get("Cookie"));
+  const csrfToken = generateCsrfToken(session.id);
+  return json({ csrfToken });
+}
+
 export default function App() {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#2563eb" />
+        <meta name="theme-color" content="#2563eb" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){var t=localStorage.getItem("figas-theme");if(t==="dark"||(!t&&window.matchMedia("(prefers-color-scheme:dark)").matches)){document.documentElement.classList.add("dark")}})()`,
@@ -46,7 +55,9 @@ export default function App() {
       </head>
       <body className="flex flex-col min-h-screen text-slate-700 bg-slate-100 dark:bg-slate-900 dark:text-slate-300">
         <ThemeProvider>
-          <Outlet />
+          <main id="main-content">
+            <Outlet />
+          </main>
           <ScrollRestoration />
           <Scripts />
           <ToastContainer />
@@ -56,4 +67,4 @@ export default function App() {
   );
 }
 
-export { GlobalErrorBoundary as ErrorBoundary };
+export { RouteErrorFallback as ErrorBoundary } from "./components/RouteErrorFallback";

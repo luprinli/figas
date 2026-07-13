@@ -1,4 +1,4 @@
-﻿
+
 
 export interface AlertItem {
   id: string | number;
@@ -15,9 +15,9 @@ export interface AlertStripProps {
 }
 
 const severityStyles = {
-  red: "border-l-red-500 bg-red-50 dark:bg-red-900/30 dark:bg-red-950 dark:border-l-red-400",
-  amber: "border-l-amber-500 bg-amber-50 dark:bg-amber-900/30 dark:bg-amber-950 dark:border-l-amber-400",
-  blue: "border-l-blue-500 bg-blue-50 dark:bg-blue-900/30 dark:bg-blue-950 dark:border-l-blue-400",
+  red: "border-l-red-500 bg-red-50 dark:bg-red-950 dark:border-l-red-400",
+  amber: "border-l-amber-500 bg-amber-50 dark:bg-amber-950 dark:border-l-amber-400",
+  blue: "border-l-blue-500 bg-blue-50 dark:bg-blue-950 dark:border-l-blue-400",
 };
 
 const severityDots = {
@@ -32,15 +32,15 @@ export default function AlertStrip({
   className = "",
 }: AlertStripProps) {
   return (
-    <div className={`rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 overflow-hidden ${className}`}>
-      <div className="px-4 py-2 bg-slate-50 dark:bg-slate-700 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">
+    <div className={`rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden ${className}`}>
+      <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
           Alerts {alerts.length > 0 && `(${alerts.length})`}
         </span>
       </div>
       <div className="divide-y divide-slate-100 dark:divide-slate-700">
         {alerts.length === 0 ? (
-          <div className="px-4 py-4 text-center text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+          <div className="px-4 py-4 text-center text-sm text-slate-500">
             {emptyMessage}
           </div>
         ) : (
@@ -57,7 +57,7 @@ export default function AlertStrip({
               </div>
               <div className="flex items-center gap-3 shrink-0">
                 {alert.timestamp && (
-                  <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{alert.timestamp}</span>
+                  <span className="text-xs text-slate-500">{alert.timestamp}</span>
                 )}
                 {alert.action && (
                   <a

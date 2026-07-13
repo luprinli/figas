@@ -1,14 +1,16 @@
-﻿import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { HeadersFunction, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Link, useLoaderData, useNavigation, useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { useLoaderData, useNavigate, useNavigation, useRevalidator, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import { bookingRepository } from "../utils/repositories/booking";
+import { useRef } from "react";
+import { useKeyboardShortcuts } from "../utils/use-keyboard-shortcuts";
 import type { ClientGroup, ActivityItem, BookingRow } from "../utils/repositories/booking";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
 import { getSession } from "../session.server";
 import PageLayout from "../components/PageLayout";
 import { Clock, Plane, Plus, Users } from "lucide-react";
-import StatCard from "../components/StatCard";
+import MetricCard from "../components/MetricCard";
 import ClientGroupComponent from "../components/ClientGroup";
 import type { BookingWithMeta } from "../components/ClientGroup";
 import BookingCard from "../components/BookingCard";
@@ -16,6 +18,7 @@ import Skeleton from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import AlertBanner from "../components/AlertBanner";
 import Badge from "../components/Badge";
+import Button from "../components/Button";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -30,6 +33,10 @@ interface LoaderData {
 }
 
 // ── Loader ─────────────────────────────────────────────────────────────────────
+
+export const headers: HeadersFunction = () => ({
+  "Cache-Control": "max-age=60, stale-while-revalidate=300",
+});
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const user = await requirePermission(request, Permission.BOOKING_VIEW);
@@ -49,7 +56,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
   // Fetch portfolio
   try {
     portfolio = await bookingRepository.findAgentPortfolio(userIdNum);
-  } catch {
+  } catch (e) {
+    console.error("Failed to load portfolio data:", e);
     warnings.push("Could not load portfolio data. Some information may be unavailable.");
     portfolio = [];
   }
@@ -57,7 +65,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
   // Fetch recent activity
   try {
     recentActivity = await bookingRepository.findRecentActivity(userIdNum, 20);
-  } catch {
+  } catch (e) {
+    console.error("Failed to load recent activity:", e);
     warnings.push("Could not load recent activity.");
     recentActivity = [];
   }
@@ -65,7 +74,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
   // Fetch pipeline counts
   try {
     pipelineCounts = await bookingRepository.getPipelineCounts();
-  } catch {
+  } catch (e) {
+    console.error("Failed to load pipeline statistics:", e);
     warnings.push("Could not load pipeline statistics.");
     pipelineCounts = {};
   }
@@ -76,7 +86,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
     for (const item of group.bookings) {
       try {
         daysUntilDeparture[item.booking.id] = await bookingRepository.getDaysUntilDeparture(item.booking.id);
-      } catch {
+      } catch (e) {
+        console.error("Failed to compute days until departure for booking:", e);
         daysUntilDeparture[item.booking.id] = null;
       }
     }
@@ -141,7 +152,7 @@ function getDepartingSoon(
           bookingId: item.booking.id,
           bookingRef: item.booking.booking_reference,
           route: item.firstLeg
-            ? `${item.firstLeg.origin_code} → ${item.firstLeg.destination_code}`
+            ? `${item.firstLeg.origin_code} \u2192 ${item.firstLeg.destination_code}`
             : "Route TBC",
           date: item.firstLeg?.leg_date ?? "",
           daysUntil: d,
@@ -211,7 +222,15 @@ function ActivityFeedSkeleton() {
 export default function AgentBookingsIndex() {
   const data = useLoaderData<LoaderData>();
   const navigation = useNavigation();
+  const revalidator = useRevalidator();
+  const navigate = useNavigate();
+  const searchRef = useRef<HTMLInputElement>(null);
   const isLoading = navigation.state === "loading";
+
+  useKeyboardShortcuts({
+    "/": () => searchRef.current?.focus(),
+    "n": () => navigate("/bookings/new"),
+  });
 
   const { portfolio, recentActivity, pipelineCounts, daysUntilDeparture, warnings, canCreate, userIdentity } = data;
 
@@ -285,36 +304,34 @@ export default function AgentBookingsIndex() {
 
       {/* ── A. Welcome Header ──────────────────────────────────────────────── */}
       <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Managing <span className="font-semibold text-slate-700 dark:text-slate-200">{totalClients}</span> client{totalClients !== 1 ? "s" : ""} across{" "}
             <span className="font-semibold text-slate-700 dark:text-slate-200">{totalBookings}</span> booking{totalBookings !== 1 ? "s" : ""}
           </p>
+          <button onClick={() => revalidator.revalidate()} className="text-xs text-slate-500 hover:text-slate-700">Refresh</button>
         </div>
         {canCreate && (
-          <Link
-            to="/bookings/new"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm dark:shadow-slate-900/20 hover:bg-blue-700 transition-colors"
-          >
+          <Button to="/bookings/new" size="md" className="gap-1.5 shadow-sm dark:shadow-slate-900/20">
             <Plus size={16} />
             New Booking
-          </Link>
+          </Button>
         )}
       </div>
 
       {/* ── B. Period Stats Row ────────────────────────────────────────────── */}
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard
+        <MetricCard
           label="Active Clients"
           value={activeClients}
           icon={<Users size={24} />}
         />
-        <StatCard
+        <MetricCard
           label="Pending Bookings"
           value={pendingBookings}
           icon={<Clock size={24} />}
         />
-        <StatCard
+        <MetricCard
           label="Upcoming Departures"
           value={upcomingCount}
           icon={<Plane size={24} />}
@@ -401,22 +418,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-400 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <Button size="md" onClick={() => window.location.reload()}>Try Again</Button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <Button size="md" onClick={() => window.location.reload()}>Try Again</Button>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-﻿import Skeleton from "../Skeleton";
+import Skeleton from "../Skeleton";
 
 /**
  * ScheduleSkeleton renders pulsing placeholder UI while the schedule page
@@ -33,7 +33,7 @@ export default function ScheduleSkeleton() {
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="block rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20"
+              className="block rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20"
             >
               {/* Header: flight number + status */}
               <div className="mb-3 flex items-center justify-between">
@@ -73,7 +73,7 @@ export default function ScheduleSkeleton() {
         </div>
 
         {/* Unassigned bookings panel placeholder */}
-        <div className="w-72 space-y-3 rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20">
+        <div className="w-72 space-y-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20">
           <Skeleton variant="text" width={140} height={20} />
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="flex items-center gap-2">

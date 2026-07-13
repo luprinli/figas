@@ -1,4 +1,4 @@
-﻿import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { ReactNode } from "react";
 
 export interface Column<T> {
@@ -29,7 +29,7 @@ export interface DataTableProps<T> {
   filters?: Record<string, string>;
   /** Filter change handler */
   onFilterChange?: (column: string, value: string) => void;
-  /** Row-level actions renderer */
+  /** Row-level actions renderer. Buttons rendered here should use `size="md"` to meet 44px WCAG touch target. */
   actions?: (item: T) => ReactNode;
   /** Show filter inputs in header */
   showFilters?: boolean;
@@ -176,7 +176,7 @@ export default function DataTable<T>({
                         "inline-block text-xs",
                         isSortActive(column.key)
                           ? "text-blue-600 dark:text-blue-400"
-                          : "text-slate-300 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500",
+                          : "text-slate-300 dark:text-slate-500",
                       ]
                         .filter(Boolean)
                         .join(" ")}
@@ -210,7 +210,7 @@ export default function DataTable<T>({
                     placeholder={`Filter ${column.header.toLowerCase()}...`}
                     defaultValue={filters[column.key] ?? ""}
                     onChange={(e) => handleFilterChange(column.key, e.target.value)}
-                    className="w-full text-xs px-2 py-1 border border-slate-300 dark:border-slate-600 dark:border-slate-600 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 rounded focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full text-xs px-2 py-1 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 rounded focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                 </th>
               ))}
@@ -230,6 +230,8 @@ export default function DataTable<T>({
             <tr
               key={keyExtractor(item)}
               onClick={onRowClick ? () => onRowClick(item) : undefined}
+              onKeyDown={onRowClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRowClick(item); } } : undefined}
+              tabIndex={onRowClick ? 0 : undefined}
               className={[
                 "transition",
                 onRowClick

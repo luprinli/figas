@@ -1,4 +1,4 @@
-﻿import type { AerodromeRow } from "../utils/repositories/aerodrome";
+import type { AerodromeRow } from "../utils/repositories/aerodrome";
 
 interface RouteSelectorProps {
   aerodromes: AerodromeRow[];

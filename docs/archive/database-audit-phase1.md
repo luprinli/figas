@@ -391,8 +391,8 @@ buildSchedule(date, createdBy)  [index.ts]
 ### 6.4 Key Observations
 
 **Hardcoded reference data in scheduling code:**
-- 30×30 distance matrix in [`suggest-route.ts`](../app/utils/scheduling/suggest-route.ts) (also exists in DB as `aerodrome_distances`)
-- 30×30 fuel matrix in [`fuel-data.ts`](../app/utils/scheduling/fuel-data.ts)
+- 30�—30 distance matrix in [`suggest-route.ts`](../app/utils/scheduling/suggest-route.ts) (also exists in DB as `aerodrome_distances`)
+- 30�—30 fuel matrix in [`fuel-data.ts`](../app/utils/scheduling/fuel-data.ts)
 - 77-row fuel CSV rules embedded in [`fuel-planning.ts`](../app/utils/scheduling/fuel-planning.ts) (also exists in DB as `fuel_rules`)
 - 5 aircraft definitions in [`suggest-route.ts`](../app/utils/scheduling/suggest-route.ts) (also exists in DB as `aircraft` table)
 
@@ -534,8 +534,8 @@ All PBAC functions use `db.query()` with raw SQL. The Prisma schema defines the 
 
 | Data | Size | File | Also in DB? |
 |------|------|------|-------------|
-| Distance matrix | 30×30 (900 values) | [`suggest-route.ts`](../app/utils/scheduling/suggest-route.ts) | Yes — `aerodrome_distances` |
-| Fuel matrix | 30×30 (900 values) | [`fuel-data.ts`](../app/utils/scheduling/fuel-data.ts) | Yes — `fuel_rules` |
+| Distance matrix | 30�—30 (900 values) | [`suggest-route.ts`](../app/utils/scheduling/suggest-route.ts) | Yes — `aerodrome_distances` |
+| Fuel matrix | 30�—30 (900 values) | [`fuel-data.ts`](../app/utils/scheduling/fuel-data.ts) | Yes — `fuel_rules` |
 | Fuel CSV rules | 77 rows | [`fuel-planning.ts`](../app/utils/scheduling/fuel-planning.ts) | Yes — `fuel_rules` |
 | Aircraft data | 5 aircraft | [`suggest-route.ts`](../app/utils/scheduling/suggest-route.ts) | Yes — `aircraft` table |
 

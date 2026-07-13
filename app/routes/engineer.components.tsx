@@ -1,15 +1,16 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, Form } from "@remix-run/react";
-import { requirePermission } from "../utils/permissions.server";
+import { useLoaderData, Form, useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { requirePermission, createAuditLogEntry } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
 import { requireUser } from "../utils/layout.server";
+import { validateCsrfRequest } from "../utils/csrf-check.server";
 import { kdb } from "../utils/db.server.kysely";
 import { sql } from "kysely";
 import DataGrid from "../components/DataGrid";
 import type { Column } from "../components/DataTable";
 import EmptyState from "../components/EmptyState";
-import DashboardCard from "../components/DashboardCard";
+import MetricCard from "../components/MetricCard";
 import Card from "../components/Card";
 import Button from "../components/Button";
 
@@ -32,8 +33,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export async function action({ request }: ActionFunctionArgs) {
-  await requireUser(request);
+  const { userId } = await requireUser(request);
   const formData = await request.formData();
+
+  if (!(await validateCsrfRequest(request, formData))) {
+    return json({ error: "CSRF token validation failed" }, { status: 403 });
+  }
+
   const intent = formData.get("intent") as string;
 
   switch (intent) {
@@ -57,6 +63,12 @@ export async function action({ request }: ActionFunctionArgs) {
          tbo_hours, installed_hours, current_hours, installed_date, hours_remaining, status)
          VALUES (${aircraftId}, ${componentName}, ${partNumber}, ${serialNumber}, ${ataChapter}, ${tboHours}, ${installedHours}, ${installedHours}, ${installedDate + "::date"}, ${tboHours - installedHours}, ${"active"})
       `.execute(kdb);
+      await createAuditLogEntry({
+        actorId: Number(userId),
+        action: "component.installed",
+        entityType: "lifed_component",
+        newValues: { aircraft_id: aircraftId, component_name: componentName, status: "active" },
+      });
       return redirect("/engineer/components");
     }
 
@@ -67,6 +79,13 @@ export async function action({ request }: ActionFunctionArgs) {
       await sql`
         UPDATE lifed_components SET status = ${"removed"}, last_inspected_at = NOW() WHERE id = ${componentId}
       `.execute(kdb);
+      await createAuditLogEntry({
+        actorId: Number(userId),
+        action: "component.replaced",
+        entityType: "lifed_component",
+        entityId: componentId,
+        newValues: { status: "removed" },
+      });
       return redirect("/engineer/components");
     }
 
@@ -118,8 +137,8 @@ export default function EngineerComponents() {
     <div className="p-6 space-y-5">
       <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Life-Limited Components</h1>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <DashboardCard label="Active Components" value={active} color="emerald" />
-        <DashboardCard label="Critical (&lt;10% life)" value={critical} color={critical > 0 ? 'red' : 'emerald'} />
+        <MetricCard label="Active Components" value={active} color="emerald" />
+        <MetricCard label="Critical (&lt;10% life)" value={critical} color={critical > 0 ? 'red' : 'emerald'} />
       </div>
 
       {/* Install Component Form */}
@@ -201,6 +220,31 @@ export default function EngineerComponents() {
           emptyState={<EmptyState title="No components tracked" description="Install a lifed component above to begin tracking." />}
         />
       </Card>
+    </div>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  if (isRouteErrorResponse(error)) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
+        <div className="mx-auto max-w-lg text-center px-4">
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
+          <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
+      <div className="mx-auto max-w-lg text-center px-4">
+        <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
+      </div>
     </div>
   );
 }

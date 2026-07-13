@@ -1,5 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { kdb } from "../db.server";
 import { sql } from "kysely";
+import { PaymentStatus } from "../constants";
 
 export interface DashboardStats {
   totalUsers: number;
@@ -218,7 +220,7 @@ export const adminRepository = {
         kdb
           .selectFrom("bookings")
           .select(kdb.fn.sum<string>("total_amount_gbp").as("total"))
-          .where("payment_status", "=", "paid")
+          .where("payment_status", "=", PaymentStatus.PAID)
           .where("created_at", ">=", startOfMonth)
           .execute(),
       ]);
@@ -387,7 +389,7 @@ export const adminRepository = {
     const rows = await kdb
       .selectFrom("aerodromes")
       .select(["id", "code", "name", "is_active"])
-      .orderBy("name asc")
+      .orderBy("name", "asc")
       .execute();
     return rows.map((r) => toAerodromeRow(r as unknown as Record<string, unknown>));
   },
@@ -402,7 +404,7 @@ export const adminRepository = {
       kdb
         .selectFrom("aerodromes")
         .select(["id", "code", "name", "is_active"])
-        .orderBy("name asc")
+        .orderBy("name", "asc")
         .offset(offset)
         .limit(perPage)
         .execute(),
@@ -490,7 +492,7 @@ export const adminRepository = {
     const rows = await kdb
       .selectFrom("aircraft")
       .select(["id", "registration", "type", "seat_count", "is_active"])
-      .orderBy("registration asc")
+      .orderBy("registration", "asc")
       .execute();
     return rows.map((r) => toAircraftRow(r as unknown as Record<string, unknown>));
   },
@@ -505,7 +507,7 @@ export const adminRepository = {
       kdb
         .selectFrom("aircraft")
         .select(["id", "registration", "type", "seat_count", "is_active"])
-        .orderBy("registration asc")
+        .orderBy("registration", "asc")
         .offset(offset)
         .limit(perPage)
         .execute(),

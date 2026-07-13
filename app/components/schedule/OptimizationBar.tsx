@@ -1,4 +1,4 @@
-﻿import { Route, Check, Star, AlertTriangle, Plus } from "lucide-react";
+import { Route, Check, Star, AlertTriangle, Plus } from "lucide-react";
 import type { RouteSuggestion } from "../../utils/scheduling/scheduling-types";
 
 /**
@@ -31,7 +31,7 @@ interface OptimizationBarProps {
 
 /**
  * Format a route summary string from suggested legs.
- * E.g., "STY → BVI → NWI → STY (245 nm, 3 stops)"
+ * E.g., "STY \u2192 BVI \u2192 NWI \u2192 STY (245 nm, 3 stops)"
  */
 function formatRouteSummary(legs: RouteSuggestion["suggested_legs"]): string {
     if (legs.length === 0) return "No route";
@@ -45,7 +45,7 @@ function formatRouteSummary(legs: RouteSuggestion["suggested_legs"]): string {
         stops.push(leg.destination_code);
     }
 
-    return stops.join(" → ");
+    return stops.join(" \u2192 ");
 }
 
 /**
@@ -72,9 +72,9 @@ function getWarningSeverity(warning: string): 'info' | 'warning' | 'violation' {
  * Red: >= 100% (violation — exceeded)
  */
 function getFuelDotColor(pct: number): string {
-    if (pct >= 100) return "bg-red-50 dark:bg-red-900/30 dark:bg-red-900/300";
-    if (pct > 80) return "bg-amber-50 dark:bg-amber-900/30 dark:bg-amber-900/300";
-    return "bg-green-50 dark:bg-green-900/30 dark:bg-green-900/300";
+    if (pct >= 100) return "bg-red-500 dark:bg-red-900/30";
+    if (pct > 80) return "bg-amber-500 dark:bg-amber-900/30";
+    return "bg-green-500 dark:bg-green-900/30";
 }
 
 export default function OptimizationBar({
@@ -180,7 +180,7 @@ export default function OptimizationBar({
             {/* Aircraft recommendation */}
             {suggestion.aircraft_recommendation && (
                 <div className="mb-2 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 dark:text-slate-500">
-                    <Star size={14} className="text-slate-500 dark:text-slate-400 dark:text-slate-500" strokeWidth={1.5} absoluteStrokeWidth />
+                    <Star size={14} className="text-slate-500 dark:text-slate-500" strokeWidth={1.5} absoluteStrokeWidth />
                     <span>
                         Recommended:{" "}
                         <span className="font-medium text-slate-700 dark:text-slate-200">

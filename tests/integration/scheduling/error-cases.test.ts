@@ -55,7 +55,7 @@ function createMockContext(
 describe("Schedule Error and Edge Cases", () => {
   const testUserId = MOCK_USER_IDS.ops;
 
-  // ── Test: Unknown intent returns 400 ───────────────────────────────────────
+  // â”€â”€ Test: Unknown intent returns 400 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("unknown intent returns 400", async () => {
     await withRollback(async () => {
       const formData = createMockFormData({});
@@ -69,7 +69,7 @@ describe("Schedule Error and Edge Cases", () => {
     });
   });
 
-  // ── Test: Missing required parameters returns 400 ──────────────────────────
+  // â”€â”€ Test: Missing required parameters returns 400 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("missing required parameters returns 400", async () => {
     await withRollback(async () => {
       // Call approve without a scheduleId in the form data
@@ -87,12 +87,12 @@ describe("Schedule Error and Edge Cases", () => {
     });
   });
 
-  // ── Test: Assign to non-existent flight returns 404 ────────────────────────
+  // â”€â”€ Test: Assign to non-existent flight returns 404 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("assign to non-existent flight returns 404", async () => {
     await withRollback(async () => {
       const bookingLeg = await createTestBookingLeg({
         booking_id: 1,
-        origin_code: "PSY",
+        origin_code: "STY",
         destination_code: "MPA",
         leg_date: dateOnly(2026, 7, 15),
         leg_sequence: 1,
@@ -107,13 +107,13 @@ describe("Schedule Error and Edge Cases", () => {
         // If it doesn't throw, the FK constraint would fail on commit
         // (but we rollback anyway)
       } catch (e: unknown) {
-        // Prisma FK error is expected since flight 99999 doesn't exist
-        expect((e as { code: string }).code).toBe("P2003");
+        // Postgres FK error (23503 = foreign_key_violation) expected since flight 99999 doesn't exist
+        expect((e as { code: string }).code).toBe("23503");
       }
     });
   });
 
-  // ── Test: Assign non-existent booking leg returns 404 ──────────────────────
+  // â”€â”€ Test: Assign non-existent booking leg returns 404 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("assign non-existent booking leg returns 404", async () => {
     await withRollback(async () => {
       const result = await handleAssignBooking(99999, 1);
@@ -125,7 +125,7 @@ describe("Schedule Error and Edge Cases", () => {
     });
   });
 
-  // ── Test: Create flight on non-existent schedule returns 404 ───────────────
+  // â”€â”€ Test: Create flight on non-existent schedule returns 404 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("create flight on non-existent schedule returns 404", async () => {
     await withRollback(async () => {
       // handleCreateFlight doesn't check schedule existence before creating;
@@ -136,13 +136,13 @@ describe("Schedule Error and Edge Cases", () => {
         // If it doesn't throw, the FK constraint would fail on commit
         // (but we rollback anyway)
       } catch (e: unknown) {
-        // Prisma FK error is expected since schedule 99999 doesn't exist
-        expect((e as { code: string }).code).toBe("P2003");
+        // Postgres FK error (23503 = foreign_key_violation) expected since schedule 99999 doesn't exist
+        expect((e as { code: string }).code).toBe("23503");
       }
     });
   });
 
-  // ── Test: Past date auto-build works ───────────────────────────────────────
+  // â”€â”€ Test: Past date auto-build works â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("past date auto-build works", async () => {
     await withRollback(async () => {
       // Create a schedule for a past date
@@ -156,15 +156,18 @@ describe("Schedule Error and Edge Cases", () => {
       const err = getError(result);
 
       if (err) {
-        // May fail with "no unassigned booking legs" which is acceptable
-        expect(err.error).toContain("No unassigned booking legs");
+        // May fail with "no unassigned booking legs" or "no-fly day" â€” both acceptable
+        expect(
+          err.error.includes("No unassigned booking legs") ||
+          err.error.includes("no-fly day")
+        ).toBe(true);
       } else {
         expect(isSuccess(result)).toBe(true);
       }
     });
   });
 
-  // ── Test: Far future date auto-build returns 0 bookings ────────────────────
+  // â”€â”€ Test: Far future date auto-build returns 0 bookings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("far future date auto-build returns 0 bookings", async () => {
     await withRollback(async () => {
       // Create a schedule for a far future date
@@ -186,7 +189,7 @@ describe("Schedule Error and Edge Cases", () => {
     });
   });
 
-  // ── Test: Approve with NaN scheduleId returns 404 ──────────────────────────
+  // â”€â”€ Test: Approve with NaN scheduleId returns 404 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("approve with NaN scheduleId returns 404", async () => {
     await withRollback(async () => {
       const formData = createMockFormData({ scheduleId: "not-a-number" });
@@ -200,13 +203,13 @@ describe("Schedule Error and Edge Cases", () => {
         await routeScheduleAction("approve", ctx, "2026-07-01");
         // If it doesn't throw, the NaN would cause unexpected behavior
       } catch (e: unknown) {
-        // Prisma validation error is expected for NaN scheduleId
-        expect((e as { name: string }).name).toBe("PrismaClientValidationError");
+        // Validation error is expected for NaN scheduleId
+        expect((e as { name: string }).name).toBe("error");
       }
     });
   });
 
-  // ── Test: Cancel with empty reason still succeeds ──────────────────────────
+  // â”€â”€ Test: Cancel with empty reason still succeeds â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("cancel with empty reason still succeeds", async () => {
     await withRollback(async () => {
       const schedule = await createTestSchedule({

@@ -1,7 +1,8 @@
-﻿import Badge from "./Badge";
+import Badge from "./Badge";
 import type { BadgeProps } from "./Badge";
 import DataTable from "./DataTable";
 import type { Column } from "./DataTable";
+import { formatDateFromISO } from "../utils/dates";
 
 export interface ReconciliationTransaction {
   id: string;
@@ -30,14 +31,6 @@ function formatGbp(value: number): string {
   return `£${Math.abs(value).toFixed(2)}`;
 }
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
 export default function ReconciliationTable({
   transactions,
   onMatch,
@@ -49,7 +42,7 @@ export default function ReconciliationTable({
       header: "Date",
       render: (txn) => (
         <span className="text-sm/5 text-slate-700 dark:text-slate-200 tabular-nums">
-          {formatDate(txn.transactionDate)}
+          {formatDateFromISO(txn.transactionDate)}
         </span>
       ),
     },
@@ -59,7 +52,7 @@ export default function ReconciliationTable({
       render: (txn) => (
         <div className="max-w-xs">
           <p className="text-sm/5 text-slate-900 dark:text-slate-100 truncate">{txn.description}</p>
-          <p className="text-xs/5 text-slate-500 dark:text-slate-400 dark:text-slate-500">ID: {txn.externalId}</p>
+          <p className="text-xs/5 text-slate-500 dark:text-slate-500">ID: {txn.externalId}</p>
         </div>
       ),
     },

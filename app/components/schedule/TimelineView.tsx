@@ -1,4 +1,4 @@
-﻿import type { ReactNode } from "react";
+import type { ReactNode } from "react";
 
 export interface TimelineStop {
   aerodromeCode: string;
@@ -89,10 +89,10 @@ function TimelineStopItem({ stop, isFirst, isLast }: TimelineStopItemProps) {
           <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
             {stop.aerodromeCode}
           </span>
-          <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">({label})</span>
+          <span className="text-xs text-slate-500 dark:text-slate-500">({label})</span>
         </div>
 
-        <div className="mt-1 flex flex-wrap gap-3 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <div className="mt-1 flex flex-wrap gap-3 text-xs text-slate-500 dark:text-slate-500">
           <span>Leg {stop.legSequence}</span>
           <span>{stop.distanceNm.toFixed(0)} nm</span>
           <span>Heading {stop.heading.toFixed(0)}°</span>

@@ -1,7 +1,6 @@
 import type { AircraftAssignmentResult, PilotAvailability, PilotAssignmentResult } from "./types";
 import { kdb } from "../db.server.kysely";
-import { sql } from "kysely";
-import type { DB } from "../../../generated/kysely/database";
+import { PilotAssignmentStatus } from "../constants";
 
 /**
  * Phase 5: Assign pilots to flights based on qualifications, duty hours, and availability.
@@ -69,7 +68,7 @@ export async function assignPilots(
   // Get pilot availability using the pre-fetched duty records
   const availabilities = await getPilotAvailabilities(pilots, scheduleDate, dutyRecords);
 
-  // Get the aircraft type for qualification matching
+
   const aircraftType = assignment.aircraft.type;
 
   // Filter available pilots based on all criteria
@@ -339,11 +338,12 @@ async function getPilotDutyRecords(
       .selectAll("pa")
       .select(["s.schedule_date", "f.arrival_time", "f.departure_time"])
       .where("pa.pilot_id", "=", pilot.id)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .where("s.schedule_date", "<=", new Date(scheduleDate) as any)
       .where((eb) => eb.or([
-        eb("pa.status", "not in", ["declined", "cancelled"])
+        eb("pa.status", "not in", [PilotAssignmentStatus.DECLINED, "cancelled"])
       ]))
-      .orderBy("s.schedule_date desc")
+      .orderBy("s.schedule_date", "desc")
       .limit(10)
       .execute();
 
@@ -353,7 +353,7 @@ async function getPilotDutyRecords(
       ? await kdb.selectFrom("flight_legs")
           .select(["id", "flight_id", "etd", "eta", "leg_number"])
           .where("flight_id", "in", flightIds)
-          .orderBy("leg_number asc")
+          .orderBy("leg_number", "asc")
           .execute()
       : [];
     const legsByFlight = new Map<number, typeof allLegs>();
@@ -388,9 +388,7 @@ async function getPilotDutyRecords(
         const scheduleStart = new Date(`${scheduleDate}T00:00:00Z`);
         // Only consider flights that ended before the schedule date starts
         if (endDate < scheduleStart) {
-          lastFlightEndTime = (flightEnd as any) instanceof Date
-            ? (flightEnd as any as Date).toISOString()
-            : new Date(flightEnd as any).toISOString();
+          lastFlightEndTime = new Date(flightEnd as string).toISOString();
           break;
         }
       }
@@ -398,10 +396,7 @@ async function getPilotDutyRecords(
 
     // ── Today's flights (on the schedule date) ────────────────────────────
     const todayAssignments = enrichedAssignments.filter((a) => {
-      const assignDate =
-        (a.schedule?.schedule_date as any) instanceof Date
-          ? (a.schedule!.schedule_date as unknown as Date).toISOString().split("T")[0]
-          : String(a.schedule?.schedule_date).split("T")[0];
+      const assignDate = String(a.schedule?.schedule_date).split("T")[0];
       return assignDate === scheduleDate;
     });
 

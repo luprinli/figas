@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import { createHighlighter } from "shiki";
 
 type CodeBlockProps = {
   code: string;
@@ -10,13 +9,15 @@ const CodeBlock = ({ code, language }: CodeBlockProps) => {
   const codeRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
+    let cancelled = false;
     const highlightCode = async () => {
+      const { createHighlighter } = await import("shiki");
       const highlighter = await createHighlighter({
         themes: ["github-light"],
         langs: [language],
       });
 
-      if (codeRef.current) {
+      if (!cancelled && codeRef.current) {
         const html = highlighter.codeToHtml(code, {
           lang: language,
           themes: { light: "github-light" },
@@ -29,6 +30,7 @@ const CodeBlock = ({ code, language }: CodeBlockProps) => {
     };
 
     highlightCode();
+    return () => { cancelled = true; };
   }, [code, language]);
 
   return (

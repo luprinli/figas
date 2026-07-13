@@ -3,6 +3,7 @@ import { computeFlightTime } from "../scheduling/fuel-planning";
 import { computeCG, assignSeatsByCOG } from "./seat-assignment";
 import type { SeatAssignment } from "./seat-assignment";
 import { DEFAULT_BN2_MTOW_KG } from "../constants";
+import { formatTime as formatTimeHM } from "../format-time";
 
 interface FlightLegData {
   id: number;
@@ -76,12 +77,6 @@ const TURNAROUND_MIN = 10;
 const BASE_ETD_HOUR = 8;
 const BASE_ETD_MINUTE = 30;
 
-function formatTimeHM(date: Date): string {
-  const h = String(date.getUTCHours()).padStart(2, "0");
-  const m = String(date.getUTCMinutes()).padStart(2, "0");
-  return `${h}${m}`;
-}
-
 export async function computeLoadsheetCalculations(params: LoadsheetCalcParams): Promise<LoadsheetCalcOutput> {
   const { legs, passengers, aircraft, pilotWeightKg, date } = params;
   const distanceMap = await loadCSVDistanceMap();
@@ -108,10 +103,10 @@ export async function computeLoadsheetCalculations(params: LoadsheetCalcParams):
 
   for (let i = 0; i < legs.length; i++) {
     const leg = legs[i];
-    const key = `${leg.origin_code}→${leg.destination_code}`;
+    const key = `${leg.origin_code}\u2192${leg.destination_code}`;
     const distanceNm = leg.distance_nm ?? distanceMap.get(key) ?? 0;
     distanceMap.set(key, distanceNm);
-    distanceMap.set(`${leg.destination_code}→${leg.origin_code}`, distanceNm);
+    distanceMap.set(`${leg.destination_code}\u2192${leg.origin_code}`, distanceNm);
 
     const flightTimeMin = computeFlightTime(distanceNm, BN2_CRUISE_KTAS, 0);
 
@@ -204,8 +199,8 @@ export async function computeLoadsheetCalculations(params: LoadsheetCalcParams):
       destinationCode: lc.destinationCode,
       distanceNm: lc.distanceNm,
       plannedTimeMin: lc.plannedTimeMin,
-      etd: formatTimeHM(lc.etd),
-      eta: formatTimeHM(lc.eta),
+      etd: formatTimeHM(lc.etd)!,
+      eta: formatTimeHM(lc.eta)!,
       fuelOnBoardKg: fuelOnBoard,
       fuelBurnKg: lc.fuelBurnKg,
       fuelRemainingKg,

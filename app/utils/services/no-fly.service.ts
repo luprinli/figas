@@ -1,7 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { kdb } from "../db.server.kysely";
-import { sql } from "kysely";
-import type { DB } from "../../../generated/kysely/database";
 import type { NoFlyRuleType } from "../../../generated/prisma/client";
+import { formatDateObj } from "../dates";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -111,7 +111,7 @@ function toDateOrNull(value: string | null | undefined): Date | null {
 export async function findAllRules(): Promise<NoFlyRuleRow[]> {
   const rows = await kdb.selectFrom("no_fly_rules")
     .selectAll()
-    .orderBy("created_at desc")
+    .orderBy("created_at", "desc")
     .execute();
   return rows.map(mapRule);
 }
@@ -198,7 +198,8 @@ export async function deleteRule(id: number): Promise<boolean> {
   try {
     await kdb.deleteFrom("no_fly_rules").where("id", "=", id).execute();
     return true;
-  } catch {
+  } catch (e) {
+    console.error("Failed to delete no-fly rule:", e);
     return false;
   }
 }
@@ -360,13 +361,6 @@ function parseDate(dateStr: string | Date | null | undefined): { year: number; m
   const day = parseInt(parts[2], 10);
   if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
   return { year, month, day };
-}
-
-function formatDateObj(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
 }
 
 /**

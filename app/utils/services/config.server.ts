@@ -1,6 +1,5 @@
 import { kdb } from "../db.server.kysely";
 import { sql } from "kysely";
-import type { DB } from "../../../generated/kysely/database";
 
 interface SettingRow {
   key: string;
@@ -35,7 +34,8 @@ export async function getSetting(key: string, fallback?: string): Promise<string
     const c = await loadCache();
     const row = c.get(key);
     return row?.value ?? fallback ?? "";
-  } catch {
+  } catch (e) {
+    console.error("Config cache load failed, returning fallback:", e);
     return fallback ?? "";
   }
 }

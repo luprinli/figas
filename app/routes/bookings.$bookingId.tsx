@@ -1,7 +1,9 @@
-﻿import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import { useState } from "react";
+import type { HeadersFunction, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, CreditCard, X } from "lucide-react";
 import { json } from "@remix-run/node";
-import { Link, useLoaderData, useNavigation } from "@remix-run/react";
+import { Link, useLoaderData, useNavigate, useNavigation, useSearchParams, useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { bookingRepository } from "../utils/repositories/booking";
 import { bookingLegRepository } from "../utils/repositories/booking-leg";
 import { bookingPassengerRepository } from "../utils/repositories/booking-passenger";
@@ -12,13 +14,20 @@ import { getSession } from "../session.server";
 import StatusBadge from "../components/StatusBadge";
 import PaymentStatusBadge from "../components/PaymentStatusBadge";
 import CountdownBar from "../components/CountdownBar";
+import { formatDateFromISO } from "../utils/dates";
 import Skeleton from "../components/Skeleton";
 import AlertBanner from "../components/AlertBanner";
 import DataTable from "../components/DataTable";
 import type { Column } from "../components/DataTable";
 import ExpandableSection from "../components/ui/ExpandableSection";
+import Button from "../components/Button";
+import { useKeyboardShortcuts } from "../utils/use-keyboard-shortcuts";
 
 export const meta: MetaFunction = () => [{ title: "Booking Detail - FIGAS" }];
+
+export const headers: HeadersFunction = () => ({
+  "Cache-Control": "max-age=30, stale-while-revalidate=120",
+});
 
 // ── Status Pipeline Definition ─────────────────────────────────────────────────
 
@@ -102,14 +111,6 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
 function formatCurrency(amount: number | null): string {
   if (amount == null) return "—";
   return `£${Number(amount).toFixed(2)}`;
@@ -119,7 +120,7 @@ function getDaysUntilLabel(days: number | null): { label: string; className: str
   if (days === null) return { label: "Date TBC", className: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300" };
   if (days < 0) return { label: "Departed", className: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" };
   if (days === 0) return { label: "Today!", className: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300" };
-  return { label: `${days} day${days !== 1 ? "s" : ""}`, className: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" };
+  return { label: `${days} day${days !== 1 ? "s" : ""}`, className: "bg-green-100 dark:bg-green-900/30 text-success dark:text-success-light" };
 }
 
 // ── Status Progression Stepper ─────────────────────────────────────────────────
@@ -140,21 +141,21 @@ function StatusProgression({ currentStatus }: { currentStatus: string }) {
           let labelClass = "text-xs mt-1 whitespace-nowrap";
 
           if (isCancelled) {
-            circleClass += " bg-red-100 text-red-700 dark:text-red-400 border-2 border-red-400";
+            circleClass += " bg-red-100 text-red-700 dark:text-red-400 border-2 border-danger";
             lineClass += " bg-red-200";
             labelClass += " text-red-600";
           } else if (isCompleted) {
-            circleClass += " bg-green-500 text-white";
-            lineClass += " bg-green-400";
+            circleClass += " bg-success text-white";
+            lineClass += " bg-success/70";
             labelClass += " text-green-700";
           } else if (isCurrent) {
-            circleClass += " bg-blue-500 text-white ring-2 ring-blue-300";
+            circleClass += " bg-primary text-white ring-2 ring-primary/40";
             lineClass += " bg-blue-300";
-            labelClass += " text-blue-700 dark:text-blue-400 font-semibold";
+            labelClass += " text-primary dark:text-primary-light font-semibold";
           } else {
-            circleClass += " bg-slate-200 text-slate-500 dark:text-slate-400 dark:text-slate-500";
+            circleClass += " bg-slate-200 text-slate-500 dark:text-slate-400";
             lineClass += " bg-slate-200";
-            labelClass += " text-slate-500 dark:text-slate-400 dark:text-slate-500";
+            labelClass += " text-slate-500 dark:text-slate-400";
           }
 
           const formattedLabel = status.replace(/_/g, " ");
@@ -200,12 +201,12 @@ function ItineraryStrip({ legs }: { legs: Awaited<ReturnType<typeof bookingLegRe
             {idx > 0 && (
               <ArrowRight size={16} className="text-slate-300 dark:text-slate-500 shrink-0" absoluteStrokeWidth />
             )}
-            <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-700 rounded-md px-3 py-1.5">
+            <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 rounded-md px-3 py-1.5">
               <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{leg.origin_code}</span>
               <ArrowRight size={14} className="text-slate-500 dark:text-slate-400" absoluteStrokeWidth />
               <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{leg.destination_code}</span>
               <span className="text-xs text-slate-500 dark:text-slate-400 ml-1">
-                {formatDate(leg.leg_date)}
+                {formatDateFromISO(leg.leg_date)}
                 {leg.preferred_time && ` ${leg.preferred_time}`}
               </span>
               {leg.flight_id && (
@@ -257,7 +258,15 @@ function LoadingSkeleton() {
 export default function BookingDetailPage() {
   const data = useLoaderData<typeof loader>();
   const navigation = useNavigation();
+  const [searchParams] = useSearchParams();
   const isLoading = navigation.state === "loading";
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const navigate = useNavigate();
+
+  useKeyboardShortcuts({
+    "p": () => navigate(`/bookings/${data.booking.id}/payment`),
+    "g b": () => navigate("/bookings"),
+  });
 
   // Handle loading state
   if (isLoading) {
@@ -292,6 +301,8 @@ export default function BookingDetailPage() {
   const canShowPaymentAction = canManagePayment && !isPaid && !isPastBooking;
   const canShowCancel = canCancel && !["completed", "cancelled"].includes(booking.status) && !isPastBooking;
   const canShowCheckin = canCheckin && booking.status !== "completed" && booking.status !== "cancelled" && !isPastBooking;
+  const handleCancelConfirm = () => { window.location.href = `/bookings/${booking.id}/cancel`; };
+  const showSuccess = searchParams.get("passengers_added") === "true";
 
   // Build alerts for partial data
   const alerts: Array<{ severity: "warning" | "error" | "info"; message: string }> = [];
@@ -326,8 +337,17 @@ export default function BookingDetailPage() {
       </div>
 
       <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-        {booking.booking_source?.replace(/_/g, " ")} &middot; Created {formatDate(booking.created_at)}
+        {booking.booking_source?.replace(/_/g, " ")} &middot; Created {formatDateFromISO(booking.created_at)}
       </p>
+
+      {/* Success banner for passenger addition */}
+      {showSuccess && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:bg-emerald-900/30 p-4 mb-4" role="status">
+          <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
+            Passengers added successfully! <Link to={`/bookings/${booking.id}/payment`} className="underline">Make a payment now</Link>.
+          </p>
+        </div>
+      )}
 
       {/* Partial data warning */}
       {alerts.length > 0 && (
@@ -350,8 +370,8 @@ export default function BookingDetailPage() {
             <span className="font-medium text-slate-800 dark:text-slate-100">{legs.map((l) => l.origin_code).join(", ")}</span>
             <ArrowRight size={16} className="text-slate-500 dark:text-slate-400" absoluteStrokeWidth />
             <span className="font-medium text-slate-800 dark:text-slate-100">{legs[legs.length - 1]?.destination_code}</span>
-            <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">&middot;</span>
-            <span>{formatDate(earliestLeg.leg_date)}</span>
+            <span className="text-slate-500 dark:text-slate-400">&middot;</span>
+            <span>{formatDateFromISO(earliestLeg.leg_date)}</span>
           </div>
         )}
 
@@ -368,7 +388,7 @@ export default function BookingDetailPage() {
             {daysLabel.label}
           </span>
           {hoursInStatus > 0 && (
-            <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
               {hoursInStatus}h in current status
             </span>
           )}
@@ -425,7 +445,7 @@ export default function BookingDetailPage() {
                   )},
                   { key: "leg", header: "Leg", render: (lp: Record<string, unknown>) => {
                     const leg = legs.find((l) => l.id === (lp as Record<string, unknown>).booking_leg_id) as { origin_code: string; destination_code: string } | undefined;
-                    return <span className="text-slate-600 dark:text-slate-300">{leg ? `${leg.origin_code} → ${leg.destination_code}` : "—"}</span>;
+                    return <span className="text-slate-600 dark:text-slate-300">{leg ? `${leg.origin_code} \u2192 ${leg.destination_code}` : "—"}</span>;
                   }},
                   { key: "seat", header: "Seat", sortable: true, render: (lp: Record<string, unknown>) => (
                     <span className="text-slate-600 dark:text-slate-300 font-mono">{lp.seat_number as string}</span>
@@ -448,16 +468,16 @@ export default function BookingDetailPage() {
         <ExpandableSection title="Freight">
           <div className="space-y-3">
             {legPassengers.filter((lp) => lp.freight_description || (lp.freight_weight_kg ?? 0) > 0).length === 0 ? (
-              <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No freight declared for this booking.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">No freight declared for this booking.</p>
             ) : (
               legPassengers
                 .filter((lp) => lp.freight_description || (lp.freight_weight_kg ?? 0) > 0)
                 .map((lp) => {
                   const leg = legs.find((l) => l.id === lp.booking_leg_id);
                   return (
-                    <div key={lp.id} className="rounded-md bg-slate-50 dark:bg-slate-700 p-3">
+                    <div key={lp.id} className="rounded-md bg-slate-50 dark:bg-slate-800 p-3">
                       <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
-                        {leg?.origin_code ?? "?"} → {leg?.destination_code ?? "?"}
+                        {leg?.origin_code ?? "?"} \u2192 {leg?.destination_code ?? "?"}
                         {lp.first_name && (
                           <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">
                             ({lp.first_name} {lp.last_name})
@@ -505,13 +525,10 @@ export default function BookingDetailPage() {
                 </div>
                 {!isPaid && canManagePayment && (
                   <div className="pt-2">
-                    <Link
-                      to={`/bookings/${booking.id}/payment`}
-                      className="inline-flex items-center gap-1 text-sm font-medium text-sky-600 hover:text-sky-700"
-                    >
+                    <Button to={`/bookings/${booking.id}/payment`} variant="outlined" size="sm" className="gap-1">
                   Make Payment
                   <ArrowRight size={14} absoluteStrokeWidth />
-                    </Link>
+                    </Button>
                   </div>
                 )}
               </div>
@@ -529,22 +546,22 @@ export default function BookingDetailPage() {
         {/* Itinerary Details */}
         <ExpandableSection title="Itinerary Details">
           {legs.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No itinerary details available.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">No itinerary details available.</p>
           ) : (
             <div className="space-y-3">
               {legs.map((leg, idx) => (
-                <div key={leg.id} className="rounded-md bg-slate-50 dark:bg-slate-700 p-3">
+                <div key={leg.id} className="rounded-md bg-slate-50 dark:bg-slate-800 p-3">
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                      Leg {idx + 1}: {leg.origin_code} → {leg.destination_code}
+                      Leg {idx + 1}: {leg.origin_code} \u2192 {leg.destination_code}
                     </p>
                     {leg.flight_id && (
                       <span className="text-xs text-sky-600">Flight #{leg.flight_id}</span>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-500 dark:text-slate-400">
                     <div>
-                      <span className="font-medium">Date:</span> {formatDate(leg.leg_date)}
+                      <span className="font-medium">Date:</span> {formatDateFromISO(leg.leg_date)}
                     </div>
                     {leg.preferred_time && (
                       <div>
@@ -570,43 +587,45 @@ export default function BookingDetailPage() {
       {/* F. Quick Actions */}
       <div className="flex flex-col sm:flex-row flex-wrap gap-3 mt-6 border-t border-slate-200 dark:border-slate-700">
         {canShowPaymentAction && (
-          <Link
-            to={`/bookings/${booking.id}/payment`}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 transition-colors"
-          >
+          <Button to={`/bookings/${booking.id}/payment`} size="md" className="gap-1.5">
             <CreditCard size={16} absoluteStrokeWidth />
             Make Payment
-          </Link>
+          </Button>
         )}
 
         {canShowCancel && (
-          <button
-            type="button"
-            onClick={() => {
-              const msg = isPaidOrPartiallyPaid
-                ? `This booking has been paid (£${Number(booking.total_amount_gbp ?? 0).toFixed(2)}). Cancelling will require a refund. Continue?`
-                : "Are you sure you want to cancel this booking?";
-              if (window.confirm(msg)) {
-                window.location.href = `/bookings/${booking.id}/cancel`;
-              }
-            }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:bg-red-900/30 transition-colors"
+          <Button
+            variant="outlined"
+            color="danger"
+            size="md"
+            className="gap-1.5"
+            onClick={() => setShowCancelDialog(true)}
           >
             <X size={16} absoluteStrokeWidth />
             Cancel Booking
-          </button>
+          </Button>
         )}
 
         {canShowCheckin && (
-          <Link
-            to={`/checkin?booking=${booking.id}`}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors"
-          >
+          <Button to={`/checkin?booking=${booking.id}`} color="success" size="md" className="gap-1.5">
             <CheckCircle2 size={16} absoluteStrokeWidth />
             Check In
-          </Link>
+          </Button>
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={showCancelDialog}
+        onClose={() => setShowCancelDialog(false)}
+        onConfirm={handleCancelConfirm}
+        title="Cancel Booking"
+        message={isPaidOrPartiallyPaid
+          ? `This booking has been paid (£${Number(booking.total_amount_gbp ?? 0).toFixed(2)}). Cancelling will require a refund. Continue?`
+          : "Are you sure you want to cancel this booking?"}
+        confirmLabel="Cancel Booking"
+        cancelLabel="Go Back"
+        variant="danger"
+      />
     </div>
   );
 }
@@ -614,16 +633,46 @@ export default function BookingDetailPage() {
 // ── Error Boundary ─────────────────────────────────────────────────────────────
 
 export function ErrorBoundary() {
+  const error = useRouteError();
+  if (isRouteErrorResponse(error)) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900 p-4">
+        <div className="mx-auto max-w-lg text-center">
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
+          <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">
+            {error.status === 404 ? "Booking Not Found" : "Something went wrong"}
+          </h1>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
+            {error.status === 404
+              ? "This booking could not be found. It may have been removed or you may not have access."
+              : error.statusText}
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            <Button size="md" onClick={() => window.location.reload()}>
+              Try Again
+            </Button>
+            <Button to="/bookings" variant="outlined" size="md">
+              Back to My Bookings
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <Link
-        to="/bookings"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 transition-colors mb-4"
-      >
-        <ArrowLeft size={16} absoluteStrokeWidth />
-        Back to My Bookings
-      </Link>
-      <AlertBanner alerts={[{ severity: "error", message: "An error occurred while loading this booking. Please try again later." }]} />
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900 p-4">
+      <div className="mx-auto max-w-lg text-center">
+        <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <div className="flex items-center justify-center gap-3">
+          <Button size="md" onClick={() => window.location.reload()}>
+            Try Again
+          </Button>
+          <Button to="/bookings" variant="outlined" size="md">
+            Back to My Bookings
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

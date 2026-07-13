@@ -41,7 +41,7 @@ export interface AerodromeRow {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Convert a Kysely DECIMAL string → number | null (safe). */
+/** Convert a Kysely DECIMAL string \u2192 number | null (safe). */
 function dec(v: unknown): number | null {
   if (v == null) return null;
   const n = Number(v);
@@ -81,7 +81,7 @@ export const aerodromeRepository = {
       .selectFrom("aerodromes")
       .selectAll()
       .where("is_active", "=", true)
-      .orderBy("name asc")
+      .orderBy("name", "asc")
       .execute();
     return rows.map(toRow);
   },
@@ -133,6 +133,7 @@ export const aerodromeRepository = {
         latitude: data.latitude != null ? String(data.latitude) : undefined,
         longitude: data.longitude != null ? String(data.longitude) : undefined,
         timezone: data.timezone ?? "Atlantic/Stanley",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       .returningAll()
       .execute();

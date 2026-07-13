@@ -468,7 +468,7 @@ interface WeightSummaryProps {
     zeroFuelWeightKg: number;      // empty + pilot + pax + bag + freight
 
     // CG fields
-    totalMomentKgm: number;        // sum(weight × arm) for all load items
+    totalMomentKgm: number;        // sum(weight �— arm) for all load items
     cgPositionPct: number;         // total_moment / total_weight (as percentage)
     cgForwardLimitPct: number;     // from aircraft.cg_forward_limit_pct
     cgAftLimitPct: number;         // from aircraft.cg_aft_limit_pct

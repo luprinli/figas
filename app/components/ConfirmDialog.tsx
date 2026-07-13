@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 import Button from "./Button";
 
@@ -59,33 +59,32 @@ export default function ConfirmDialog({
       />
 
       {/* Dialog */}
-      <div className="relative w-full max-w-md rounded-lg bg-white dark:bg-slate-800 p-6 shadow-xl dark:shadow-slate-900/50 ring-1 ring-slate-200 dark:ring-slate-700">
-        <h3 className="text-lg/6 font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-dialog-title"
+        className="relative w-full max-w-md rounded-lg bg-white dark:bg-slate-800 p-6 shadow-xl dark:shadow-slate-900/50 ring-1 ring-slate-200 dark:ring-slate-700">
+        <h3 id="confirm-dialog-title" className="text-lg/6 font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
         {children ? (
           <div className="mt-2">{children}</div>
         ) : (
-          message && <p className="mt-2 text-sm/5 text-slate-600 dark:text-slate-300 dark:text-slate-400 dark:text-slate-500">{message}</p>
+          message && <p className="mt-2 text-sm/5 text-slate-600 dark:text-slate-300 dark:text-slate-500">{message}</p>
         )}
 
         <div className="mt-6 flex items-center justify-end gap-3">
           <Button variant="outlined" onClick={onClose}>
             {cancelLabel}
           </Button>
-          <button
+          <Button
             ref={confirmButtonRef}
+            color={variant === "danger" ? "danger" : "primary"}
             onClick={() => {
               onConfirm();
               onClose();
             }}
-            className={[
-              "inline-flex items-center justify-center rounded-md px-4 py-3 text-sm/5 font-medium transition focus:outline-none cursor-pointer",
-              variant === "danger"
-                ? "bg-red-600 text-white hover:bg-red-500"
-                : "bg-cyan-500 text-white hover:bg-cyan-500/90",
-            ].join(" ")}
           >
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { kdb } from "../db.server.kysely";
 import { sql } from "kysely";
 
@@ -104,7 +105,7 @@ export const checkinRepository = {
       .where("cr.sent_at", "is", null)
       .where("cr.scheduled_at", "<=", now)
       .where("cr.flight_id", "is not", null)
-      .orderBy("cr.scheduled_at asc")
+      .orderBy("cr.scheduled_at", "asc")
       .execute();
     return (rows as unknown as PendingReminderRow[]);
   },
@@ -168,6 +169,48 @@ export const checkinRepository = {
         OR bp.email ILIKE ${searchTerm}
       )
       ORDER BY b.booking_reference, bp.last_name, bp.first_name
+    `.execute(kdb);
+    return (result.rows ?? []) as unknown as BookingSearchResult[];
+  },
+
+  async searchPassengers(query: string, limit = 50): Promise<BookingSearchResult[]> {
+    const searchTerm = `%${query}%`;
+    const isNumeric = /^\d+$/.test(query.trim());
+    const numericId = isNumeric ? parseInt(query.trim(), 10) : null;
+    const result = await sql`
+      SELECT DISTINCT
+        b.id,
+        b.booking_reference,
+        b.status,
+        bp.id AS passenger_id,
+        bp.first_name,
+        bp.last_name,
+        bp.email,
+        f.flight_number,
+        a_orig.code AS origin_code,
+        a_dest.code AS destination_code,
+        f.departure_time,
+        CASE WHEN blp.checked_in THEN 'Checked in' ELSE NULL END AS checkin_status
+      FROM bookings b
+      JOIN booking_passengers bp ON bp.booking_id = b.id
+      LEFT JOIN booking_legs bl ON bl.booking_id = b.id
+      LEFT JOIN booking_leg_passengers blp ON blp.booking_leg_id = bl.id AND blp.booking_passenger_id = bp.id
+      LEFT JOIN flights f ON f.id = bl.flight_id
+      LEFT JOIN aerodromes a_orig ON a_orig.id = f.origin_aerodrome_id
+      LEFT JOIN aerodromes a_dest ON a_dest.id = f.destination_aerodrome_id
+      WHERE (
+        b.booking_reference ILIKE ${searchTerm}
+        OR f.flight_number ILIKE ${searchTerm}
+        OR bp.first_name ILIKE ${searchTerm}
+        OR bp.last_name ILIKE ${searchTerm}
+        OR bp.email ILIKE ${searchTerm}
+        OR bp.passport_number ILIKE ${searchTerm}
+        OR bp.id_document_number ILIKE ${searchTerm}
+        OR bp.nationality ILIKE ${searchTerm}
+        ${isNumeric ? sql`OR bp.id = ${numericId}` : sql``}
+      )
+      ORDER BY b.booking_reference, bp.last_name, bp.first_name
+      LIMIT ${limit}
     `.execute(kdb);
     return (result.rows ?? []) as unknown as BookingSearchResult[];
   },

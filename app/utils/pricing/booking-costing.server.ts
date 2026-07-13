@@ -1,6 +1,5 @@
 import { kdb } from "../db.server.kysely";
 import { sql } from "kysely";
-import type { DB } from "../../../generated/kysely/database";
 import { computeLegFare, computeBookingTotal } from "./pricing-engine.server";
 import type { DiscountType } from "./pricing-engine.server";
 
@@ -87,6 +86,7 @@ export async function computeBookingCost(input: BookingCostInput): Promise<Booki
     await kdb.updateTable("booking_leg_passengers").set({
       line_fare_amount: fare.discountedFare,
       discount_applied: fare.discountPercent > 0,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any).where("id", "=", Number(r.booking_leg_passenger_id)).execute();
   }
 
@@ -100,5 +100,6 @@ export async function computeBookingCost(input: BookingCostInput): Promise<Booki
 }
 
 export async function updateBookingTotals(bookingId: number, grandTotal: number): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await kdb.updateTable("bookings").set({ total_amount: grandTotal } as any).where("id", "=", bookingId).execute();
 }

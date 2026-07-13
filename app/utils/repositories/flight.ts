@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { kdb } from "../db.server";
 import { sql } from "kysely";
 import type { Kysely } from "kysely";
@@ -39,30 +40,6 @@ export interface FlightSearchResult {
   aircraft_registration: string;
   seat_count: number;
   available_seats: number;
-}
-
-function toFlightSearchResult(
-  flight: Record<string, unknown>,
-  seatCount: number,
-  seatsTaken: number
-): FlightSearchResult {
-  return {
-    id: Number(flight.id),
-    flight_number: String(flight.flight_number ?? ""),
-    aircraft_id: flight.aircraft_id != null ? Number(flight.aircraft_id) : 0,
-    origin_aerodrome_id: flight.origin_aerodrome_id != null ? Number(flight.origin_aerodrome_id) : 0,
-    destination_aerodrome_id: flight.destination_aerodrome_id != null ? Number(flight.destination_aerodrome_id) : 0,
-    departure_time: String(flight.departure_time ?? ""),
-    arrival_time: String(flight.arrival_time ?? ""),
-    status: String(flight.status ?? ""),
-    origin_code: String(flight.origin_code ?? ""),
-    origin_name: String(flight.origin_name ?? ""),
-    destination_code: String(flight.destination_code ?? ""),
-    destination_name: String(flight.destination_name ?? ""),
-    aircraft_registration: String(flight.aircraft_registration ?? ""),
-    seat_count: seatCount,
-    available_seats: seatCount - seatsTaken,
-  };
 }
 
 async function buildFlightSearchResult(

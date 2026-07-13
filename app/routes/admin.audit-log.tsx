@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useSearchParams, Form, Link } from "@remix-run/react";
+import { useLoaderData, useSearchParams, Form, Link, useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import DataTable, { type Column } from "../components/DataTable";
 import { requirePermission, queryAuditLog } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
 
@@ -47,7 +48,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export default function AuditLogPage() {
-  const { entries, totalCount, page, totalPages, filters } = useLoaderData<typeof loader>();
+  const { entries, totalCount, filters } = useLoaderData<typeof loader>();
   const [, setSearchParams] = useSearchParams();
 
   function updateFilter(key: string, value: string) {
@@ -130,64 +131,84 @@ export default function AuditLogPage() {
         </button>
       </Form>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700 text-left">
-              <th className="py-2 px-3 font-medium text-slate-500 dark:text-slate-400">ID</th>
-              <th className="py-2 px-3 font-medium text-slate-500 dark:text-slate-400">Action</th>
-              <th className="py-2 px-3 font-medium text-slate-500 dark:text-slate-400">Entity</th>
-              <th className="py-2 px-3 font-medium text-slate-500 dark:text-slate-400">Entity ID</th>
-              <th className="py-2 px-3 font-medium text-slate-500 dark:text-slate-400">Actor</th>
-              <th className="py-2 px-3 font-medium text-slate-500 dark:text-slate-400">Date</th>
-              <th className="py-2 px-3 font-medium text-slate-500 dark:text-slate-400">Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="py-8 text-center text-slate-500">No audit entries found.</td>
-              </tr>
-            ) : entries.map((entry) => (
-              <tr key={String(entry.id)} className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                <td className="py-1.5 px-3 font-mono text-slate-500">{String(entry.id)}</td>
-                <td className="py-1.5 px-3">
-                  <span className="rounded bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 font-medium text-blue-700 dark:text-blue-300">
-                    {String(entry.action)}
-                  </span>
-                </td>
-                <td className="py-1.5 px-3 text-slate-600 dark:text-slate-300">{String(entry.entity_type ?? "—")}</td>
-                <td className="py-1.5 px-3 font-mono text-slate-500">{entry.entity_id ? String(entry.entity_id) : "—"}</td>
-                <td className="py-1.5 px-3 font-mono text-slate-500">{entry.actor_id ? `#${String(entry.actor_id)}` : "—"}</td>
-                <td className="py-1.5 px-3 text-slate-500 whitespace-nowrap">
-                  {entry.created_at ? new Date(String(entry.created_at)).toLocaleString("en-GB") : "—"}
-                </td>
-                <td className="py-1.5 px-3 max-w-xs truncate text-slate-500" title={entry.new_values ? JSON.stringify(entry.new_values) : undefined}>
-                  {entry.new_values ? JSON.stringify(entry.new_values) : "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable<Record<string, unknown>>
+        columns={[
+          {
+            key: "id",
+            header: "ID",
+            render: (entry) => <span className="font-mono text-slate-500">{String(entry.id)}</span>,
+          },
+          {
+            key: "action",
+            header: "Action",
+            render: (entry) => (
+              <span className="rounded bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 font-medium text-blue-700 dark:text-blue-300">
+                {String(entry.action)}
+              </span>
+            ),
+          },
+          {
+            key: "entity_type",
+            header: "Entity",
+            render: (entry) => String(entry.entity_type ?? "\u2014"),
+          },
+          {
+            key: "entity_id",
+            header: "Entity ID",
+            render: (entry) => entry.entity_id ? String(entry.entity_id) : "\u2014",
+          },
+          {
+            key: "actor_id",
+            header: "Actor",
+            render: (entry) => entry.actor_id ? `#${String(entry.actor_id)}` : "\u2014",
+          },
+          {
+            key: "created_at",
+            header: "Date",
+            sortable: true,
+            render: (entry) => entry.created_at ? new Date(String(entry.created_at)).toLocaleString("en-GB") : "\u2014",
+          },
+          {
+            key: "new_values",
+            header: "Details",
+            render: (entry) => (
+              <span className="max-w-xs block truncate" title={entry.new_values ? JSON.stringify(entry.new_values) : undefined}>
+                {entry.new_values ? JSON.stringify(entry.new_values) : "\u2014"}
+              </span>
+            ),
+          },
+        ] satisfies Column<Record<string, unknown>>[]}
+        data={entries}
+        keyExtractor={(entry) => String(entry.id)}
+        emptyState={<span className="text-slate-500">No audit entries found.</span>}
+        sortable
+        className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+      />
+    </div>
+  );
+}
 
-      {totalPages > 1 && (
-        <div className="mt-4 flex items-center justify-center gap-2">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-            <button
-              key={p}
-              onClick={() => setSearchParams((prev) => { prev.set("page", String(p)); return prev; })}
-              className={`rounded-md px-3 py-1 text-xs font-medium ${
-                p === page
-                  ? "bg-blue-600 text-white"
-                  : "border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-              }`}
-            >
-              {p}
-            </button>
-          ))}
+export function ErrorBoundary() {
+  const error = useRouteError();
+  if (isRouteErrorResponse(error)) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
+        <div className="mx-auto max-w-lg text-center px-4">
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
+          <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
         </div>
-      )}
+      </div>
+    );
+  }
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
+      <div className="mx-auto max-w-lg text-center px-4">
+        <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
+      </div>
     </div>
   );
 }

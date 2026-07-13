@@ -16,8 +16,6 @@
  */
 
 import { kdb } from "../db.server.kysely";
-import { sql } from "kysely";
-import type { DB } from "../../../generated/kysely/database";
 import type { RouteSuggestion, RouteSuggestionLeg } from "./scheduling-types";
 import { loadDistances, clearDistanceCaches, getDistanceFast } from "./distance-lookup";
 

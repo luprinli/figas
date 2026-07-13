@@ -27,11 +27,18 @@ export default function PrintButton({
     printDocument(options);
   };
 
-  const base = "inline-flex items-center justify-center gap-1 py-2 px-4 text-sm font-medium rounded-md transition focus:outline-none";
+  const base = "inline-flex items-center justify-center gap-1 py-2 px-4 text-sm font-medium rounded-md transition-colors duration-150 focus:outline-none";
+
+  const variantColor: Record<string, string> = {
+    primary: "bg-primary text-white hover:bg-primary-hover",
+    danger: "bg-danger text-white hover:bg-danger-hover",
+    success: "bg-success text-white hover:bg-success-hover",
+    warning: "bg-warning text-white hover:bg-warning-hover",
+  };
 
   const variants: Record<string, string> = {
-    contained: `${color === "danger" ? "bg-red-600 text-white hover:bg-red-700" : color === "success" ? "bg-emerald-600 text-white hover:bg-emerald-700" : color === "warning" ? "bg-amber-600 text-white hover:bg-amber-700" : "bg-blue-600 text-white hover:bg-blue-700"}`,
-    outlined: "bg-transparent text-slate-600 dark:text-slate-300 ring-1 ring-slate-300 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700",
+    contained: color ? variantColor[color] ?? variantColor.primary : variantColor.primary,
+    outlined: "bg-transparent text-slate-600 dark:text-slate-300 ring-1 ring-slate-300 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/50",
   };
 
   return (
@@ -62,16 +69,16 @@ export function buildBaggageTagOptions(passenger: {
   date: string;
 }): PrintOptions {
   return {
-    title: `Baggage Tag — ${passenger.name}`,
+    title: `Baggage Tag â€” ${passenger.name}`,
     header: "FIGAS Baggage Tag",
-    subheader: `${passenger.flightNumber} — ${passenger.date}`,
+    subheader: `${passenger.flightNumber} â€” ${passenger.date}`,
     sections: [
       {
         heading: "Passenger",
         rows: [
           { label: "Name", value: passenger.name },
           { label: "Booking Ref", value: passenger.bookingRef },
-          { label: "Seat", value: passenger.seat || "—" },
+          { label: "Seat", value: passenger.seat || "â€”" },
         ],
       },
       {
@@ -96,6 +103,6 @@ export function buildBaggageTagOptions(passenger: {
         ],
       },
     ],
-    footer: "FIGAS Flight Operations — Baggage Tag — Uncontrolled when printed",
+    footer: "FIGAS Flight Operations â€” Baggage Tag â€” Uncontrolled when printed",
   };
 }

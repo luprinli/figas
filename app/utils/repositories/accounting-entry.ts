@@ -1,5 +1,6 @@
 import { kdb } from "../db.server.kysely";
-import { sql } from "kysely";
+import { sql, type Kysely } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 
 const accountCodeCache = new Map<string, string>();
 
@@ -77,17 +78,21 @@ function toLineRow(r: Record<string, unknown>): AccountingJournalLineRow {
 }
 
 export const accountingEntryRepository = {
-  async createEntry(params: {
-    entry_number: string;
-    entry_type: string;
-    description: string;
-    booking_id?: string;
-    invoice_id?: string;
-    payment_id?: string;
-    entry_date: string;
-    created_by: string;
-  }): Promise<AccountingJournalEntryRow> {
-    const rows = await kdb
+  async createEntry(
+    params: {
+      entry_number: string;
+      entry_type: string;
+      description: string;
+      booking_id?: string;
+      invoice_id?: string;
+      payment_id?: string;
+      entry_date: string;
+      created_by: string;
+    },
+    tx?: Kysely<DB>
+  ): Promise<AccountingJournalEntryRow> {
+    const db = tx ?? kdb;
+    const rows = await db
       .insertInto("accounting_journal_entries")
       .values({
         entry_number: params.entry_number,
@@ -98,20 +103,25 @@ export const accountingEntryRepository = {
         payment_id: params.payment_id ? parseInt(params.payment_id, 10) : null,
         entry_date: params.entry_date,
         created_by: parseInt(params.created_by, 10),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       .returningAll()
       .execute();
     return toEntryRow(rows[0] as unknown as Record<string, unknown>);
   },
 
-  async createLine(params: {
-    entry_id: string;
-    account_id: string;
-    debit_amount_gbp?: number;
-    credit_amount_gbp?: number;
-    description?: string;
-  }): Promise<AccountingJournalLineRow> {
-    const rows = await kdb
+  async createLine(
+    params: {
+      entry_id: string;
+      account_id: string;
+      debit_amount_gbp?: number;
+      credit_amount_gbp?: number;
+      description?: string;
+    },
+    tx?: Kysely<DB>
+  ): Promise<AccountingJournalLineRow> {
+    const db = tx ?? kdb;
+    const rows = await db
       .insertInto("accounting_journal_lines")
       .values({
         entry_id: params.entry_id,
@@ -119,6 +129,7 @@ export const accountingEntryRepository = {
         debit_amount_gbp: String(params.debit_amount_gbp ?? 0),
         credit_amount_gbp: String(params.credit_amount_gbp ?? 0),
         description: params.description || null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       .returningAll()
       .execute();
@@ -139,7 +150,7 @@ export const accountingEntryRepository = {
       .selectFrom("accounting_journal_lines")
       .selectAll()
       .where("entry_id", "=", entryId)
-      .orderBy("created_at asc")
+      .orderBy("created_at", "asc")
       .execute();
     return rows.map((r) => toLineRow(r as unknown as Record<string, unknown>));
   },
@@ -150,7 +161,7 @@ export const accountingEntryRepository = {
       .selectAll()
       .where("entry_date", ">=", fromDate)
       .where("entry_date", "<=", toDate)
-      .orderBy("entry_date asc")
+      .orderBy("entry_date", "asc")
       .execute();
     return rows.map((r) => toEntryRow(r as unknown as Record<string, unknown>));
   },
@@ -199,6 +210,7 @@ export const accountingEntryRepository = {
       .set({
         approved_by: parseInt(approvedBy, 10),
         posting_date: now,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       .where("id", "=", id)
       .returningAll()

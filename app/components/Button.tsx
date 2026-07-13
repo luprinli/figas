@@ -1,4 +1,4 @@
-﻿import { Link } from "@remix-run/react";
+import { Link } from "@remix-run/react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import React from "react";
 
@@ -8,53 +8,55 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   className?: string;
   variant?: "contained" | "outlined";
   color?: "primary" | "danger" | "success" | "warning";
+  size?: "sm" | "md" | "lg";
   type?: "submit" | "reset" | "button";
   loading?: boolean;
   to?: string;
   target?: string;
   disabled?: boolean;
-  onClick?: VoidFunction;
   children?: ReactNode;
 }
 
 const baseStyles =
-  "group inline-flex items-center justify-center gap-1 py-3 px-6 text-sm/5 tracking-wide rounded-md transition focus:outline-none";
+  "group inline-flex items-center justify-center gap-1 transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900";
+
+const sizeStyles: Record<string, string> = {
+  sm: "py-1.5 px-3 text-xs rounded-md",
+  md: "py-2 px-4 text-sm font-medium rounded-lg",
+  lg: "py-2.5 px-6 text-sm font-semibold rounded-lg",
+};
 
 const colorPalette = {
   primary: {
-    contained: "bg-blue-600 text-white hover:bg-blue-700",
-    outlined: "bg-transparent text-blue-600 dark:text-blue-400 ring-1 ring-blue-300 dark:ring-blue-700 hover:bg-blue-50 dark:bg-blue-900/30 dark:hover:bg-blue-900/30",
+    contained: "bg-primary text-white hover:bg-primary-hover",
+    outlined: "bg-transparent text-primary dark:text-primary-light ring-1 ring-primary/30 dark:ring-primary/50 hover:bg-primary/5 dark:hover:bg-primary/10",
   },
   danger: {
-    contained: "bg-red-600 text-white hover:bg-red-700",
-    outlined: "bg-transparent text-red-600 dark:text-red-400 ring-1 ring-red-300 dark:ring-red-700 hover:bg-red-50 dark:bg-red-900/30 dark:hover:bg-red-900/30",
+    contained: "bg-danger text-white hover:bg-danger-hover",
+    outlined: "bg-transparent text-danger dark:text-danger-light ring-1 ring-danger/30 dark:ring-danger/50 hover:bg-danger/5 dark:hover:bg-danger/10",
   },
   success: {
-    contained: "bg-emerald-600 text-white hover:bg-emerald-700",
-    outlined: "bg-transparent text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-300 dark:ring-emerald-700 hover:bg-emerald-50 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/30",
+    contained: "bg-success text-white hover:bg-success-hover",
+    outlined: "bg-transparent text-success dark:text-success-light ring-1 ring-success/30 dark:ring-success/50 hover:bg-success/5 dark:hover:bg-success/10",
   },
   warning: {
-    contained: "bg-amber-600 text-white hover:bg-amber-700",
-    outlined: "bg-transparent text-amber-600 dark:text-amber-400 ring-1 ring-amber-300 dark:ring-amber-700 hover:bg-amber-50 dark:bg-amber-900/30 dark:hover:bg-amber-900/30",
+    contained: "bg-warning text-white hover:bg-warning-hover",
+    outlined: "bg-transparent text-warning dark:text-warning-light ring-1 ring-warning/30 dark:ring-warning/50 hover:bg-warning/5 dark:hover:bg-warning/10",
   },
-};
-
-const variantStyles = {
-  contained: "bg-cyan-500 text-white hover:bg-cyan-500/90",
-  outlined: "bg-transparent text-cyan-600 dark:text-cyan-400 ring ring-cyan-300 dark:ring-cyan-700 hover:bg-cyan-50 dark:hover:bg-cyan-900/30",
 };
 
 function resolveVariantStyles(variant: "contained" | "outlined", color?: string) {
   if (color && color in colorPalette) {
     return colorPalette[color as keyof typeof colorPalette][variant];
   }
-  return variantStyles[variant];
+  return colorPalette.primary[variant];
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   {
     variant = "contained",
     color,
+    size = "md",
     children,
     className,
     loading = false,
@@ -67,15 +69,17 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   ref
 ) {
   const resolvedVariant = resolveVariantStyles(variant, color);
+  const resolvedSize = sizeStyles[size];
   return (
     <>
       {to ? (
         <Link
           to={to}
-          className={[baseStyles, resolvedVariant, className]
+          className={[baseStyles, resolvedSize, resolvedVariant, className]
             .filter(Boolean)
             .join(" ")}
           target={target}
+          onClick={onClick as unknown as React.MouseEventHandler<HTMLAnchorElement>}
         >
           {children}
         </Link>
@@ -86,6 +90,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
           onClick={onClick}
           className={[
             baseStyles,
+            resolvedSize,
             disabled || loading
               ? "opacity-50 pointer-events-none"
               : resolvedVariant,

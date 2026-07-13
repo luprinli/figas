@@ -1,4 +1,4 @@
-﻿import WeightBar from "../WeightBar";
+import WeightBar from "../WeightBar";
 
 export interface WeightSummaryLeg {
   legId: number;
@@ -46,14 +46,14 @@ export default function WeightSummary({
         {legs.map((leg) => (
           <div
             key={leg.legId}
-            className="rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 bg-white dark:bg-slate-800 p-4"
+            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4"
           >
             {/* Leg header */}
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                {leg.origin} → {leg.destination}
+                {leg.origin} {'\u2192'} {leg.destination}
               </span>
-              <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Leg #{leg.legId}</span>
+              <span className="text-xs text-slate-500 dark:text-slate-500">Leg #{leg.legId}</span>
             </div>
 
             {/* Weight components */}
@@ -119,7 +119,7 @@ function WeightComponent({
 }) {
   return (
     <div className="flex items-center justify-between rounded bg-slate-50 dark:bg-slate-700 px-2 py-1">
-      <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{label}</span>
+      <span className="text-slate-500 dark:text-slate-500">{label}</span>
       <span className="font-medium text-slate-700 dark:text-slate-200">{value.toFixed(0)} kg</span>
     </div>
   );

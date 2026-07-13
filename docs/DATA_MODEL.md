@@ -178,7 +178,7 @@ The central booking record. Each booking represents a travel request from a user
 ```
 PENDING ──► CONFIRMED ──► PILOT_REVIEW ──► APPROVED ──► COMPLETED
     │                                                    │
-    └──► CANCELLED ◄─────────────────────────────────────┘
+    └──► CANCELLED �—�─────────────────────────────────────┘
 ```
 
 ### [`booking_legs`](migrations/archive/001_create_tables.sql:181)

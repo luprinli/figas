@@ -1,4 +1,4 @@
-﻿export interface AgingBucket {
+export interface AgingBucket {
   count: number;
   total: number;
 }
@@ -80,6 +80,9 @@ export default function AgingReceivablesTable({
               <tr
                 key={key}
                 onClick={isClickable ? () => onBucketClick(key) : undefined}
+                onKeyDown={isClickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onBucketClick(key); } } : undefined}
+                tabIndex={isClickable ? 0 : undefined}
+                role={isClickable ? "button" : undefined}
                 className={[
                   "transition",
                   isClickable ? "cursor-pointer" : undefined,

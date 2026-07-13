@@ -1,23 +1,10 @@
-﻿import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from "@remix-run/node";
+import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from "@remix-run/node";
 import { useLoaderData, useFetcher, Link , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { loadsheetRepository, canEnterActualData } from "../utils/loadsheet/loadsheet-repository.server";
 import { requireUser } from "../utils/layout.server";
 import { hasPermission, requirePermission } from "../utils/permissions.server";
-
-function formatTime(val: unknown): string | null {
-  if (!val) return null;
-  if (typeof val === "string") {
-    const cleaned = val.replace(/^1970-01-01T/, "").replace(/\.000Z$/, "").replace(/:\d{2}\.\d{3}Z$/, "").substring(0, 5);
-    return cleaned?.replace(":", "") || null;
-  }
-  if (val instanceof Date) {
-    const h = String(val.getUTCHours()).padStart(2, "0");
-    const m = String(val.getUTCMinutes()).padStart(2, "0");
-    return `${h}${m}`;
-  }
-  return null;
-}
+import { formatTime } from "../utils/format-time";
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const { userId } = await requireUser(request);
@@ -84,11 +71,11 @@ export default function PassengerView() {
         {/* Header */}
         <div className="mb-4">
           <Link to={`/ops/flight/${loadsheet.flight_id}/loadsheet`} className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:text-slate-300 dark:text-slate-500">
-            ← Loadsheet
+            Ã¢â€ Â Loadsheet
           </Link>
           <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Passengers</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
-            Flight #{loadsheet.flight_id} · {boardedCount}/{passengers.length} boarded
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Flight #{loadsheet.flight_id} Ã‚Â· {boardedCount}/{passengers.length} boarded
           </p>
         </div>
 
@@ -103,14 +90,14 @@ export default function PassengerView() {
         </div>
 
         {/* Route summary */}
-        <div className="mb-4 flex flex-wrap items-center gap-1 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <div className="mb-4 flex flex-wrap items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
           {sectors.map((s, i) => (
             <span key={s.leg_sequence}>
-              {i > 0 && <span className="text-slate-300 mx-0.5">→</span>}
+              {i > 0 && <span className="text-slate-300 mx-0.5">{'\u2192'}</span>}
               <span className="font-medium text-slate-600 dark:text-slate-300 dark:text-slate-500">{s.origin}</span>
             </span>
           ))}
-          <span className="text-slate-300 mx-0.5">→</span>
+          <span className="text-slate-300 mx-0.5">{'\u2192'}</span>
           <span className="font-medium text-slate-600 dark:text-slate-300 dark:text-slate-500">{sectors[sectors.length - 1]?.dest}</span>
         </div>
 
@@ -138,13 +125,13 @@ export default function PassengerView() {
                     : "border-slate-300 dark:border-slate-600 text-slate-300 dark:text-slate-500"
                 } ${canEdit ? "cursor-pointer active:scale-95" : "cursor-default"}`}
               >
-                {p.boarded ? "✓" : ""}
+                {p.boarded ? "Ã¢Å“â€œ" : ""}
               </button>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                  Seat {p.seat} — Passenger #{p.bookingPassengerId}
+                  Seat {p.seat} Ã¢â‚¬â€ Passenger #{p.bookingPassengerId}
                 </div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                <div className="text-xs text-slate-500 dark:text-slate-400">
                   {p.weight}kg {p.baggage > 0 ? `+ ${p.baggage}kg baggage` : ""}
                 </div>
               </div>
@@ -159,7 +146,7 @@ export default function PassengerView() {
 
         {passengers.length === 0 && (
           <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-8 text-center">
-            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No passengers on this flight</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">No passengers on this flight</p>
           </div>
         )}
       </div>
@@ -173,22 +160,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
       </div>
     </div>
   );

@@ -1,8 +1,9 @@
-﻿import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useFetcher } from "@remix-run/react";
 import type { ReactNode } from "react";
 import { Lock, Building2, CreditCard, AlertCircle, CheckCircle2, Check } from "lucide-react";
 import CreditCardIcon from "../icons/CreditCardIcon";
+import { BANK_CONFIG } from "../../config/bank";
 import InvoiceIcon from "../icons/InvoiceIcon";
 import CashIcon from "../icons/CashIcon";
 import Skeleton from "../Skeleton";
@@ -82,7 +83,7 @@ function getMethodConfig(method: { code: string; name: string; description: stri
         code: method.code,
         name: method.name,
         description: method.description ?? "",
-        icon: <CreditCardIcon className="w-8 h-8 text-slate-500 dark:text-slate-400 dark:text-slate-500" />,
+        icon: <CreditCardIcon className="w-8 h-8 text-slate-500 dark:text-slate-500" />,
         badge: undefined,
         submitLabel: "Select",
       };
@@ -95,7 +96,7 @@ function SkeletonCards() {
   return (
     <div className="space-y-3" aria-hidden="true">
       {[1, 2, 3].map((i) => (
-        <div key={i} className="rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20">
+        <div key={i} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20">
           <div className="flex items-start gap-4">
             <Skeleton variant="rectangular" className="w-10 h-10 rounded-lg" />
             <div className="flex-1 space-y-2">
@@ -117,7 +118,7 @@ function EmptyState() {
   return (
     <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 p-6 text-center">
       <CreditCard size={40} className="mx-auto text-slate-300 dark:text-slate-500 mb-2" absoluteStrokeWidth />
-      <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No payment methods available.</p>
+      <p className="text-sm text-slate-500 dark:text-slate-500">No payment methods available.</p>
       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
         Contact support to enable payment options for this booking.
       </p>
@@ -213,9 +214,12 @@ export default function PaymentMethodSelector({
         formData = { intent, bookingId };
         break;
       case "bank_transfer":
+        intent = "set_bank_transfer";
+        formData = { intent, bookingId };
+        fetcher.submit(formData, { method: "post" });
         setShowBankInstructions(true);
         onPaymentInitiated(selectedMethod);
-        return; // Don't submit — show instructions instead
+        return;
       default:
         return;
     }
@@ -375,19 +379,19 @@ export default function PaymentMethodSelector({
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div>
               <span className="text-slate-500 dark:text-slate-400">Bank:</span>
-              <p className="font-medium text-slate-800 dark:text-slate-100">Standard Chartered Bank</p>
+              <p className="font-medium text-slate-800 dark:text-slate-100">{BANK_CONFIG.bank}</p>
             </div>
             <div>
               <span className="text-slate-500 dark:text-slate-400">Account Name:</span>
-              <p className="font-medium text-slate-800 dark:text-slate-100">FIGAS Flight Operations</p>
+              <p className="font-medium text-slate-800 dark:text-slate-100">{BANK_CONFIG.accountName}</p>
             </div>
             <div>
               <span className="text-slate-500 dark:text-slate-400">Sort Code:</span>
-              <p className="font-medium text-slate-800 dark:text-slate-100 font-mono">60-00-01</p>
+              <p className="font-medium text-slate-800 dark:text-slate-100 font-mono">{BANK_CONFIG.sortCode}</p>
             </div>
             <div>
               <span className="text-slate-500 dark:text-slate-400">Account Number:</span>
-              <p className="font-medium text-slate-800 dark:text-slate-100 font-mono">00123456</p>
+              <p className="font-medium text-slate-800 dark:text-slate-100 font-mono">{BANK_CONFIG.accountNumber}</p>
             </div>
           </div>
           <div className="rounded bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 p-2">

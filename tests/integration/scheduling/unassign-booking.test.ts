@@ -58,7 +58,7 @@ afterAll(async () => {
 describe("handleUnassignBooking()", () => {
   const testUserId = MOCK_USER_IDS.ops;
 
-  // ── Test: Unassigns booking from multi-booking flight ─────────────────────
+  // â”€â”€ Test: Unassigns booking from multi-booking flight â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Booking removed, flight remains
   it("unassigns booking from multi-booking flight (booking removed, flight remains)", async () => {
     const schedule = await createTestSchedule({
@@ -75,7 +75,7 @@ describe("handleUnassignBooking()", () => {
     // Create two booking legs on the same flight
     const leg1 = await createTestBookingLeg({
       booking_id: 1,
-      origin_code: "PSY",
+      origin_code: "STY",
       destination_code: "MPA",
       leg_date: dateOnly(2026, 7, 22), // Wednesday, safe from GMT-3 Sunday shift
       leg_sequence: 1,
@@ -85,7 +85,7 @@ describe("handleUnassignBooking()", () => {
 
     const leg2 = await createTestBookingLeg({
       booking_id: 1,
-      origin_code: "PSY",
+      origin_code: "STY",
       destination_code: "MPA",
       leg_date: dateOnly(2026, 7, 22), // Wednesday
       leg_sequence: 2,
@@ -123,7 +123,7 @@ describe("handleUnassignBooking()", () => {
     expect(flightStillExists[0]).not.toBeNull();
   });
 
-  // ── Test: Unassigns last booking deletes flight ───────────────────────────
+  // â”€â”€ Test: Unassigns last booking deletes flight â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("unassigns last booking deletes flight (empty cleanup)", async () => {
     const schedule = await createTestSchedule({
       schedule_date: dateOnly(2026, 7, 21),
@@ -139,7 +139,7 @@ describe("handleUnassignBooking()", () => {
     // Create a single booking leg on the flight
     const leg = await createTestBookingLeg({
       booking_id: 1,
-      origin_code: "PSY",
+      origin_code: "STY",
       destination_code: "MPA",
       leg_date: dateOnly(2026, 7, 20),
       leg_sequence: 1,
@@ -154,7 +154,7 @@ describe("handleUnassignBooking()", () => {
       booking_passenger_id: passenger.id,
     });
 
-    // Unassign the only booking — may fail if unique-date generation hits a no-fly day
+    // Unassign the only booking â€” may fail if unique-date generation hits a no-fly day
     const result = await handleUnassignBooking(leg.id);
     const err = getError(result);
     if (err) {
@@ -170,10 +170,10 @@ describe("handleUnassignBooking()", () => {
 
     // Verify the flight was deleted (empty cleanup)
     const deletedFlight = await db.selectFrom("flights").selectAll().where("id", "=", flight.id).execute();
-    expect(deletedFlight[0]).toBeNull();
+    expect(deletedFlight[0]).toBeUndefined();
   });
 
-  // ── Test: Unassigns on no-fly day fails ───────────────────────────────────
+  // â”€â”€ Test: Unassigns on no-fly day fails â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("unassigns on no-fly day fails", async () => {
     // Create a booking leg on a known no-fly day (Sunday 2026-06-21)
     // The booking leg must have a flight_id assigned so the G-04 check
@@ -191,7 +191,7 @@ describe("handleUnassignBooking()", () => {
 
 const leg = await createTestBookingLeg({
       booking_id: 1,
-      origin_code: "PSY",
+      origin_code: "STY",
       destination_code: "MPA",
       leg_date: dateOnly(2026, 7, 22), // Wednesday, safe from GMT-3 Sunday shift
       leg_sequence: 1,
@@ -219,7 +219,7 @@ const leg = await createTestBookingLeg({
     }
   });
 
-  // ── Test: Unassigns from approved schedule fails ──────────────────────────
+  // â”€â”€ Test: Unassigns from approved schedule fails â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("unassigns from approved schedule fails", async () => {
     const schedule = await createTestSchedule({
       schedule_date: dateOnly(2026, 7, 22),
@@ -235,7 +235,7 @@ const leg = await createTestBookingLeg({
 
     const leg = await createTestBookingLeg({
       booking_id: 1,
-      origin_code: "PSY",
+      origin_code: "STY",
       destination_code: "MPA",
       leg_date: dateOnly(2026, 7, 20),
       leg_sequence: 1,
@@ -257,12 +257,12 @@ const leg = await createTestBookingLeg({
     expect(result.error).toContain("Cannot unassign booking from a schedule");
   });
 
-  // ── Test: Unassigns unassigned booking fails with 400 ─────────────────────
+  // â”€â”€ Test: Unassigns unassigned booking fails with 400 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it("unassigns unassigned booking fails with 400", async () => {
     // Create a booking leg with no flight assigned
     const leg = await createTestBookingLeg({
       booking_id: 1,
-      origin_code: "PSY",
+      origin_code: "STY",
       destination_code: "MPA",
       leg_date: dateOnly(2026, 7, 20),
       leg_sequence: 1,

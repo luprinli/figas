@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   ActionFunctionArgs,
   MetaFunction,
 } from "@remix-run/node";
@@ -56,15 +56,28 @@ export async function action({ request }: ActionFunctionArgs) {
   // The reset link would be: https://figas.co/reset-password?token=${resetToken}
   // In production, you must configure an email provider (SendGrid/Mailgun) to send the reset token to the user's email
   // For development, log the token to the console so the developer can retrieve it (intentional for local dev only).
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV !== "production" && process.env.DEBUG_AUTH === "1") {
     console.log(`[DEV] Password reset token for ${trimmedEmail}: ${resetToken}`);
   }
+
+  // Send password reset email (non-blocking)
+  const resetLink = `${process.env.APP_URL ?? "https://figas.co"}/reset-password?token=${resetToken}`;
+  import("../utils/email.server").then((m) =>
+    m.sendEmailQuiet({
+      to: trimmedEmail,
+      subject: "Reset Your FIGAS Password",
+      html: `<p>You requested a password reset.</p><p>Click <a href="${resetLink}">here</a> to reset your password. This link expires in 1 hour.</p><p>If you did not request this, please ignore this email.</p>`,
+      text: `You requested a password reset.\n\nReset link: ${resetLink}\n\nThis link expires in 1 hour.\n\nIf you did not request this, please ignore this email.`,
+      notificationType: "password_reset",
+      recipientType: "user",
+    })
+  );
 
   return json(
     {
       error: null,
       success: true,
-      // Never return the token in the response body — it's logged server-side for dev
+      // Never return the token in the response body Ã¢â‚¬â€ it's logged server-side for dev
     },
     { status: 200 }
   );
@@ -122,22 +135,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
       </div>
     </div>
   );

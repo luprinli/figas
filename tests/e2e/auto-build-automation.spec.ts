@@ -196,7 +196,7 @@ test.describe("Auto-Build Automation Loop", () => {
     console.log("   AUTO-BUILD AUTOMATION REPORT");
     console.log("═══════════════════════════════════");
     for (const a of attempts) {
-      console.log(`  ${a.success ? "✓" : "✗"} ${a.date} [${a.strategy}] flights=${a.flightCount ?? "-"} ${a.error ? `err="${a.error.slice(0, 80)}"` : ""}`);
+      console.log(`  ${a.success ? "✓" : "�—"} ${a.date} [${a.strategy}] flights=${a.flightCount ?? "-"} ${a.error ? `err="${a.error.slice(0, 80)}"` : ""}`);
     }
 
     if (!buildComplete) {

@@ -72,7 +72,7 @@ export const aircraftRepository = {
       .selectFrom("aircraft")
       .selectAll()
       .where("is_active", "=", true)
-      .orderBy("registration asc")
+      .orderBy("registration", "asc")
       .execute();
     return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
   },
@@ -114,6 +114,7 @@ export const aircraftRepository = {
         max_takeoff_weight_kg: String(data.max_takeoff_weight_kg),
         max_payload_kg: String(data.max_payload_kg),
         fuel_capacity_kg: String(data.fuel_capacity_kg),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       .returningAll()
       .execute();
@@ -144,6 +145,7 @@ export const aircraftRepository = {
     if (data.is_active !== undefined) setData.is_active = data.is_active;
     await kdb
       .updateTable("aircraft")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .set(setData as any)
       .where("id", "=", id)
       .execute();

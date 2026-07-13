@@ -1,4 +1,4 @@
-﻿import { FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 
 export interface FlightNotesProps {
     operational_notes: string | null;

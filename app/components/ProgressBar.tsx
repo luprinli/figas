@@ -1,4 +1,4 @@
-﻿export interface ProgressBarProps {
+export interface ProgressBarProps {
   current: number;
   max: number;
   label: string;

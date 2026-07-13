@@ -7,19 +7,8 @@ import { sql } from "kysely";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/**
- * Directory where migration SQL files are stored.
- * Points to consolidated migrations by default.
- * Falls back to original migrations directory if consolidated doesn't exist.
- */
-const MIGRATIONS_DIR = path.resolve(__dirname, "../../migrations/consolidated");
-
-/** Name of the tracking table. */
+const CONSOLIDATED_DIR = path.resolve(__dirname, "../../migrations/consolidated");
 const MIGRATIONS_TABLE = "_migrations";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 async function ensureMigrationsTable(): Promise<void> {
   await sql`
@@ -38,10 +27,7 @@ async function getAppliedMigrations(): Promise<Set<string>> {
   return new Set(result.rows.map((r: unknown) => (r as { filename: string }).filename));
 }
 
-async function applyMigration(
-  filename: string,
-  migrationSql: string
-): Promise<void> {
+async function applyMigration(filename: string, migrationSql: string): Promise<void> {
   try {
     await db.transaction().execute(async (tx) => {
       await sql`${sql.raw(migrationSql)}`.execute(tx);
@@ -49,30 +35,24 @@ async function applyMigration(
         INSERT INTO ${sql.raw(MIGRATIONS_TABLE)} (filename) VALUES (${filename})
       `.execute(tx);
     });
-    console.log(`  ✔ ${filename}`);
+    console.log(`  \u2714 ${filename}`);
   } catch (err) {
-    console.error(`  ✘ ${filename} – FAILED`);
+    console.error(`  \u2718 ${filename} \u2013 FAILED`);
     throw err;
   }
 }
 
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
-
 async function main(): Promise<void> {
-  console.log("\n📦 FIGAS Migration Runner\n");
+  console.log("\n\uD83D\uDCE6 FIGAS Migration Runner\n");
 
-  // Ensure the migrations directory exists
-  if (!fs.existsSync(MIGRATIONS_DIR)) {
-    console.log(`Migrations directory not found: ${MIGRATIONS_DIR}`);
-    console.log("Nothing to migrate.\n");
+  if (!fs.existsSync(CONSOLIDATED_DIR)) {
+    console.log(`Migrations directory not found: ${CONSOLIDATED_DIR}\n`);
     return;
   }
 
-  // Read and sort migration files (alphabetical = chronological)
-  const files = fs
-    .readdirSync(MIGRATIONS_DIR)
+  await ensureMigrationsTable();
+
+  const files = fs.readdirSync(CONSOLIDATED_DIR)
     .filter((f) => f.endsWith(".sql"))
     .sort();
 
@@ -81,30 +61,26 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Ensure the tracking table exists
-  await ensureMigrationsTable();
-
-  // Determine which migrations have already been applied
   const applied = await getAppliedMigrations();
   const pending = files.filter((f) => !applied.has(f));
 
   if (pending.length === 0) {
-    console.log("All migrations are already applied. Nothing to do.\n");
+    console.log("All migrations are already applied.\n");
     return;
   }
 
   console.log(`Found ${pending.length} pending migration(s):\n`);
 
   for (const file of pending) {
-    const filePath = path.join(MIGRATIONS_DIR, file);
+    const filePath = path.join(CONSOLIDATED_DIR, file);
     const migrationSql = fs.readFileSync(filePath, "utf-8");
     await applyMigration(file, migrationSql);
   }
 
-  console.log("\n✅ All pending migrations applied successfully.\n");
+  console.log("\n\u2705 All pending migrations applied successfully.\n");
 }
 
 main().catch((err) => {
-  console.error("\n❌ Migration failed:", err);
+  console.error("\n\u274C Migration failed:", err);
   process.exit(1);
 });

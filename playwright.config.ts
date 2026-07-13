@@ -8,6 +8,7 @@ export default defineConfig({
   workers: 1,
   reporter: "html",
   globalSetup: "./tests/e2e/global-setup.ts",
+  globalTeardown: "./tests/e2e/global-teardown.ts",
   use: {
     baseURL: "http://localhost:5173",
     trace: "on-first-retry",

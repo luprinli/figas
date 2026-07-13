@@ -1,6 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { kdb } from "../db.server.kysely";
-import { sql } from "kysely";
-import type { DB } from "../../../generated/kysely/database";
 
 export interface LoadsheetRow {
   id: number;
@@ -162,7 +161,7 @@ export const loadsheetRepository = {
   async findPassengers(loadsheetId: number): Promise<LoadsheetPassengerRow[]> {
     const rows = await kdb.selectFrom("loadsheet_passengers").selectAll()
       .where("loadsheet_id", "=", loadsheetId)
-      .orderBy("seat_row asc").orderBy("seat_side asc")
+      .orderBy("seat_row", "asc").orderBy("seat_side", "asc")
       .execute();
     return rows as unknown as LoadsheetPassengerRow[];
   },
@@ -213,7 +212,7 @@ export const loadsheetRepository = {
   async findSectors(loadsheetId: number): Promise<LoadsheetSectorRow[]> {
     const rows = await kdb.selectFrom("loadsheet_sectors").selectAll()
       .where("loadsheet_id", "=", loadsheetId)
-      .orderBy("leg_sequence asc")
+      .orderBy("leg_sequence", "asc")
       .execute();
     return rows as unknown as LoadsheetSectorRow[];
   },

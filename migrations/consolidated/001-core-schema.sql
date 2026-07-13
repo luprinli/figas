@@ -326,8 +326,8 @@ CREATE TABLE IF NOT EXISTS booking_passengers (
 );
 
 CREATE INDEX IF NOT EXISTS idx_booking_passengers_booking_id ON booking_passengers (booking_id);
-CREATE INDEX IF NOT EXISTS idx_passengers_booking ON booking_passengers (booking_id);
-CREATE INDEX IF NOT EXISTS idx_passengers_user ON booking_passengers (user_id);
+CREATE INDEX IF NOT EXISTS idx_booking_passengers_user_id ON booking_passengers (user_id);
+CREATE INDEX IF NOT EXISTS idx_booking_passengers_user_id ON booking_passengers (user_id);
 
 -- ============================================================================
 -- 11. booking_leg_passengers – Junction table (v2 from migration 016)
@@ -338,7 +338,7 @@ CREATE TABLE IF NOT EXISTS booking_leg_passengers (
   id                    SERIAL PRIMARY KEY,
   booking_leg_id        INTEGER       NOT NULL REFERENCES booking_legs(id) ON DELETE CASCADE,
   booking_passenger_id  INTEGER       NOT NULL REFERENCES booking_passengers(id) ON DELETE CASCADE,
-  flight_leg_id         INTEGER       REFERENCES flight_legs(id) ON DELETE SET NULL,
+  flight_leg_id         INTEGER,
   clothed_weight_kg     NUMERIC(5,1),
   baggage_weight_kg     NUMERIC(5,1),
   baggage_description   TEXT,
@@ -509,7 +509,7 @@ CREATE TABLE IF NOT EXISTS payments (
 );
 
 CREATE INDEX IF NOT EXISTS idx_payments_booking ON payments (booking_id);
-CREATE INDEX IF NOT EXISTS idx_payments_status ON payments (payment_status);
+CREATE INDEX IF NOT EXISTS idx_payments_status ON payments (status);
 CREATE INDEX IF NOT EXISTS idx_payments_payment_method_id ON payments (payment_method_id);
 CREATE INDEX IF NOT EXISTS idx_payments_reconciled_at ON payments (reconciled_at);
 

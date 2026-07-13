@@ -1,5 +1,6 @@
-﻿import { useMemo, Fragment } from "react";
+import { useMemo, Fragment } from "react";
 import { formatCompactName } from "../../utils/format-compact-name";
+import { formatTimeHM } from "../../utils/format-time";
 
 interface StopPassenger {
     id: number;
@@ -76,12 +77,6 @@ function stopAccent(status: "ok" | "warning" | "violation"): string {
     switch (status) { case "violation": return "border-l-red-400"; case "warning": return "border-l-amber-400"; default: return "border-l-slate-200"; }
 }
 
-function formatTimeHM(iso: string | null): string | null {
-    if (!iso) return null;
-    try { return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }); }
-    catch { return null; }
-}
-
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function StopActivityList({
@@ -101,7 +96,7 @@ export default function StopActivityList({
 
         const manifestMap = new Map(stopManifests.map(m => [m.aerodrome_code, m]));
         // Build a list of (leg_index, origin_code, arrival_time) for each stop position.
-        // Use index-aware lookups so duplicate codes (e.g. STY→...→STY) get the
+        // Use index-aware lookups so duplicate codes (e.g. STY\u2192...\u2192STY) get the
         // correct times: the first occurrence is the origin (no arrival), the last
         // is the destination (no departure).
         const legOrigins = flightLegs.map((l, i) => ({ code: l.origin_code, dep: l.departure_time, idx: i }));
@@ -128,7 +123,7 @@ export default function StopActivityList({
     }, [stopManifests, flightLegs]);
 
     // Hide intermediate stops that have no passengers — these are route
-    // connectors (e.g., NHA→BVI→WDI when no one boards or alights there).
+    // connectors (e.g., NHA\u2192BVI\u2192WDI when no one boards or alights there).
     // Always show the first and last stop (origin and destination).
     const visibleStops = orderedStops.filter((stop, i) =>
       i === 0 || i === orderedStops.length - 1 ||
@@ -136,7 +131,7 @@ export default function StopActivityList({
     );
 
     if (visibleStops.length === 0) {
-        return <div className="rounded-md bg-slate-50 dark:bg-slate-700 p-3 text-center text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">No stop data available</div>;
+        return <div className="rounded-md bg-slate-50 dark:bg-slate-700 p-3 text-center text-[11px] text-slate-500 dark:text-slate-500">No stop data available</div>;
     }
 
     // Label width for vertical alignment of titles
@@ -177,7 +172,7 @@ export default function StopActivityList({
                             <div className="mb-1.5">
                                 <div className="flex items-center justify-between mb-0.5">
                                     <span className={`font-mono tabular-nums text-[11px] font-semibold ${getMtowTextColor(displayUsedPct)}`}>{displayWeightKg.toLocaleString()} / {displayLimitKg.toLocaleString()} kg</span>
-                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">{displayLabel}</span>
+                                    <span className="text-[10px] text-slate-500 dark:text-slate-500">{displayLabel}</span>
                                 </div>
                                 <div className="h-1 w-full rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden"><div className={`h-1 rounded-full ${barColor} transition-all`} style={{ width: `${barPct}%` }} /></div>
                             </div>
@@ -186,8 +181,8 @@ export default function StopActivityList({
                         {/* Arrivals */}
                         <div className="flex items-start gap-2 mb-1">
                             <div className={`${labelW} flex-shrink-0 flex items-center gap-0.5 pt-0.5`}>
-                                <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">Arr</span>
-                                {arrTime && <span className="font-mono text-[9px] text-slate-500 dark:text-slate-400 dark:text-slate-500">{arrTime}</span>}
+                                <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Arr</span>
+                                {arrTime && <span className="font-mono text-[9px] text-slate-500 dark:text-slate-500">{arrTime}</span>}
                             </div>
                             <div className="flex-1 min-w-0">
                                 {stop.arriving_passengers.length > 0 ? (
@@ -199,7 +194,7 @@ export default function StopActivityList({
                                                     : <span key={p.id} className="text-xs text-slate-700 dark:text-slate-200">{formatCompactName(p.compact_name)}</span>
                                             )}
                                         </div>
-                                        <span className="flex-shrink-0 font-mono tabular-nums text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">{arrWeight}kg</span>
+                                        <span className="flex-shrink-0 font-mono tabular-nums text-[10px] text-slate-500 dark:text-slate-500">{arrWeight}kg</span>
                                     </div>
                                 ) : (
                                     <span className="text-[11px] text-slate-500 dark:text-slate-400 italic">{isFirst ? "" : "No arrivals"}</span>
@@ -211,8 +206,8 @@ export default function StopActivityList({
                         {!isLast && (
                         <div className="flex items-start gap-2">
                             <div className={`${labelW} flex-shrink-0 flex items-center gap-0.5 pt-0.5`}>
-                                <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 dark:text-slate-500">Dep</span>
-                                {depTime && <span className="font-mono text-[9px] text-slate-500 dark:text-slate-400 dark:text-slate-500">{depTime}</span>}
+                                <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Dep</span>
+                                {depTime && <span className="font-mono text-[9px] text-slate-500 dark:text-slate-500">{depTime}</span>}
                             </div>
                             <div className="flex-1 min-w-0">
                                 {stop.departing_passengers.length > 0 ? (
@@ -224,7 +219,7 @@ export default function StopActivityList({
                                                     : <span key={p.id} className="text-xs text-slate-700 dark:text-slate-200">{formatCompactName(p.compact_name)}</span>
                                             )}
                                         </div>
-                                        <span className="flex-shrink-0 font-mono tabular-nums text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">{depWeight}kg</span>
+                                        <span className="flex-shrink-0 font-mono tabular-nums text-[10px] text-slate-500 dark:text-slate-500">{depWeight}kg</span>
                                     </div>
                                 ) : (
                                     <span className="text-[11px] text-slate-500 dark:text-slate-400 italic">No departures</span>

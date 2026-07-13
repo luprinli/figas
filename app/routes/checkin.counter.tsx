@@ -3,15 +3,19 @@ import { json, redirect } from "@remix-run/node";
 import { Form, useLoaderData, useSearchParams , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { bookingLegPassengerRepository } from "../utils/repositories/booking-leg-passenger";
-import { getUserId } from "../utils/auth.server";
+import { bookingLegPassengerRepository, findUncheckedByFlightId, createPaymentForCheckin } from "../utils/repositories/booking-leg-passenger";
+import { requireAnyPermission } from "../utils/permissions.server";
+import { bookingPassengerRepository } from "../utils/repositories/booking-passenger";
 import { kdb } from "../utils/db.server.kysely";
 import { sql } from "kysely";
 import Button from "../components/Button";
+import CardPaymentSimulator from "../components/CardPaymentSimulator";
+import { DEFAULT_BN2_EMPTY_WEIGHT_KG, DEFAULT_BN2_MTOW_KG } from "../utils/constants";
 import PrintButton, { buildBaggageTagOptions } from "../components/PrintButton";
 import DatePicker from "../components/DatePicker";
 import { TourTrigger } from "../components/TourTrigger";
 import { checkinCounterTour } from "../utils/tour/definitions/checkin-counter";
+import { validateCsrfRequest } from "../utils/csrf-check.server";
 
 export const meta: MetaFunction = () => [{ title: "Check-In Counter - FIGAS" }];
 
@@ -59,7 +63,6 @@ interface PaymentRecord {
   amount: number;
   method: string;
   bookingReference: string;
-  passengerName: string;
   timestamp: string;
 }
 
@@ -95,8 +98,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
     SELECT f.id, f.flight_number, f.departure_time, f.status,
        ao.code AS origin_code, ad.code AS destination_code,
        COALESCE(a.registration, 'Unassigned') AS registration,
-       COALESCE(a.empty_weight_kg, 1627) AS empty_weight_kg,
-       COALESCE(a.max_takeoff_weight_kg, 2994) AS mtow_kg
+       COALESCE(a.empty_weight_kg, ${DEFAULT_BN2_EMPTY_WEIGHT_KG}) AS empty_weight_kg,
+       COALESCE(a.max_takeoff_weight_kg, ${DEFAULT_BN2_MTOW_KG}) AS mtow_kg
      FROM flights f
      JOIN aerodromes ao ON ao.id = f.origin_aerodrome_id
      JOIN aerodromes ad ON ad.id = f.destination_aerodrome_id
@@ -120,7 +123,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   `.execute(kdb);
 
   const tillPayments = await sql<Record<string, unknown>>`
-    SELECT p.id, p.amount_gbp AS amount, p.method, COALESCE(b.booking_reference, '—') AS booking_reference,
+    SELECT p.id, p.amount_gbp AS amount, p.method, COALESCE(b.booking_reference, 'â€”') AS "bookingReference",
        p.created_at AS timestamp
      FROM payments p LEFT JOIN bookings b ON b.id = p.booking_id
      WHERE p.created_at::date = CURRENT_DATE
@@ -157,7 +160,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export async function action({ request }: ActionFunctionArgs) {
   const formData = await request.formData();
   const intent = formData.get("intent")?.toString();
-  const userId = Number(await getUserId(request) ?? 0);
+  const user = await requireAnyPermission(request, ["checkin:view", "checkin:process"]);
+  const userId = Number(user.id);
+
+  if (!(await validateCsrfRequest(request, formData))) {
+    return json({ error: "CSRF token validation failed" }, { status: 403 });
+  }
 
   if (intent === "checkin-with-payment") {
     const legPaxId = Number(formData.get("leg_pax_id"));
@@ -169,26 +177,18 @@ export async function action({ request }: ActionFunctionArgs) {
     const weightOverrideCode = formData.get("weight_override_code")?.toString() || "";
 
     if (bodyWt > 0) {
-      await sql`
-        UPDATE booking_passengers SET clothed_body_weight_kg = ${bodyWt}, updated_at = NOW() WHERE id = (SELECT booking_passenger_id FROM booking_leg_passengers WHERE id = ${legPaxId})
-      `.execute(kdb);
+      await bookingPassengerRepository.updateWeightByLegPaxId(legPaxId, bodyWt);
     }
     await bookingLegPassengerRepository.update(legPaxId, { baggage_weight_kg: bagWt, ...(bodyWt > 0 ? { clothed_weight_kg: bodyWt } : {}) });
 
     if (weightOverrideCode) {
-      await sql`
-        INSERT INTO payments (booking_id, amount, amount_gbp, method, status, transaction_reference, created_at)
-         VALUES ((SELECT bl.booking_id FROM booking_leg_passengers blp JOIN booking_legs bl ON bl.id = blp.booking_leg_id WHERE blp.id = ${legPaxId}), 0, 0, 'weight_override', 'completed', ${`WGT-OVERRIDE-${weightOverrideCode}-${Date.now()}`}, NOW())
-      `.execute(kdb);
+      await createPaymentForCheckin(legPaxId, 0, 'weight_override', `WGT-OVERRIDE-${weightOverrideCode}-${Date.now()}`);
     }
 
     const totalAmount = payments.reduce((s, p) => s + p.amount, 0);
     if (totalAmount > 0 && payments.length > 0) {
       for (const p of payments) {
-        await sql`
-          INSERT INTO payments (booking_id, amount, amount_gbp, method, status, transaction_reference, created_at)
-           VALUES ((SELECT bl.booking_id FROM booking_leg_passengers blp JOIN booking_legs bl ON bl.id = blp.booking_leg_id WHERE blp.id = ${legPaxId}), ${p.amount}, ${p.amount}, ${p.method}, 'completed', ${p.reference || `POS-${Date.now()}-${p.method}`}, NOW())
-        `.execute(kdb);
+        await createPaymentForCheckin(legPaxId, p.amount, p.method, p.reference || `POS-${Date.now()}-${p.method}`);
       }
     }
     await bookingLegPassengerRepository.checkIn(legPaxId, userId);
@@ -199,28 +199,23 @@ export async function action({ request }: ActionFunctionArgs) {
     const flightId = formData.get("flight_id")?.toString();
     if (!flightId) return json({ error: "Flight ID required" }, { status: 400 });
 
-    const unchecked = await sql<{ id: number }>`
-      SELECT blp.id
-       FROM booking_leg_passengers blp
-       JOIN booking_legs bl ON bl.id = blp.booking_leg_id
-       WHERE bl.flight_id = ${Number(flightId)} AND blp.checked_in = false
-    `.execute(kdb);
+    const unchecked = await findUncheckedByFlightId(Number(flightId));
 
-    if (unchecked.rows.length === 0) {
+    if (unchecked.length === 0) {
       return json({ error: "All passengers already checked in" }, { status: 400 });
     }
 
-    for (const p of unchecked.rows) {
+    for (const p of unchecked) {
       await bookingLegPassengerRepository.checkIn(p.id, userId);
     }
 
-    return redirect(`/checkin/counter?flightId=${flightId}&batch=${unchecked.rows.length}`);
+    return redirect(`/checkin/counter?flightId=${flightId}&batch=${unchecked.length}`);
   }
 
   return json({ error: "Unknown intent" }, { status: 400 });
 }
 
-/* -- Flight Select Screen ----------------------------------------------- */
+
 function FlightSelect({ flights, today }: { flights: Array<Record<string, unknown>>; today: string }) {
   const [, setSearchParams] = useSearchParams();
   return (
@@ -235,7 +230,7 @@ function FlightSelect({ flights, today }: { flights: Array<Record<string, unknow
       <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
-            Select Flight — {new Date(today).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+            Select Flight â€” {new Date(today).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
           </h2>
         </div>
         <div className="divide-y divide-slate-100 dark:divide-slate-700 bg-white dark:bg-slate-800">
@@ -277,7 +272,7 @@ function FlightSelect({ flights, today }: { flights: Array<Record<string, unknow
   );
 }
 
-/* -- Cash Keypad -------------------------------------------------------- */
+
 function CashKeypad({ onEnter, onQuick }: { onEnter: (val: string) => void; onQuick: (val: number) => void }) {
   const [input, setInput] = useState("");
   const keys = ["1","2","3","4","5","6","7","8","9","C","0","?"];
@@ -293,32 +288,13 @@ function CashKeypad({ onEnter, onQuick }: { onEnter: (val: string) => void; onQu
       <div className="grid grid-cols-3 gap-1 w-40">
         {keys.map((k) => (
           <button key={k} type="button" onClick={() => { if (k==="C") setInput(""); else if (k==="?") { if (input) { onEnter(input); setInput(""); } } else setInput(input+k); }}
-            className={`h-9 text-sm font-medium rounded ${k==="C"?"bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400":k==="?"?"bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400":"bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600"}`}>{k}</button>
+            className={`h-11 min-h-[44px] text-sm font-medium rounded ${k==="C"?"bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400":k==="?"?"bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400":"bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600"}`}>{k}</button>
         ))}
       </div>
     </div>
   );
 }
 
-/* -- Card Processor ----------------------------------------------------- */
-function CardProcessor({ onComplete }: { onComplete: (approved: boolean, ref: string) => void }) {
-  const [s, setS] = useState<"idle"|"processing"|"approved"|"declined">("idle");
-  return (
-    <div className="space-y-3">
-      <div className={`p-4 rounded-lg border text-center ${s==="idle"?"bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600":s==="processing"?"bg-amber-50 dark:bg-amber-900/30 border-amber-200":s==="approved"?"bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200":"bg-red-50 dark:bg-red-900/30 border-red-200"}`}>
-        {s==="idle"&&<p className="text-sm text-slate-600 dark:text-slate-300">Terminal ready</p>}
-        {s==="processing"&&<p className="text-sm text-amber-700 dark:text-amber-400 animate-pulse">Processing...</p>}
-        {s==="approved"&&<p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">? Approved</p>}
-        {s==="declined"&&<p className="text-sm font-medium text-red-700 dark:text-red-400">? Declined</p>}
-      </div>
-      {s==="idle"&&<Button color="primary" onClick={()=>{setS("processing");setTimeout(()=>setS("approved"),2000)}}>Process Card</Button>}
-      {s==="approved"&&<Button color="success" onClick={()=>onComplete(true,`CARD-${Date.now()}`)}>Confirm</Button>}
-      {s==="declined"&&<Button variant="outlined" onClick={()=>setS("idle")}>Retry</Button>}
-    </div>
-  );
-}
-
-/* -- Check-In Workflow -------------------------------------------------- */
 function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<string, unknown>; passengers: FlightPassenger[]; tillPayments: PaymentRecord[] }) {
   const flightId = String(flight.id);
   const [selectedPassenger, setSelectedPassenger] = useState<FlightPassenger | null>(null);
@@ -430,7 +406,7 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
               <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 mb-3">
                 <span className="text-sm text-amber-700 dark:text-amber-400 font-medium">? Remote Check-In</span>
               </div>
-              <p className="text-xs text-slate-500">Passenger boards at <span className="font-semibold">{pax.origin}</span> — will be checked in by pilot at departure stop.</p>
+              <p className="text-xs text-slate-500">Passenger boards at <span className="font-semibold">{pax.origin}</span> â€” will be checked in by pilot at departure stop.</p>
             </div>
           )}
           {pax && !pax.checkedIn && pax.origin === "STY" && (
@@ -438,16 +414,16 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
               <div>
                 <label htmlFor="counter-body-weight" className="block text-xs text-slate-500 mb-1">Body Weight (kg)</label>
                 <div className="flex items-center gap-1"><input id="counter-body-weight" type="number" value={bodyWeight} onChange={e=>setBodyWeight(Number(e.target.value))} step="0.1" min="20" max="200" className="block w-24 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm" />
-                  <button type="button" onClick={()=>setBodyWeight(70)} className="text-[10px] px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-slate-500">70</button>
-                  <button type="button" onClick={()=>setBodyWeight(85)} className="text-[10px] px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-slate-500">85</button>
+                  <button type="button" onClick={()=>setBodyWeight(70)} className="text-xs px-2 py-2 min-h-[44px] rounded border border-slate-300 dark:border-slate-600 text-slate-500">70</button>
+                  <button type="button" onClick={()=>setBodyWeight(85)} className="text-xs px-2 py-2 min-h-[44px] rounded border border-slate-300 dark:border-slate-600 text-slate-500">85</button>
                 </div>
               </div>
               <div>
                 <label htmlFor="counter-baggage-weight" className="block text-xs text-slate-500 mb-1">Baggage (kg)</label>
                 <div className="flex items-center gap-1"><input id="counter-baggage-weight" type="number" value={baggageWeight} onChange={e=>setBaggageWeight(Number(e.target.value))} step="0.1" min="0" max="100" className="block w-24 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm" />
-                  <button type="button" onClick={()=>setBaggageWeight(0)} className="text-[10px] px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-slate-500">0</button>
-                  <button type="button" onClick={()=>setBaggageWeight(15)} className="text-[10px] px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-slate-500">15</button>
-                  <button type="button" onClick={()=>setBaggageWeight(20)} className="text-[10px] px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-slate-500">20</button>
+                  <button type="button" onClick={()=>setBaggageWeight(0)} className="text-xs px-2 py-2 min-h-[44px] rounded border border-slate-300 dark:border-slate-600 text-slate-500">0</button>
+                  <button type="button" onClick={()=>setBaggageWeight(15)} className="text-xs px-2 py-2 min-h-[44px] rounded border border-slate-300 dark:border-slate-600 text-slate-500">15</button>
+                  <button type="button" onClick={()=>setBaggageWeight(20)} className="text-xs px-2 py-2 min-h-[44px] rounded border border-slate-300 dark:border-slate-600 text-slate-500">20</button>
                 </div>
                 {excessCharge>0&&<p className="mt-1 text-xs text-amber-600">? Excess {excessBaggage}kg × £{EXCESS_RATE_PER_KG} = £{excessCharge.toFixed(2)}</p>}
               </div>
@@ -499,7 +475,7 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
               )}
 
               {paymentStep==="cash" && <div className="p-3"><CashKeypad onEnter={v=>addCash(Number(v))} onQuick={v=>addCash(v)}/><button onClick={()=>setPaymentStep("method")} className="text-xs text-slate-500 mt-2">Cancel</button></div>}
-              {paymentStep==="card" && <div className="p-3"><CardProcessor onComplete={(a,r)=>addCard(a,r)}/><button onClick={()=>setPaymentStep("method")} className="text-xs text-slate-500 mt-2">Cancel</button></div>}
+              {paymentStep==="card" && <div className="p-3"><CardPaymentSimulator onComplete={(a,r)=>addCard(a,r)}/><button onClick={()=>setPaymentStep("method")} className="text-xs text-slate-500 mt-2">Cancel</button></div>}
               {paymentStep==="invoice" && <div className="p-3 space-y-2"><p className="text-xs">Amount: £{remaining.toFixed(2)}</p><input value={authorizationCode} onChange={e=>setAuthorizationCode(e.target.value)} placeholder="PO / Auth Ref" className="block w-full rounded border px-2 py-1 text-xs" /><div className="flex gap-2"><Button color="primary" onClick={addInvoice} disabled={!authorizationCode}>Confirm</Button><Button variant="outlined" onClick={()=>setPaymentStep("method")}>Cancel</Button></div></div>}
               {paymentStep==="deferred" && <div className="p-3 space-y-2"><p className="text-xs">Flag £{remaining.toFixed(2)} for collection at destination.</p><div className="flex gap-2"><Button color="warning" onClick={addDeferred}>Flag</Button><Button variant="outlined" onClick={()=>setPaymentStep("method")}>Cancel</Button></div></div>}
 
@@ -522,10 +498,10 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
                       })}
                       label="Print Tags"
                       variant="outlined"
-                      className="text-[10px] px-2 py-0.5"
+                      className="text-xs px-3 py-2.5 min-h-[44px]"
                     />
                   )}
-                  <button onClick={voidTransaction} className="text-[10px] px-2 py-0.5 rounded border border-red-200 dark:border-red-700 text-red-500">? Void</button>
+                  <button onClick={voidTransaction} className="text-xs px-3 py-2.5 min-h-[44px] rounded border border-red-200 dark:border-red-700 text-red-500">? Void</button>
                 </div>
               </div>
 
@@ -541,7 +517,7 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
                   <input type="hidden" name="weight_override_code" value={manualOverrideCode} />
                   <input type="hidden" name="payments" value={JSON.stringify(payments.map(p=>({method:p.method, amount:p.amount, reference:p.reference})))} />
                   <Button type="submit" color="primary" className="w-full" disabled={!isBalanced || !weightsValid}>
-                    {!isBalanced ? `Balance: £${remaining.toFixed(2)}` : `? Complete Sale — £${totalDue.toFixed(2)}`}
+                    {!isBalanced ? `Balance: £${remaining.toFixed(2)}` : `? Complete Sale â€” £${totalDue.toFixed(2)}`}
                   </Button>
                 </Form>
                 {!isBalanced && <p className="text-[10px] text-slate-500 mt-1 text-center">Balance payments before completing</p>}

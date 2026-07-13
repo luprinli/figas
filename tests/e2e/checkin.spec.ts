@@ -31,7 +31,7 @@ test.describe("Check-In", () => {
     await expect(searchInput).toBeVisible({ timeout: 5_000 });
 
     // Should have a search/submit button
-    const searchButton = page.locator('button[type="submit"]');
+    const searchButton = page.locator('button[type="submit"]').first();
     await expect(searchButton).toBeVisible({ timeout: 5_000 });
 
     // Should not show an error

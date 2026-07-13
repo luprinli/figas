@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { kdb } from "../db.server";
-import { sql } from "kysely";
+import { ScheduleStatus } from "../constants";
 
 export interface ScheduleRow {
   id: number;
@@ -24,22 +25,23 @@ export interface ScheduleWithStats extends ScheduleRow {
   total_bookings: number;
 }
 
-function toRow(r: Record<string, unknown>): ScheduleRow {
+function toRow(r: unknown): ScheduleRow {
+  const row = r as Record<string, unknown>;
   return {
-    id: Number(r.id),
-    schedule_date: String(r.schedule_date ?? ""),
-    status: String(r.status ?? ""),
-    notes: r.notes != null ? String(r.notes) : null,
-    created_by: r.created_by != null ? Number(r.created_by) : null,
-    approved_by: r.approved_by != null ? Number(r.approved_by) : null,
-    approved_at: r.approved_at != null ? String(r.approved_at) : null,
-    published_by: r.published_by != null ? Number(r.published_by) : null,
-    published_at: r.published_at != null ? String(r.published_at) : null,
-    cancelled_by: r.cancelled_by != null ? Number(r.cancelled_by) : null,
-    cancelled_at: r.cancelled_at != null ? String(r.cancelled_at) : null,
-    cancellation_reason: r.cancellation_reason != null ? String(r.cancellation_reason) : null,
-    created_at: String(r.created_at ?? ""),
-    updated_at: String(r.updated_at ?? ""),
+    id: Number(row.id),
+    schedule_date: String(row.schedule_date),
+    status: String(row.status),
+    notes: row.notes != null ? String(row.notes) : null,
+    created_by: Number(row.created_by),
+    approved_by: row.approved_by != null ? Number(row.approved_by) : null,
+    approved_at: row.approved_at != null ? String(row.approved_at) : null,
+    published_by: row.published_by != null ? Number(row.published_by) : null,
+    published_at: row.published_at != null ? String(row.published_at) : null,
+    cancelled_by: row.cancelled_by != null ? Number(row.cancelled_by) : null,
+    cancelled_at: row.cancelled_at != null ? String(row.cancelled_at) : null,
+    cancellation_reason: row.cancellation_reason != null ? String(row.cancellation_reason) : null,
+    created_at: String(row.created_at ?? ""),
+    updated_at: String(row.updated_at ?? ""),
   };
 }
 
@@ -92,7 +94,7 @@ export const scheduleRepository = {
       .selectAll()
       .where("id", "=", id)
       .execute();
-    return rows.length > 0 ? toRow(rows[0] as unknown as Record<string, unknown>) : null;
+    return rows.length > 0 ? toRow(rows[0] as unknown) : null;
   },
 
   async findByDate(date: string): Promise<ScheduleRow | null> {
@@ -102,10 +104,10 @@ export const scheduleRepository = {
       .selectAll()
       .where("schedule_date", ">=", start)
       .where("schedule_date", "<", end)
-      .orderBy("created_at desc")
+      .orderBy("created_at", "desc")
       .limit(1)
       .execute();
-    return rows.length > 0 ? toRow(rows[0] as unknown as Record<string, unknown>) : null;
+    return rows.length > 0 ? toRow(rows[0] as unknown) : null;
   },
 
   async findByDateRange(startDate: string, endDate: string): Promise<ScheduleRow[]> {
@@ -115,9 +117,9 @@ export const scheduleRepository = {
       .selectAll()
       .where("schedule_date", ">=", start)
       .where("schedule_date", "<", end)
-      .orderBy("schedule_date desc")
+      .orderBy("schedule_date", "desc")
       .execute();
-    return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
+    return rows.map((r) => toRow(r as unknown));
   },
 
   async findByStatus(status: string): Promise<ScheduleRow[]> {
@@ -125,9 +127,9 @@ export const scheduleRepository = {
       .selectFrom("schedules")
       .selectAll()
       .where("status", "=", status)
-      .orderBy("schedule_date desc")
+      .orderBy("schedule_date", "desc")
       .execute();
-    return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
+    return rows.map((r) => toRow(r as unknown));
   },
 
   async create(data: {
@@ -144,7 +146,7 @@ export const scheduleRepository = {
       } as any)
       .returningAll()
       .execute();
-    return toRow(rows[0] as unknown as Record<string, unknown>);
+    return toRow(rows[0] as unknown);
   },
 
   async updateStatus(
@@ -162,15 +164,15 @@ export const scheduleRepository = {
     };
     const now = new Date().toISOString();
 
-    if (status === "approved" && options?.approved_by !== undefined) {
+    if (status === ScheduleStatus.APPROVED && options?.approved_by !== undefined) {
       data.approved_by = options.approved_by;
       data.approved_at = now;
     }
-    if (status === "published" && options?.published_by !== undefined) {
+    if (status === ScheduleStatus.PUBLISHED && options?.published_by !== undefined) {
       data.published_by = options.published_by;
       data.published_at = now;
     }
-    if (status === "cancelled") {
+    if (status === ScheduleStatus.CANCELLED) {
       if (options?.cancelled_by !== undefined) {
         data.cancelled_by = options.cancelled_by;
       }
@@ -201,11 +203,11 @@ export const scheduleRepository = {
       .selectFrom("schedules")
       .selectAll()
       .where("schedule_date", ">=", today)
-      .where("status", "not in", ["completed", "cancelled"])
-      .orderBy("schedule_date asc")
+      .where("status", "not in", [ScheduleStatus.COMPLETED, ScheduleStatus.CANCELLED])
+      .orderBy("schedule_date", "asc")
       .limit(limit)
       .execute();
-    return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
+    return rows.map((r) => toRow(r as unknown));
   },
 
   async findWithStats(id: number): Promise<ScheduleWithStats | null> {
@@ -216,7 +218,7 @@ export const scheduleRepository = {
       .execute();
     if (rows.length === 0) return null;
 
-    const schedule = toRow(rows[0] as unknown as Record<string, unknown>);
+    const schedule = toRow(rows[0] as unknown);
     const stats = await fetchStats(id);
     return { ...schedule, ...stats };
   },
@@ -228,12 +230,12 @@ export const scheduleRepository = {
       .selectAll()
       .where("schedule_date", ">=", start)
       .where("schedule_date", "<=", end)
-      .orderBy("schedule_date desc")
+      .orderBy("schedule_date", "desc")
       .execute();
 
     const schedulesWithStats = await Promise.all(
       rows.map(async (row) => {
-        const schedule = toRow(row as unknown as Record<string, unknown>);
+        const schedule = toRow(row as unknown);
         const stats = await fetchStats(schedule.id);
         return { ...schedule, ...stats } as ScheduleWithStats;
       })
@@ -248,22 +250,22 @@ export const scheduleRepository = {
       .selectAll()
       .where("schedule_date", ">=", start)
       .where("schedule_date", "<", end)
-      .orderBy("created_at desc")
+      .orderBy("created_at", "desc")
       .limit(1)
       .execute();
     if (existingRows.length > 0) {
-      return toRow(existingRows[0] as unknown as Record<string, unknown>);
+      return toRow(existingRows[0] as unknown);
     }
     const rows = await kdb
       .insertInto("schedules")
       .values({
         schedule_date: start,
         created_by: createdBy,
-        status: "draft",
+        status: ScheduleStatus.DRAFT,
       } as any)
       .returningAll()
       .execute();
-    return toRow(rows[0] as unknown as Record<string, unknown>);
+    return toRow(rows[0] as unknown);
   },
 
   async findUpcomingWithStats(limit = 10): Promise<ScheduleWithStats[]> {
@@ -272,14 +274,14 @@ export const scheduleRepository = {
       .selectFrom("schedules")
       .selectAll()
       .where("schedule_date", ">=", today)
-      .where("status", "not in", ["completed", "cancelled"])
-      .orderBy("schedule_date asc")
+      .where("status", "not in", [ScheduleStatus.COMPLETED, ScheduleStatus.CANCELLED])
+      .orderBy("schedule_date", "asc")
       .limit(limit)
       .execute();
 
     const schedulesWithStats = await Promise.all(
       rows.map(async (row) => {
-        const schedule = toRow(row as unknown as Record<string, unknown>);
+        const schedule = toRow(row as unknown);
         const stats = await fetchStats(schedule.id);
         return { ...schedule, ...stats } as ScheduleWithStats;
       })

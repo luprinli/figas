@@ -2,7 +2,7 @@ import { clusterBookingsByDate } from "./cluster-bookings";
 import { assignAircraft } from "./assign-aircraft";
 import { loadDistances } from "./distance-lookup";
 import type { RouteResult } from "./types";
-import type { BuildConfig, FlightPlan, FlightPlanLeg, PassengerManifest } from "./config-scorer";
+import type { BuildConfig, FlightPlan, FlightPlanLeg } from "./config-scorer";
 import { scoreConfig } from "./config-scorer";
 import { validateFlight, type ValidationPassenger, type ValidationLeg, type ValidationAircraft } from "./flight-validation";
 import { aircraftRepository } from "../repositories/aircraft";
@@ -19,23 +19,18 @@ const DEFAULT_MAX_RANGE_NM = 800;
 
 function getPassengerManifests(legIds: number[]): Promise<FlightPlan["passengerManifests"]> {
   return import("../repositories/booking-leg-passenger").then(async (m) => {
-    const manifests: PassengerManifest[] = [];
-    for (const lid of legIds) {
-      const rows = await m.findByBookingLegId(lid);
-      for (const r of rows) {
-        manifests.push({
-          id: Number(r.id),
-          booking_leg_id: Number(r.booking_leg_id),
-          passenger_name: String(r.passenger_name),
-          body_weight_kg: Number(r.body_weight_kg) || 0,
-          baggage_weight_kg: Number(r.baggage_weight_kg) || 0,
-          freight_weight_kg: Number(r.freight_weight_kg) || 0,
-          origin_code: r.origin_code,
-          destination_code: r.destination_code,
-        });
-      }
-    }
-    return manifests;
+    if (legIds.length === 0) return [];
+    const rows = await m.findByBookingLegIds(legIds);
+    return rows.map((r) => ({
+      id: Number(r.id),
+      booking_leg_id: Number(r.booking_leg_id),
+      passenger_name: String(r.passenger_name),
+      body_weight_kg: Number(r.body_weight_kg) || 0,
+      baggage_weight_kg: Number(r.baggage_weight_kg) || 0,
+      freight_weight_kg: Number(r.freight_weight_kg) || 0,
+      origin_code: r.origin_code,
+      destination_code: r.destination_code,
+    }));
   });
 }
 
@@ -101,7 +96,7 @@ async function validateFlightPlan(plan: FlightPlan): Promise<void> {
  * with a single global optimization that considers all unassigned passengers together.
  *
  * Solves the Capacitated Vehicle Routing Problem: given all passenger demands
- * (origin→destination pairs with passenger counts), construct the minimum number
+ * (origin\u2192destination pairs with passenger counts), construct the minimum number
  * of routes that start/end at STY, respect aircraft capacity and range, and
  * minimize total distance.
  */
@@ -118,7 +113,7 @@ async function strategyCvrp(
   }
 
   // Build passenger demands from clusters (one demand per cluster, not per leg)
-  // Map cluster ID → all booking leg IDs for later manifest lookup
+  // Map cluster ID \u2192 all booking leg IDs for later manifest lookup
   const demands: PassengerDemand[] = [];
   const clusterLegIds = new Map<number, number[]>();
   for (const cluster of clusters) {
@@ -228,7 +223,7 @@ async function strategyCvrp(
   // Add unserved demand warnings
   for (const unserved of result.unservedDemands) {
     warnings.push(
-      `Unserved demand: ${unserved.origin}→${unserved.destination} (${unserved.passengerCount} pax)`
+      `Unserved demand: ${unserved.origin}\u2192${unserved.destination} (${unserved.passengerCount} pax)`
     );
   }
 

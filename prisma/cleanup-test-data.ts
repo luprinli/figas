@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { db } from "../app/utils/db.server";
 import { sql } from "kysely";
 
@@ -250,7 +251,7 @@ async function main(): Promise<void> {
   try {
     await db.transaction().execute(async (tx) => {
       // 7a. Delete booking_leg_passengers for target booking_legs
-      const blpResult = await tx
+      await tx
         .deleteFrom("booking_leg_passengers")
         .where("booking_leg_id", "in",
           tx.selectFrom("booking_legs").select("id").where("booking_id", "in", targetIds) as any
@@ -261,14 +262,14 @@ async function main(): Promise<void> {
       );
 
       // 7b. Delete booking_legs for target bookings
-      const blResult = await tx
+      await tx
         .deleteFrom("booking_legs")
         .where("booking_id", "in", targetIds)
         .execute();
       console.log(`  [2/4] Deleted booking_legs row(s).`);
 
       // 7c. Delete booking_passengers for target bookings
-      const bpResult = await tx
+      await tx
         .deleteFrom("booking_passengers")
         .where("booking_id", "in", targetIds)
         .execute();
@@ -277,7 +278,7 @@ async function main(): Promise<void> {
       );
 
       // 7d. Delete the bookings themselves
-      const bResult = await tx
+      await tx
         .deleteFrom("bookings")
         .where("id", "in", targetIds)
         .execute();

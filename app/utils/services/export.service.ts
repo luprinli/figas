@@ -1,8 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { kdb } from "../db.server.kysely";
-import { sql } from "kysely";
-import type { DB } from "../../../generated/kysely/database";
 import { exportLogRepository } from "../repositories/export-log";
-import { ExportFormat, ExportType } from "../constants";
+import { ExportFormat, ExportType, InvoiceStatus } from "../constants";
 
 export interface ExportToCsvParams {
   exportType: string;
@@ -110,9 +109,6 @@ function toXml(
   ].join("\n");
 }
 
-/**
- * Fetch data based on export type.
- */
 async function fetchExportData(
   exportType: string,
   dateFrom: string,
@@ -130,7 +126,7 @@ async function fetchExportData(
         .select(["b.booking_reference", "b.id as booking_id_alias"])
         .where("p.created_at", ">=", new Date(dateFrom) as any)
         .where("p.created_at", "<=", new Date(dateTo + "T23:59:59.999Z") as any)
-        .orderBy("p.created_at desc")
+        .orderBy("p.created_at", "desc")
         .execute();
 
       const mapped = records.map((r) => ({
@@ -171,7 +167,7 @@ async function fetchExportData(
         .select("b.booking_reference")
         .where("i.issue_date", ">=", new Date(dateFrom) as any)
         .where("i.issue_date", "<=", new Date(dateTo + "T23:59:59.999Z") as any)
-        .orderBy("i.issue_date desc")
+        .orderBy("i.issue_date", "desc")
         .execute();
 
       const mapped = records.map((r) => ({
@@ -231,8 +227,8 @@ async function fetchExportData(
         ])
         .where("aje.entry_date", ">=", new Date(dateFrom) as any)
         .where("aje.entry_date", "<=", new Date(dateTo + "T23:59:59.999Z") as any)
-        .orderBy("aje.entry_date asc")
-        .orderBy("aje.id asc")
+        .orderBy("aje.entry_date", "asc")
+        .orderBy("aje.id", "asc")
         .execute();
 
       // Flatten: each journal line becomes a row
@@ -280,7 +276,7 @@ async function fetchExportData(
       const now = new Date();
       const records = await kdb.selectFrom("invoices")
         .select(["total_gbp", "amount_paid_gbp", "due_date"])
-        .where("status", "=", "issued")
+        .where("status", "=", InvoiceStatus.ISSUED)
         .where("due_date", "<", now as any)
         .execute();
 
@@ -330,9 +326,6 @@ async function fetchExportData(
   }
 }
 
-/**
- * Export data to CSV format.
- */
 export async function exportToCsv(
   params: ExportToCsvParams
 ): Promise<ExportResult> {
@@ -366,9 +359,6 @@ export async function exportToCsv(
   }
 }
 
-/**
- * Export data to XML format.
- */
 export async function exportToXml(
   params: ExportToXmlParams
 ): Promise<ExportResult> {
@@ -404,9 +394,6 @@ export async function exportToXml(
   }
 }
 
-/**
- * Get the most recent export logs.
- */
 export async function getRecentExports(
   params: GetRecentExportsParams = {}
 ): Promise<RecentExportsResult> {
@@ -424,9 +411,6 @@ export async function getRecentExports(
   }
 }
 
-/**
- * Get available export types and formats from constants.
- */
 export async function getExportFormats(): Promise<ExportFormatsResult> {
   try {
     return {

@@ -46,8 +46,6 @@ export function buildStopActivities(
   const legsForFlight = flightLegs.filter((l) => l.flight_id === flight.id);
 
   // Build the set of aerodrome codes that belong to this flight's route.
-  // Only manifests whose origin AND destination are both part of this route
-  // are considered for this flight — prevents cross-flight contamination.
   const flightCodes = new Set<string>();
   flightCodes.add(flight.origin_code);
   flightCodes.add(flight.destination_code);
@@ -56,52 +54,62 @@ export function buildStopActivities(
     flightCodes.add(leg.destination_code);
   }
 
-  // Build a set of flight leg IDs that belong to this flight so we can
-  // filter manifests by actual per-passenger assignment, not just route codes.
-  // This prevents cross-flight passenger leakage when the same booking leg
-  // has passengers assigned to different flights.
-  const flightLegIds = new Set(legsForFlight.map((l) => l.id));
-
-  // Filter manifests to only those whose flight_leg_id belongs to this flight.
-  // Falls back to route-code filter for manifests that lack flight_leg_id (legacy).
+  // Filter manifests to only passengers whose booking leg route codes match
+  // this flight's route. We trust the caller (findManifestsByFlightId) has
+  // already filtered by booking_legs.flight_id — the canonical source of truth.
+  // flight_leg_id is optimisation metadata; it must NOT gatekeep passenger visibility.
   const flightManifests = passengerManifests.filter(
-    (p) => (p.flight_leg_id != null && flightLegIds.has(p.flight_leg_id))
-        || (p.flight_leg_id == null && flightCodes.has(p.origin_code) && flightCodes.has(p.destination_code))
+    (p) => flightCodes.has(p.origin_code) && flightCodes.has(p.destination_code)
   );
+
+  // Build stop sequence from flight legs to validate route order.
+  const stopSequence: string[] = [];
+  legsForFlight.forEach((leg) => {
+    if (leg.origin_code) stopSequence.push(leg.origin_code);
+    if (leg.destination_code) stopSequence.push(leg.destination_code);
+  });
+  const orderedCodes = stopSequence.filter((code, i) => i === 0 || code !== stopSequence[i - 1]);
+
+  // Filter out passengers whose origin comes AFTER their destination in the
+  // route sequence. This prevents "arriving before departing" on routes where
+  // the same code appears at both extremes (e.g., DWN before GEI in a route
+  // where a passenger boards at GEI and would arrive at DWN upstream).
+  const routeValidManifests = flightManifests.filter((p) => {
+    const originIdx = orderedCodes.indexOf(p.origin_code);
+    if (originIdx === -1) return false;
+    // For round-trip routes with duplicate codes, find the destination
+    // that appears AFTER the origin occurrence.
+    const destIdx = orderedCodes.indexOf(p.destination_code, originIdx + 1);
+    return destIdx > originIdx;
+  });
 
   if (legsForFlight.length === 0) {
     return [
       {
         aerodrome_code: flight.origin_code, leg_sequence: 0,
-        arriving_passengers: [], departing_passengers: flightManifests.filter((p) => p.origin_code === flight.origin_code),
+        arriving_passengers: [], departing_passengers: routeValidManifests.filter((p) => p.origin_code === flight.origin_code),
         arrival_time: null, departure_time: flight.departure_time, distance_nm: null, heading: null,
       },
       {
         aerodrome_code: flight.destination_code, leg_sequence: 1,
-        arriving_passengers: flightManifests.filter((p) => p.destination_code === flight.destination_code),
+        arriving_passengers: routeValidManifests.filter((p) => p.destination_code === flight.destination_code),
         departing_passengers: [], arrival_time: flight.arrival_time, departure_time: null, distance_nm: null, heading: null,
       },
     ];
   }
-  const orderedCodes: string[] = [];
-  legsForFlight.forEach((leg) => {
-    if (!orderedCodes.includes(leg.origin_code)) orderedCodes.push(leg.origin_code);
-    if (!orderedCodes.includes(leg.destination_code)) orderedCodes.push(leg.destination_code);
-  });
+
   return orderedCodes.map((code, index) => {
-    // For the first occurrence of a code, find the leg where it's the origin.
-    // For the last occurrence (duplicate codes like STY→...→STY), find the leg
-    // where it's the destination — otherwise `find()` always returns the first
-    // leg, giving wrong arrival times for the return stop.
+    // For the first occurrence of a code, match as origin; for the last
+    // occurrence of a duplicate, match as destination.
     const isLast = orderedCodes.lastIndexOf(code) === index && orderedCodes.indexOf(code) !== index;
     const leg = isLast
-      ? legsForFlight.find((l) => l.destination_code === code)
+      ? legsForFlight.find((l) => l.destination_code === code && l.leg_sequence > (orderedCodes.indexOf(code) + 1))
       : legsForFlight.find((l) => l.origin_code === code) ?? legsForFlight[index - 1];
     return {
       aerodrome_code: code,
       leg_sequence: leg?.leg_sequence ?? index,
-      arriving_passengers: flightManifests.filter((p) => p.destination_code === code),
-      departing_passengers: flightManifests.filter((p) => p.origin_code === code),
+      arriving_passengers: routeValidManifests.filter((p) => p.destination_code === code),
+      departing_passengers: routeValidManifests.filter((p) => p.origin_code === code),
       arrival_time: index === 0 ? null : leg?.arrival_time ?? null,
       departure_time: index === orderedCodes.length - 1 ? null : leg?.departure_time ?? null,
       distance_nm: leg?.distance_nm ?? null,

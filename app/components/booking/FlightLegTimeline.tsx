@@ -1,7 +1,8 @@
-﻿import type { BookingLegRow } from "../../utils/repositories/booking-leg";
+import type { BookingLegRow } from "../../utils/repositories/booking-leg";
 import type { BookingLegPassengerWithDetails } from "../../utils/repositories/booking-leg-passenger";
 import { Calendar, Clock, Check, Package, AlertCircle } from "lucide-react";
 import AirportCodeBadge from "./AirportCodeBadge";
+import StatusBadge from "../StatusBadge";
 import AircraftIcon from "../icons/AircraftIcon";
 import FlightPathArc from "../icons/FlightPathArc";
 import Skeleton from "../Skeleton";
@@ -31,7 +32,7 @@ function LegCard({
   const boardedCount = passengersOnLeg.filter((p) => p.boarded).length;
 
   return (
-    <div className="rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm dark:shadow-slate-900/20">
+    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm dark:shadow-slate-900/20">
       {/* Header with airport badges */}
       <div className="flex items-center justify-between gap-4 p-4 pb-2">
         <AirportCodeBadge
@@ -54,7 +55,7 @@ function LegCard({
 
       {/* Details row */}
       <div className="px-4 pb-3">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-500">
           <span className="flex items-center gap-1">
             <Calendar size={14} className="text-slate-500 dark:text-slate-400" absoluteStrokeWidth />
             {new Date(leg.leg_date).toLocaleDateString(undefined, {
@@ -72,30 +73,18 @@ function LegCard({
           )}
           {leg.flight_id && (
             <span className="flex items-center gap-1">
-              <AircraftIcon className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
+              <AircraftIcon className="w-3.5 h-3.5 text-slate-500 dark:text-slate-500" />
               Flight #{leg.flight_id}
             </span>
           )}
-          <span
-            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${
-              leg.status === "scheduled"
-                ? "bg-sky-100 dark:bg-sky-900/30 text-sky-700"
-                : leg.status === "completed"
-                ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
-                : leg.status === "cancelled"
-                ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
-                : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-            }`}
-          >
-            {leg.status}
-          </span>
+          <StatusBadge status={leg.status} />
         </div>
       </div>
 
       {/* Passenger summary bar */}
       {passengersOnLeg.length > 0 && (
         <div className="border-t border-slate-100 dark:border-slate-700 px-4 py-2">
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-500">
             <span>
               {passengersOnLeg.length} passenger{passengersOnLeg.length !== 1 ? "s" : ""}
             </span>
@@ -126,7 +115,7 @@ function EmptyState() {
   return (
     <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 p-6 text-center">
       <FlightPathArc className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-500 mb-2" />
-      <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No legs defined for this booking.</p>
+      <p className="text-sm text-slate-500 dark:text-slate-500">No legs defined for this booking.</p>
     </div>
   );
 }
@@ -135,7 +124,7 @@ function LoadingSkeleton() {
   return (
     <div className="space-y-3">
       {[1, 2].map((i) => (
-        <div key={i} className="rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20">
+        <div key={i} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20">
           <div className="flex items-center justify-between mb-3">
             <Skeleton className="h-10 w-20 rounded-lg" />
             <Skeleton className="h-6 w-16 rounded-full" />

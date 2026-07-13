@@ -2,13 +2,13 @@
  * Format a passenger name as first initial + last name for compact display.
  *
  * Examples:
- *   "Dr J Tewson"       → "J. Tewson"
- *   "Miss S Mascarenhas" → "S. Mascarenhas"
- *   "Mr D Poncet"       → "D. Poncet"
- *   "Mr T Clifton"      → "T. Clifton"
- *   "Ms A Johnson"      → "A. Johnson"
- *   "John Smith"        → "J. Smith"        (no title)
- *   "Dr J Tewson & Mr D Poncet" → "J. Tewson & D. Poncet"  (& separator)
+ *   "Dr J Tewson"       \u2192 "J. Tewson"
+ *   "Miss S Mascarenhas" \u2192 "S. Mascarenhas"
+ *   "Mr D Poncet"       \u2192 "D. Poncet"
+ *   "Mr T Clifton"      \u2192 "T. Clifton"
+ *   "Ms A Johnson"      \u2192 "A. Johnson"
+ *   "John Smith"        \u2192 "J. Smith"        (no title)
+ *   "Dr J Tewson & Mr D Poncet" \u2192 "J. Tewson & D. Poncet"  (& separator)
  */
 export function formatCompactName(name: string): string {
     // Handle "&" separated names

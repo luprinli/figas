@@ -100,7 +100,7 @@ export default function BookingCard({
       {firstLeg && (
         <div className={`flex items-center gap-2 ${vc.text} text-slate-700 dark:text-slate-200 ${vc.spacing}`}>
           <span className="font-semibold">{firstLeg.origin_code}</span>
-          <span className="text-slate-500 dark:text-slate-400">&rarr;</span>
+          <span className="text-slate-500 dark:text-slate-400">\u2192</span>
           <span className="font-semibold">{firstLeg.destination_code}</span>
           <span className="text-slate-500 dark:text-slate-400 ml-auto">
             {new Date(firstLeg.leg_date).toLocaleDateString("en-GB")}

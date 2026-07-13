@@ -1,5 +1,6 @@
 import { kdb } from "../db.server";
 import { sql } from "kysely";
+import { ScheduleStatus, PilotAssignmentStatus, PilotRole } from "../constants";
 
 export interface PilotAssignmentRow {
   id: number;
@@ -60,7 +61,7 @@ export const pilotAssignmentRepository = {
       .selectFrom("pilot_assignments")
       .selectAll()
       .where("flight_id", "=", flightId)
-      .orderBy("role asc")
+      .orderBy("role", "asc")
       .execute();
     return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
   },
@@ -71,8 +72,8 @@ export const pilotAssignmentRepository = {
       .selectAll("pilot_assignments")
       .leftJoin("schedules", "schedules.id", "pilot_assignments.schedule_id")
       .where("pilot_assignments.pilot_id", "=", pilotId)
-      .where("schedules.status", "not in", ["completed", "cancelled"])
-      .orderBy("schedules.schedule_date desc")
+      .where("schedules.status", "not in", [ScheduleStatus.COMPLETED, ScheduleStatus.CANCELLED])
+      .orderBy("schedules.schedule_date", "desc")
       .execute();
     return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
   },
@@ -91,9 +92,10 @@ export const pilotAssignmentRepository = {
         schedule_id: data.schedule_id,
         flight_id: data.flight_id,
         pilot_id: data.pilot_id,
-        role: data.role ?? "captain",
+        role: data.role ?? PilotRole.CAPTAIN,
         assigned_by: data.assigned_by ?? undefined,
         notes: data.notes ?? undefined,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       .returningAll()
       .execute();
@@ -107,10 +109,10 @@ export const pilotAssignmentRepository = {
   ): Promise<void> {
     const data: Record<string, unknown> = { status };
 
-    if (status === "confirmed") {
+    if (status === PilotAssignmentStatus.CONFIRMED) {
       data.confirmed_at = sql`NOW()`;
     }
-    if (status === "declined") {
+    if (status === PilotAssignmentStatus.DECLINED) {
       data.declined_at = sql`NOW()`;
       if (options?.declined_reason !== undefined) {
         data.declined_reason = options.declined_reason;
@@ -119,6 +121,7 @@ export const pilotAssignmentRepository = {
 
     await kdb
       .updateTable("pilot_assignments")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .set(data as any)
       .where("id", "=", id)
       .execute();
@@ -136,9 +139,9 @@ export const pilotAssignmentRepository = {
       .selectFrom("pilot_assignments")
       .leftJoin("schedules", "schedules.id", "pilot_assignments.schedule_id")
       .where("pilot_assignments.pilot_id", "=", pilotId)
-      .where("pilot_assignments.status", "!=", "declined")
+      .where("pilot_assignments.status", "!=", PilotAssignmentStatus.DECLINED)
       .where("schedules.schedule_date", "=", scheduleDate)
-      .where("schedules.status", "not in", ["completed", "cancelled"])
+      .where("schedules.status", "not in", [ScheduleStatus.COMPLETED, ScheduleStatus.CANCELLED])
       .select(kdb.fn.countAll<number>().as("count"))
       .execute();
     const count = Number(result[0]?.count ?? 0);

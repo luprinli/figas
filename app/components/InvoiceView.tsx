@@ -1,4 +1,4 @@
-﻿import DataTable from "./DataTable";
+import DataTable from "./DataTable";
 import type { Column } from "./DataTable";
 import PaymentStatusBadge from "./PaymentStatusBadge";
 
@@ -71,7 +71,7 @@ export default function InvoiceView({
         <div>
           <span className="text-sm/5 text-slate-900 dark:text-slate-100">{item.description}</span>
           {item.type && (
-            <span className="ml-2 text-xs/5 text-slate-500 dark:text-slate-400 dark:text-slate-500">({item.type})</span>
+            <span className="ml-2 text-xs/5 text-slate-500 dark:text-slate-500">({item.type})</span>
           )}
         </div>
       ),
@@ -112,7 +112,7 @@ export default function InvoiceView({
       <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-700 px-6 py-5">
         <div>
           <h2 className="text-2xl/7 font-bold text-slate-900 dark:text-slate-100">INVOICE</h2>
-          <p className="mt-1 text-sm/5 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+          <p className="mt-1 text-sm/5 text-slate-500 dark:text-slate-500">
             #{invoice.invoiceNumber}
           </p>
         </div>
@@ -149,7 +149,7 @@ export default function InvoiceView({
           <div className="space-y-2">
             {invoice.issueDate && (
               <div className="flex justify-between">
-                <span className="text-sm/5 text-slate-500 dark:text-slate-400 dark:text-slate-500">Issue Date:</span>
+                <span className="text-sm/5 text-slate-500 dark:text-slate-500">Issue Date:</span>
                 <span className="text-sm/5 font-medium text-slate-900 dark:text-slate-100">
                   {new Date(invoice.issueDate).toLocaleDateString(undefined, {
                     year: "numeric",
@@ -161,7 +161,7 @@ export default function InvoiceView({
             )}
             {invoice.dueDate && (
               <div className="flex justify-between">
-                <span className="text-sm/5 text-slate-500 dark:text-slate-400 dark:text-slate-500">Due Date:</span>
+                <span className="text-sm/5 text-slate-500 dark:text-slate-500">Due Date:</span>
                 <span className="text-sm/5 font-medium text-slate-900 dark:text-slate-100">
                   {new Date(invoice.dueDate).toLocaleDateString(undefined, {
                     year: "numeric",
@@ -190,13 +190,13 @@ export default function InvoiceView({
         <div className="border-t border-slate-100 dark:border-slate-700 pt-4">
           <div className="ml-auto max-w-xs space-y-2">
             <div className="flex justify-between">
-              <span className="text-sm/5 text-slate-500 dark:text-slate-400 dark:text-slate-500">Subtotal</span>
+              <span className="text-sm/5 text-slate-500 dark:text-slate-500">Subtotal</span>
               <span className="text-sm/5 text-slate-900 dark:text-slate-100 tabular-nums">
                 {formatGbp(invoice.subtotalGbp)}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm/5 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <span className="text-sm/5 text-slate-500 dark:text-slate-500">
                 Tax ({(invoice.taxRate * 100).toFixed(0)}%)
               </span>
               <span className="text-sm/5 text-slate-900 dark:text-slate-100 tabular-nums">
@@ -219,7 +219,7 @@ export default function InvoiceView({
           </h3>
           <div className="space-y-2">
             <div className="flex justify-between">
-              <span className="text-sm/5 text-slate-500 dark:text-slate-400 dark:text-slate-500">Amount Paid</span>
+              <span className="text-sm/5 text-slate-500 dark:text-slate-500">Amount Paid</span>
               <span className="text-sm/5 font-medium text-green-700 dark:text-green-400 tabular-nums">
                 {formatGbp(invoice.amountPaidGbp)}
               </span>

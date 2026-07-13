@@ -1,9 +1,10 @@
-﻿import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { Form, Link, useActionData, useLoaderData, useSearchParams , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { bookingRepository } from "../utils/repositories/booking";
 import { checkinRepository } from "../utils/repositories/checkin";
+import { requireUser } from "../utils/layout.server";
 import type { BookingSearchResult } from "../utils/repositories/checkin";
 import DataGrid from "../components/DataGrid";
 import type { Column } from "../components/DataTable";
@@ -11,6 +12,7 @@ import type { Column } from "../components/DataTable";
 export const meta: MetaFunction = () => [{ title: "Check-In Lookup - FIGAS" }];
 
 export async function loader({ request }: LoaderFunctionArgs) {
+  await requireUser(request);
   const url = new URL(request.url);
   const q = url.searchParams.get("q");
 
@@ -23,6 +25,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export async function action({ request }: ActionFunctionArgs) {
+  await requireUser(request);
   const formData = await request.formData();
   const reference = formData.get("reference")?.toString().trim().toUpperCase();
 
@@ -78,7 +81,7 @@ export default function CheckinLookup() {
       key: "flight_number",
       header: "Flight",
       render: (row) => (
-        <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">{row.flight_number ?? "—"}</span>
+        <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">{row.flight_number ?? "Ã¢â‚¬â€"}</span>
       ),
       sortable: true,
     },
@@ -88,8 +91,8 @@ export default function CheckinLookup() {
       render: (row) => (
         <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">
           {row.origin_code && row.destination_code
-            ? `${row.origin_code} → ${row.destination_code}`
-            : "—"}
+            ? `${row.origin_code} \u2192 ${row.destination_code}`
+            : "Ã¢â‚¬â€"}
         </span>
       ),
     },
@@ -111,7 +114,7 @@ export default function CheckinLookup() {
   return (
     <div className="space-y-6">
       {/* Search by reference (action) */}
-      <div className="p-6 bg-white dark:bg-slate-800 rounded-lg shadow-sm dark:shadow-slate-900/20 border border-slate-200 dark:border-slate-700 dark:border-slate-700">
+      <div className="p-6 bg-white dark:bg-slate-800 rounded-lg shadow-sm dark:shadow-slate-900/20 border border-slate-200 dark:border-slate-700">
         <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Lookup by Booking Reference</h2>
         <Form method="post" className="mt-4 flex gap-3 items-end">
           <div className="flex-1">
@@ -123,7 +126,7 @@ export default function CheckinLookup() {
               id="reference"
               name="reference"
               placeholder="e.g. ABC12345"
-              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
           <button
@@ -139,7 +142,7 @@ export default function CheckinLookup() {
       </div>
 
       {/* Search by query (loader) */}
-      <div className="p-6 bg-white dark:bg-slate-800 rounded-lg shadow-sm dark:shadow-slate-900/20 border border-slate-200 dark:border-slate-700 dark:border-slate-700">
+      <div className="p-6 bg-white dark:bg-slate-800 rounded-lg shadow-sm dark:shadow-slate-900/20 border border-slate-200 dark:border-slate-700">
         <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Search Bookings</h2>
         <Form method="get" className="mt-4 flex gap-3 items-end">
           <div className="flex-1">
@@ -152,7 +155,7 @@ export default function CheckinLookup() {
               name="q"
               defaultValue={currentQ}
               placeholder="e.g. ABC12345, FIG001, John"
-              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
           <button
@@ -184,7 +187,7 @@ export default function CheckinLookup() {
         )}
 
         {query && results.length === 0 && (
-          <p className="mt-4 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No results found for &ldquo;{query}&rdquo;.</p>
+          <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">No results found for &ldquo;{query}&rdquo;.</p>
         )}
       </div>
     </div>
@@ -197,22 +200,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
       </div>
     </div>
   );

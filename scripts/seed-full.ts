@@ -1,11 +1,14 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import pg from "pg";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-const DATABASE_URL =
-  process.env.DATABASE_URL ||
-  "postgresql://artisan:Murugami%402019@localhost:5432/figas";
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) {
+  console.error("DATABASE_URL environment variable is required.");
+  process.exit(1);
+}
 
 const pool = new pg.Pool({ connectionString: DATABASE_URL });
 
@@ -1402,6 +1405,12 @@ function parseFlightDate(dateStr: string): string {
 }
 
 async function seedBookingsFromFlightList(): Promise<void> {
+  // Fetch no-fly dates to skip bookings on blocked days
+  const noFlyResult = await pool.query(
+    `SELECT specific_date as no_fly_date FROM no_fly_rules WHERE specific_date IS NOT NULL AND specific_date >= CURRENT_DATE AND is_active = true`,
+  );
+  const noFlyDates = new Set(noFlyResult.rows.map((r) => r.no_fly_date.toISOString().split("T")[0]));
+
   const raw = fs.readFileSync(
     path.join(DATA_DIR, "FlightList.csv"),
     "utf-8"
@@ -1423,7 +1432,17 @@ async function seedBookingsFromFlightList(): Promise<void> {
     groups.get(ref)!.push(row);
   }
 
-  console.log(`  📋 ${rows.length} passenger rows in ${groups.size} booking groups`);
+  // Filter out bookings on no-fly dates
+  let skippedCount = 0;
+  for (const [ref, groupRows] of groups) {
+    const flightDate = groupRows[0].flightDate.split("T")[0];
+    if (noFlyDates.has(flightDate)) {
+      groups.delete(ref);
+      skippedCount++;
+    }
+  }
+
+  console.log(`  📋 ${rows.length} passenger rows in ${groups.size} booking groups` + (skippedCount > 0 ? ` (${skippedCount} skipped — no-fly dates)` : ""));
 
   // Get the passenger user (id=7 from seed) or create one
   let passengerUserId: number;
@@ -1591,6 +1610,13 @@ async function seedBookingsFromFlightList(): Promise<void> {
 
 async function main(): Promise<void> {
   console.log("\n🌱 FIGAS Database Seeder\n");
+
+  const isForce = process.argv.includes("--force");
+  if (!isForce) {
+    console.error("⚠️  WARNING: This script DELETES ALL existing data before seeding.");
+    console.error("    Use --force flag to confirm execution: npm run seed:full -- --force\n");
+    process.exit(1);
+  }
 
   try {
     console.log("Clearing existing data...");

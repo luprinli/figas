@@ -10,23 +10,15 @@ import type { ScheduleBuildResult } from "../../utils/scheduling/types";
 import type { scheduleRepository } from "../../utils/repositories/schedule";
 import {
   DndContext,
-  PointerSensor,
-  KeyboardSensor,
-  useSensor,
-  useSensors,
   useDroppable,
   pointerWithin,
   DragOverlay,
-  type DragEndEvent,
-  type DragStartEvent,
-  type DragOverEvent,
 } from "@dnd-kit/core";
-import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import DatePicker from "../../components/DatePicker";
 import PageLayout from "../../components/PageLayout";
 import ScheduleStatusBar from "../../components/schedule/ScheduleStatusBar";
 import ScheduleBoard from "../../components/schedule/ScheduleBoard";
-import type { FlightCardFlight, PilotOption, AircraftOption } from "../../components/schedule/FlightCard";
+import type { PilotOption, AircraftOption } from "../../components/schedule/FlightCard";
 import { SortableDroppableFlightCard } from "../../components/schedule/SortableDroppableFlightCard";
 import { DraftFlightPlaceholder } from "../../components/schedule/DraftFlightPlaceholder";
 import { UnassignPoolPanel } from "../../components/schedule/UnassignPoolPanel";
@@ -41,6 +33,9 @@ import LoadsheetModal from "../../components/loadsheet/LoadsheetModal";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { TourTrigger } from "../../components/TourTrigger";
 import { operationsScheduleTour } from "../../utils/tour/definitions/operations-schedule";
+import { useScheduleOptimistic } from "../../hooks/use-schedule-optimistic";
+import { useScheduleDrag } from "../../hooks/use-schedule-drag";
+import type { DragItem } from "../../utils/scheduling/drag-state";
 
 export const meta: MetaFunction = () => [{ title: "Schedule Builder - FIGAS" }];
 
@@ -89,7 +84,7 @@ export function ErrorBoundary() {
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">
             {error.statusText}
           </h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.data}</p>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.data}</p>
           <button
             onClick={() => window.location.reload()}
             className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
@@ -109,8 +104,8 @@ export function ErrorBoundary() {
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">
             An unexpected error occurred
           </h1>
-          <p className="mb-2 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.message}</p>
-          <p className="mb-6 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+          <p className="mb-2 text-sm text-slate-500 dark:text-slate-400">{error.message}</p>
+          <p className="mb-6 text-xs text-slate-500 dark:text-slate-400">
             Please try again or contact support if the problem persists.
           </p>
           <button
@@ -176,24 +171,21 @@ export default function ScheduleBuilder() {
   const [view, setView] = useState<"manual" | "auto">("manual");
   const [loadsheetModalFlightId, setLoadsheetModalFlightId] = useState<number | null>(null);
   const [loadsheetModalFlightNumber, setLoadsheetModalFlightNumber] = useState<string>("");
-  const [flights, setFlights] = useState<FlightSummaryRow[]>(initialFlights);
-
-  // Flight legs and passenger manifests used for rendering flight cards.
-  // These are updated directly from the fetcher response on assign-booking/unassign-booking success
-  // so the flight card reflects new data immediately without a page refresh.
-  const [flightLegsState, setFlightLegsState] = useState<FlightLegRow[]>(initialFlightLegs);
-  const [passengerManifestsState, setPassengerManifestsState] = useState<PassengerManifestRow[]>(initialPassengerManifests);
   const unassignedBookingsState = useMemo(() => initialUnassignedBookings, [initialUnassignedBookings]);
   const [isBuilding, setIsBuilding] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const routeSuggestionFetcher = useFetcher();
-  const [optimisticAssignedIds, setOptimisticAssignedIds] = useState<Set<number>>(new Set());
   const [isDraggingBooking, setIsDraggingBooking] = useState(false);
-  const [activeDragItem, setActiveDragItem] = useState<{
-    type: "flight" | "booking" | "passenger";
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    data: any;
-  } | null>(null);
+
+  // -- Optimistic state management
+  const optimistic = useScheduleOptimistic(initialFlights, initialFlightLegs, initialPassengerManifests);
+  const {
+    flights, setFlights, flightLegsState, setFlightLegsState,
+    passengerManifestsState, setPassengerManifestsState,
+    optimisticAssignedIds, setOptimisticAssignedIds,
+    pendingOpsRef, pendingAssignAfterCreateRef, syncFromLoader, resetAll,
+  } = optimistic;
+  const [activeDragItem, setActiveDragItem] = useState<DragItem | null>(null);
   const [activeOverId, setActiveOverId] = useState<string | null>(null);
 
   // -- Confirmation dialog state ----------------------------------------------
@@ -211,11 +203,9 @@ export default function ScheduleBuilder() {
   useEffect(() => {
     if (prevDateRef.current !== selectedDate) {
       prevDateRef.current = selectedDate;
-      setFlights(initialFlights);
-      setFlightLegsState(initialFlightLegs);
-      setPassengerManifestsState(initialPassengerManifests);
-      setOptimisticAssignedIds(new Set());
+      syncFromLoader(initialFlights, initialFlightLegs, initialPassengerManifests);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, initialFlights, initialFlightLegs, initialPassengerManifests]);
 
   // -- Simulate initial loading to show skeleton ------------------------------
@@ -224,63 +214,17 @@ export default function ScheduleBuilder() {
     return () => clearTimeout(timer);
   }, []);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
-
-  // -- Optimistic Update Rollback ------------------------------------------------
-  interface PendingOp {
-    type: "assign" | "unassign" | "reorder" | "create-flight";
-    snapshot: { flights: FlightSummaryRow[]; assignedIds: Set<number> };
-    timestamp: number;
-    /** Temporary negative flight ID used for the optimistic flight card, so it
-     * can be replaced with the real flight on success. */
-    tempFlightId?: number;
-  }
-  const pendingOpsRef = useRef<PendingOp[]>([]);
-  /** Buffer for booking?optimistic-flight drops that arrive while a
-   * create-flight-from-booking request is in flight.  These are submitted
-   * as assign-booking requests once the real flight ID is known. */
-  const pendingAssignAfterCreateRef = useRef<{ bookingLegId: number }[]>([]);
-
-  function handleDropOnFlight(bookingLegId: number, flightId: number, bookingLegPassengerId?: number) {
-    pendingOpsRef.current.push({
-      type: "assign",
-      snapshot: { flights: [...flights], assignedIds: new Set(optimisticAssignedIds) },
-      timestamp: Date.now(),
-    });
-    setOptimisticAssignedIds((prev) => new Set(prev).add(bookingLegId));
-    const formData = new FormData();
-    formData.set("intent", "assign-booking");
-    formData.set("bookingLegId", String(bookingLegId));
-    formData.set("flightId", String(flightId));
-    if (bookingLegPassengerId != null) {
-      formData.set("bookingLegPassengerId", String(bookingLegPassengerId));
-    }
-    fetcher.submit(formData, { method: "post" });
-  }
-
-  function handleReorderFlight(flightId: number, newIndex: number) {
-    const oldIndex = flights.findIndex((f) => f.id === flightId);
-    if (oldIndex === -1) return;
-    const reordered = [...flights];
-    const [moved] = reordered.splice(oldIndex, 1);
-    reordered.splice(newIndex, 0, moved);
-    // Save pre-mutation snapshot
-    pendingOpsRef.current.push({
-      type: "reorder",
-      snapshot: { flights: [...flights], assignedIds: new Set(optimisticAssignedIds) },
-      timestamp: Date.now(),
-    });
-    // Optimistic update
-    setFlights(reordered);
-    const formData = new FormData();
-    formData.set("intent", "reorder-flights");
-    formData.set("scheduleId", String(schedule?.id ?? 0));
-    formData.set("flightIds", JSON.stringify(reordered.map((f) => f.id)));
-    fetcher.submit(formData, { method: "post" });
-  }
+  // -- Drag handlers
+  const { handleDragStart, handleDragOver, handleDragEnd, sensors } = useScheduleDrag({
+    setActiveDragItem, setActiveOverId, setIsDraggingBooking,
+    dragEndParams: {
+      flights, setFlights, optimisticAssignedIds, setOptimisticAssignedIds,
+      scheduleId: schedule?.id, selectedDate,
+      fetcherSubmit: (fd, opts) => fetcher.submit(fd, opts),
+      setActiveDragItem, setActiveOverId, setIsDraggingBooking,
+      pendingOpsRef, pendingAssignAfterCreateRef,
+    },
+  });
 
   const routeSuggestionSubmitRef = useRef(routeSuggestionFetcher.submit);
   routeSuggestionSubmitRef.current = routeSuggestionFetcher.submit;
@@ -510,16 +454,10 @@ export default function ScheduleBuilder() {
         }
         // On reset-draft, clear local flights state since all flights were deleted
         if (intent === "reset-draft") {
-          setFlights([]);
-          setOptimisticAssignedIds(new Set());
-          setFlightLegsState([]);
-          setPassengerManifestsState([]);
+          resetAll();
         }
         if (intent === "cancel") {
-          setFlights([]);
-          setOptimisticAssignedIds(new Set());
-          setFlightLegsState([]);
-          setPassengerManifestsState([]);
+          resetAll();
         }
         if (intent && intentLabels[intent]) {
           showToast(intentLabels[intent], "success");
@@ -528,152 +466,8 @@ export default function ScheduleBuilder() {
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetcher, showToast]);
-  // -- Cross-container drag-and-drop handler ----------------------------------
-  function handleDragStart(event: DragStartEvent) {
-    const data = event.active.data.current;
-    if (data?.type === "booking") {
-      setIsDraggingBooking(true);
-      setActiveDragItem({ type: "booking", data: data.booking });
-    } else if (data?.type === "flight") {
-      setActiveDragItem({ type: "flight", data: data.flight });
-    } else if (data?.type === "passenger") {
-      setActiveDragItem({ type: "passenger", data: data.passenger });
-    }
-  }
-
-  function handleDragOver(event: DragOverEvent) {
-    const { over } = event;
-    setActiveOverId(over?.id?.toString() ?? null);
-  }
-
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    setActiveDragItem(null);
-    setActiveOverId(null);
-    setIsDraggingBooking(false);
-
-    if (!over || active.id === over.id) return;
-
-    const activeData = active.data.current;
-    const overData = over.data.current;
-
-    // Determine the flight ID from the over target
-    // over.id could be:
-    //   - "flight-{id}" (string) from SortableDroppableFlightCard's useDroppable
-    //   - numeric flight ID from SortableFlightCardWrapper's useSortable droppable
-    const overFlightId = overData?.type === "flight"
-      ? ((overData.flight as FlightCardFlight)?.id ?? (typeof over.id === "number" ? (over.id as number) : null))
-      : activeData?.type === "flight" && typeof over.id === "number"
-        ? (over.id as number)
-        : null;
-
-    // Handle flight reordering (active is a sortable flight card being dragged over another flight)
-    if (overFlightId != null && activeData?.type === "flight") {
-      const flightId = active.id as number;
-      const newIndex = flights.findIndex((f) => f.id === overFlightId);
-      if (newIndex !== -1) {
-        handleReorderFlight(flightId, newIndex);
-      }
-      return;
-    }
-
-    // Handle booking ? flight assignment
-    if (activeData?.type === "booking" && overFlightId != null) {
-      const booking = activeData.booking as UnassignedBookingRow;
-      // If the target flight is optimistic (negative temp ID), buffer the
-      // assignment and hide the booking from the unassigned pool.  The
-      // create-flight-from-booking response handler will submit the real
-      // assign-booking request once the real flight ID is known.
-      // No PendingOp is pushed here because no fetcher is submitted yet;
-      // the create-flight snapshot already captured the pre-optimistic state
-      // and will roll back everything if it fails.
-      if (overFlightId < 0) {
-        pendingAssignAfterCreateRef.current.push({ bookingLegId: booking.booking_leg_id });
-        setOptimisticAssignedIds((prev) => new Set(prev).add(booking.booking_leg_id));
-        return;
-      }
-      handleDropOnFlight(booking.booking_leg_id, overFlightId, booking.id);
-      return;
-    }
-
-    // Handle booking ? draft flight placeholder (create flight from booking)
-    if (activeData?.type === "booking" && overData?.type === "draft-flight") {
-      const booking = activeData.booking as UnassignedBookingRow;
-      // -- Optimistic update: create a temporary flight card immediately --
-      const tempId = -Date.now();
-      pendingOpsRef.current.push({
-        type: "create-flight",
-        snapshot: { flights: [...flights], assignedIds: new Set(optimisticAssignedIds) },
-        timestamp: Date.now(),
-        tempFlightId: tempId,
-      });
-      // Hide the booking from the unassigned pool immediately
-      setOptimisticAssignedIds((prev) => new Set(prev).add(booking.booking_leg_id));
-      // Push an optimistic flight card so subsequent drops land on this
-      // flight instead of the draft placeholder (prevents duplicate flights).
-      const optimisticFlight: FlightSummaryRow = {
-        id: tempId,
-        flight_number: "Draft...",
-        origin_code: booking.origin_code,
-        destination_code: booking.destination_code,
-        departure_time: null,
-        arrival_time: null,
-        status: "draft",
-        aircraft_registration: null,
-        aircraft_type: null,
-        seat_count: 0,
-        pilot_name: null,
-        pilot_status: null,
-        sort_order: flights.length,
-        duration_minutes: null,
-        check_in_time: null,
-        operational_notes: null,
-        flight_ordinal: null,
-        max_takeoff_weight_kg: null,
-        max_landing_weight_kg: null,
-        basic_empty_weight_kg: null,
-        payload_kg: null,
-        fuel_kg: null,
-        crew_weight_kg: null,
-      };
-      setFlights((prev) => [...prev, optimisticFlight]);
-      // Submit the server request
-      const formData = new FormData();
-      formData.set("intent", "create-flight-from-booking");
-      formData.set("bookingLegIds", JSON.stringify([booking.booking_leg_id]));
-      formData.set("bookingLegPassengerIds", JSON.stringify([booking.id]));
-      formData.set("scheduleId", String(schedule?.id ?? 0));
-      formData.set("originCode", booking.origin_code);
-      formData.set("destinationCode", booking.destination_code);
-      formData.set("date", selectedDate);
-      fetcher.submit(formData, { method: "post" });
-      return;
-    }
-
-    // Handle passenger ? flight (direct transfer between flights)
-    if (activeData?.type === "passenger" && overFlightId != null) {
-      const passenger = activeData.passenger as { bookingLegId: number; bookingLegPassengerId: number; passengerId: number; passengerName: string };
-      const formData = new FormData();
-      formData.set("intent", "transfer-booking");
-      formData.set("bookingLegPassengerId", String(passenger.bookingLegPassengerId));
-      formData.set("targetFlightId", String(overFlightId));
-      fetcher.submit(formData, { method: "post" });
-      return;
-    }
-
-    // Handle passenger ? unassign pool (reverse drag)
-    if (activeData?.type === "passenger" && overData?.type === "unassign-pool") {
-      const passenger = activeData.passenger as { bookingLegId: number; bookingLegPassengerId: number; passengerId: number };
-      const formData = new FormData();
-      formData.set("intent", "unassign-booking");
-      formData.set("bookingLegId", String(passenger.bookingLegId));
-      formData.set("bookingLegPassengerId", String(passenger.bookingLegPassengerId));
-      fetcher.submit(formData, { method: "post" });
-      return;
-    }
-  }
-
   // -- Action submission helpers ----------------------------------------------
   function submitAction(intent: string, extraFields?: Record<string, string>) {
     const formData = new FormData();
@@ -778,7 +572,7 @@ export default function ScheduleBuilder() {
           />
         </div>
       ) : (
-        <div className="mb-6"><p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No schedule built for {selectedDate}.</p></div>
+        <div className="mb-6"><p className="text-sm text-slate-500 dark:text-slate-400">No schedule built for {selectedDate}.</p></div>
       )}
 
       {/* Build result display */}
@@ -880,7 +674,7 @@ export default function ScheduleBuilder() {
             if (!pubToken) return null;
             return (
               <div className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300 ml-2">
-                <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Public:</span>
+                <span className="text-slate-500 dark:text-slate-400">Public:</span>
                 <code className="rounded bg-slate-100 dark:bg-slate-700 px-2 py-0.5 text-[11px]">/schedule/{pubToken}</code>
                 <button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/schedule/${pubToken}`)}
                   className="rounded px-1.5 py-0.5 text-[10px] text-cyan-600 hover:bg-cyan-50">Copy</button>
@@ -931,7 +725,7 @@ export default function ScheduleBuilder() {
                 <div className="flex items-center justify-center py-16">
                   <div className="flex flex-col items-center gap-3">
                     <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-                    <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Building schedule...</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Building schedule...</p>
                   </div>
                 </div>
               ) : flights.length === 0 ? (
@@ -1018,7 +812,7 @@ export default function ScheduleBuilder() {
                   <div className="text-sm font-bold text-slate-800 dark:text-slate-100">
                     {activeDragItem.data.flight_number}
                   </div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
                     {activeDragItem.data.origin_code} ? {activeDragItem.data.destination_code}
                   </div>
                 </div>
@@ -1028,11 +822,11 @@ export default function ScheduleBuilder() {
                     <span className="font-medium text-slate-800 dark:text-slate-100">
                       {activeDragItem.data.booking_reference}
                     </span>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
                       {activeDragItem.data.passenger_count} pax
                     </span>
                   </div>
-                  <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                  <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                     {activeDragItem.data.origin_code} ? {activeDragItem.data.destination_code}
                   </div>
                 </div>
@@ -1044,7 +838,7 @@ export default function ScheduleBuilder() {
                       {activeDragItem.data.passengerName}
                     </span>
                   </div>
-                  <div className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                  <div className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
                     Drag to unassign pool to remove from flight
                   </div>
                 </div>

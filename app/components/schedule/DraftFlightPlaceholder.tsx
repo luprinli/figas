@@ -1,4 +1,4 @@
-﻿import { useDroppable } from "@dnd-kit/core";
+import { useDroppable } from "@dnd-kit/core";
 
 export function DraftFlightPlaceholder({
   isDraggingBooking,
@@ -18,6 +18,8 @@ export function DraftFlightPlaceholder({
     <div
       ref={setNodeRef}
       id="draft-flight-placeholder"
+      role="button"
+      aria-label="Draft flight drop zone. Drag bookings here to create a new flight."
       data-testid="draft-flight-placeholder"
       data-tour="new-flight"
       className={`rounded-lg border-2 border-dashed p-6 text-center transition-all duration-150 ${

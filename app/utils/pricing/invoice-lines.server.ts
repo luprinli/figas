@@ -1,6 +1,5 @@
 import { kdb } from "../db.server.kysely";
 import { sql } from "kysely";
-import type { DB } from "../../../generated/kysely/database";
 
 export async function generateInvoiceLines(invoiceId: string, bookingId: number): Promise<number> {
   const rows = await sql<Record<string, unknown>>`
@@ -38,13 +37,14 @@ export async function generateInvoiceLines(invoiceId: string, bookingId: number)
     await kdb.insertInto("invoice_line_items").values({
       invoice_id: invoiceId,
       booking_leg_passenger_id: Number(r.blp_id),
-      description: `${r.passenger_name}: ${r.origin_code}→${r.destination_code}, ${legDate}`,
+      description: `${r.passenger_name}: ${r.origin_code}\u2192${r.destination_code}, ${legDate}`,
       unit_price: fare,
       quantity: 1,
       discount_amount: 0,
       line_total: fare,
       tax_rate: 0,
       tax_amount: 0,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any).execute();
     count++;
   }

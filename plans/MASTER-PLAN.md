@@ -1,25 +1,87 @@
 # FIGAS Master Implementation Plan
 
-**Created:** 2026-06-19  
-**Consolidates:** All pending tasks from 7 plan files (deleting originals after merge)  
+**Created:** 2026-06-19 | **Updated:** 2026-07-11
+**Consolidates:** All pending tasks from 7 plan files + UI/UX Audit findings
 **Total Pending Items:** ~125 tasks organized into 8 domains
+
+---
+
+## ✅ Completed — UI/UX Audit P0 (2026-07-11)
+
+16 critical fixes completed from `docs/UI-UX-AUDIT-REPORT.md`. Details at `docs/UI-UX-AUDIT-REPORT.md`.
+
+| Task | Description |
+|------|-------------|
+| UX‑001 | Fix invisible status dots (bg-*-50 → bg-*-500) in 6 components |
+| UX‑002 | Fix broken aria-describedby refs in 4 dnd components |
+| UX‑003 | Add CSRF protection to schedule route (generate + validate + 9 submit sites) |
+| UX‑004 | GlobalErrorBoundary already wired in root.tsx (verified) |
+| UX‑005 | Create shared `ErrorFallback.tsx` component |
+| UX‑006 | Fix settings.tsx `userIdentity={null}` → fetch user from `getUserIdentity()` |
+| UX‑007 | Make schedule board responsive (`flex-col lg:flex-row`) |
+| UX‑008 | DraftFlightPlaceholder double-render investigation (false alarm) |
+| UX‑009‑010 | Add aria-label to DraftFlightPlaceholder and RouteStrip |
+| UX‑011 | Implement `_auth.verify-email.tsx` (token validation + 4 error states + ErrorBoundary) |
+| UX‑012 | Add `<main>` landmark to PageLayout (covers all booking routes) |
+| UX‑013 | Remove 6 `console.log` from LoadsheetModal |
+| UX‑014 | Fix `bg-*-900/300` typo → `900/30` in 4 components |
+| UX‑015 | Add `role="alert"` to FlightCard error banner |
+| UX‑016 | Add ErrorBoundary to `admin.audit-log.tsx` |
+| **P0 Total** | ~18h implemented, typecheck passes |
+
+---
+
+## ✅ Completed — UI/UX Audit P1 Phase 1 (2026-07-11)
+
+19 of 23 P1 tasks implemented. Details at `docs/UI-UX-AUDIT-REPORT.md`.
+
+| Task | Description |
+|------|-------------|
+| UX‑101 | Consolidate StatCard/DashboardCard/FinanceKPICard → `MetricCard` (11 route files updated) |
+| UX‑103 | Add render functions to `pilot.schedule.tsx` + `pilot.flights.tsx` |
+| UX‑104 | Fix CashKeypad touch targets (44px minimum) |
+| UX‑105 | Wire Button into ConfirmDialog, PassengerForm (partial) |
+| UX‑106 | Wire StatusBadge into FlightLegTimeline, PassengerManifest, pilot routes |
+| UX‑107 | Add loading states to pilot routes |
+| UX‑108 | Fix stale closure in `useScheduleSubscription` (useRef pattern) |
+| UX‑109 | Remove 150ms artificial loading delay in schedule route |
+| UX‑111 | Wire `useScheduleShortcuts` into schedule route (↝ → T N keys) |
+| UX‑112 | Wire SSE `useScheduleSubscription` into schedule route |
+| UX‑113 | Dialog ARIA + focus management for ConfirmDialog, Popup |
+| UX‑114 | Extract bank details to `BANK_DETAILS` constant in PaymentMethodSelector |
+| UX‑116 | Error handling for AutoBuildPanel accept-build flow |
+| UX‑117 | Replace engineer emoji nav items with lucide-react icons |
+| UX‑118 | `<label>` on DOB fields in admin.users + profile |
+| UX‑119 | `role="dialog"` + `aria-modal` on LoadsheetModal |
+| UX‑121 | Wire WeightBar into standalone WeightSummary.tsx |
+| P1A‑01 | Wire WeightBar (quick win) |
+| P1A‑02 | Wire useScheduleShortcuts (quick win) |
+| P1A‑03 | Keyboard support for AgingReceivablesTable rows |
+| UX‑110 | `pilot.briefing.$flightId.tsx` → verified existing (268L full implementation) |
+| UX‑123 | `scope="col"` on `<th>` → verified existing in DataTable.tsx |
+| UX‑122 | DataTable → AgingReceivablesTable → WONTFIX (custom formatting required) |
+
+**P1 remaining (4 items):** UX‑102 Layout unification, UX‑115 Calendar extraction, UX‑120 CardProcessor mode split, UX‑122 (WONTFIX).
+Full plan: `docs/REMAINING-WORK-IMPLEMENTATION-PLAN.md`.
 
 ---
 
 ## Quick Reference — Priority Index
 
-| Priority | Domain | Tasks | Effort |
-|----------|--------|-------|--------|
-| 🔴 P0 | Scheduling Audit Phase 2 | 5 handler migrations | ~3h |
-| 🔴 P0 | Immediate Actions | 8 critical fixes | ~20h |
-| 🟡 P1 | Check-in Gap Analysis | 4 P0 + 5 P1 gaps | ~8h |
-| 🟡 P1 | CSS Tokenization Phases 1-2 | 17 component updates | ~8h |
-| 🟢 P2 | Shelfware Integration | 7 un-wired components | ~14h |
-| 🟢 P2 | Accessibility | 12 remaining a11y tasks | ~20h |
-| 🔵 P3 | Maintenance System | 15 tasks (full build) | ~40h |
-| 🔵 P3 | Check-in Implementation | 25 tasks (full build) | ~12 days |
-| ⚪ Backlog | Scheduling Audit Phases 3-5 | God object decomposition | ~14h |
-| ⚪ Backlog | Implementation Plan Phases 4-6 | UI modernization, workflow, features | ~110h |
+| Priority | Domain | Tasks | Effort | Plan |
+|----------|--------|-------|--------|------|
+| ✅ Done | UI/UX Audit P0 | 16 critical fixes | ~18h | — |
+| ✅ Done | UI/UX Audit P1 | 19 high-priority fixes | ~35h | — |
+| 🟡 P1 | UI/UX Audit P1 (remaining) | 3 items | ~8h | Phase 2 |
+| 🟢 P2 | UI/UX Audit P2 Quick Hits | 8 items | ~8h | Phase 3 |
+| 🟢 P2 | UI/UX Audit P2 Consolidation | 8 items | ~16h | Phase 4 |
+| 🟢 P2 | Integration Tasks | 8 items | ~18h | Phase 5 |
+| 🔴 P0 | Immediate Actions (IA‑01‑03) | 3 remaining fixes | ~5h | MASTER-PLAN |
+| 🔵 P3 | Schedule Decomposition | 2 items | ~9h | Phase 6 |
+| 🔵 P3 | CSS Tokenization | 14 items | ~42h | Phase 6 |
+| 🔵 P3 | Check-in Implementation | 25 items | ~12 days | Phase 6 |
+| 🔵 P3 | Maintenance System | 15 items | ~40h | Phase 6 |
+| 🔵 P3 | Accessibility Deep Dive | 13 items | ~20h | Phase 6 |
 
 ---
 
@@ -104,7 +166,9 @@ Source: `docs/IMPLEMENTATION-COMPLETION-REPORT.md`
 
 ## 3. Maintenance System (Full Build — 🔵 ~40h)
 
-Source: `docs/MAINTENANCE-SYSTEM-PLAN.md` — zero implementation
+Source: `docs/MAINTENANCE-SYSTEM-PLAN.md`
+
+**UPDATED (2026-07-12): ~40% implemented.** Defects CRUD, Tasks CRUD, Components CRUD, Dashboard with fleet KPIs, read-only aircraft/maintenance/airframe/flights/loadsheets views. All CRUD routes have audit logging and permission checks. Remaining: MS-07 (auto-update triggers), MS-08 (alert service), MS-09 (enhanced dashboard), MS-10 (ETL), MS-14 (5 new permissions), MS-15 (API endpoints). — zero implementation
 
 ### Phase 1: Foundation Schema (Week 1–2, 12h)
 
@@ -210,7 +274,7 @@ Source: `docs/checkin-gap-analysis.md`
 |----|-----|----------|----------|
 | **CG-01** | No logout button in checkin sidebar | `checkin.tsx` | P0 |
 | **CG-02** | No `ProfilePopup` user menu | `checkin.tsx` | P0 |
-| **CG-03** | Sidebar collapse button undersized (24×24 → 44×44px) | `checkin.tsx:41` | P0 |
+| **CG-03** | Sidebar collapse button undersized (24�—24 → 44�—44px) | `checkin.tsx:41` | P0 |
 | **CG-04** | Nav links undersized (`py-2` → `min-h-[44px]`) | `checkin.tsx:52` | P0 |
 | **CG-05** | No operational footer stats in sidebar | `checkin.tsx` | P1 |
 | **CG-06** | No `NotificationBell` in checkin header | `checkin.tsx` | P1 |

@@ -1,6 +1,7 @@
-﻿import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
+import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Link, useLoaderData, useNavigation, useFetcher, useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { Link, useLoaderData, useNavigation, useFetcher, useRevalidator, useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { useEffect, useState } from "react";
 import { bookingRepository } from "../utils/repositories/booking";
 import { bookingLegRepository } from "../utils/repositories/booking-leg";
 import { bookingPassengerRepository } from "../utils/repositories/booking-passenger";
@@ -8,10 +9,13 @@ import type { BookingLegRow } from "../utils/repositories/booking-leg";
 import type { BookingPassengerRow } from "../utils/repositories/booking-passenger";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
+import { formatDateFromISO as formatDate } from "../utils/dates";
+import { formatSimpleTime as formatTime } from "../utils/format-time";
 import { getSession } from "../session.server";
 import { ArrowLeft, ArrowRight, CreditCard, Pencil, Plane, Send, XCircle } from "lucide-react";
 import { kdb } from "../utils/db.server.kysely";
 import { sql } from "kysely";
+import { validateCsrfRequest } from "../utils/csrf-check.server";
 import PageLayout from "../components/PageLayout";
 import StatusBadge from "../components/StatusBadge";
 import PaymentStatusBadge from "../components/PaymentStatusBadge";
@@ -21,6 +25,8 @@ import ExpandableSection from "../components/ui/ExpandableSection";
 import DataTable from "../components/DataTable";
 import type { Column } from "../components/DataTable";
 import Card from "../components/Card";
+import Button from "../components/Button";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -53,6 +59,10 @@ const sourceLabels: Record<string, string> = {
 
 // ── Loader ──────────────────────────────────────────────────────────────────────
 
+export const headers: HeadersFunction = () => ({
+  "Cache-Control": "max-age=30, stale-while-revalidate=120",
+});
+
 export async function loader({ request, params }: LoaderFunctionArgs) {
   const user = await requirePermission(request, Permission.BOOKING_VIEW);
 
@@ -84,7 +94,8 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   let passengers: BookingPassengerRow[] = [];
   try {
     passengers = await bookingPassengerRepository.findByBookingId(bookingId);
-  } catch {
+  } catch (e) {
+    console.error("Failed to load passenger data:", e);
     warnings.push("Could not load passenger data.");
   }
 
@@ -92,7 +103,8 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   let daysUntilDeparture: number | null = null;
   try {
     daysUntilDeparture = await bookingRepository.getDaysUntilDeparture(bookingId);
-  } catch {
+  } catch (e) {
+    console.error("Failed to compute days until departure:", e);
     // Non-critical, leave as null
   }
 
@@ -142,6 +154,11 @@ export async function action({ request, params }: ActionFunctionArgs) {
   }
 
   const formData = await request.formData();
+
+  if (!(await validateCsrfRequest(request, formData))) {
+    return json({ error: "CSRF token validation failed" }, { status: 403 });
+  }
+
   const intent = formData.get("intent");
 
   if (intent === "notify_client") {
@@ -171,6 +188,21 @@ export async function action({ request, params }: ActionFunctionArgs) {
     }
 
     return json({ success: true, message: "Notification sent successfully." });
+  }
+
+  if (intent === "cancel") {
+    const session = await getSession(request.headers.get("Cookie"));
+    const userId = session.get("userId");
+    await bookingRepository.cancel(bookingId, Number(userId), "Cancelled by agent");
+    const { createAuditLogEntry } = await import("../utils/permissions.server");
+    await createAuditLogEntry({
+      actorId: Number(userId),
+      action: "booking.cancelled",
+      entityType: "booking",
+      entityId: bookingId,
+      newValues: { status: "cancelled", reason: "Cancelled by agent" },
+    }).catch(() => {});
+    return json({ success: true, newStatus: "cancelled" });
   }
 
   return json({ error: "Unknown action" }, { status: 400 });
@@ -220,7 +252,7 @@ function ClientCardSkeleton() {
 
 function ExpandableSectionSkeleton() {
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
+    <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
       <div className="flex items-center justify-between bg-gray-50 px-4 py-3">
         <Skeleton variant="text" width="40%" height={16} />
         <Skeleton variant="circular" width={16} height={16} />
@@ -235,9 +267,19 @@ export default function AgentBookingDetail() {
   const data = useLoaderData<LoaderData>();
   const navigation = useNavigation();
   const notifyFetcher = useFetcher<{ success?: boolean; error?: string; message?: string }>();
+  const cancelFetcher = useFetcher<{ success?: boolean; newStatus?: string; error?: string }>();
+  const revalidator = useRevalidator();
+
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
 
   const isLoading = navigation.state === "loading" && !navigation.formData;
   const isNotifySubmitting = notifyFetcher.state === "submitting";
+
+  useEffect(() => {
+    if (cancelFetcher.data?.success && cancelFetcher.state === "idle") {
+      revalidator.revalidate();
+    }
+  }, [cancelFetcher.data, cancelFetcher.state, revalidator]);
 
   const { booking, passengers, legs, daysUntilDeparture, isPastBooking, canEdit, canCancel, canManagePayment, clientInfo, warnings } = data;
 
@@ -274,23 +316,6 @@ export default function AgentBookingDetail() {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-
-  const formatTime = (timeStr: string | null) => {
-    if (!timeStr) return "\u2014";
-    // Handle HH:mm or HH:mm:ss formats
-    const parts = timeStr.split(":");
-    if (parts.length >= 2) {
-      return `${parts[0]}:${parts[1]}`;
-    }
-    return timeStr;
-  };
-
   const totalWeight = passengers.reduce(
     (sum, p) => sum + (p.clothed_weight_kg ?? 0),
     0
@@ -305,6 +330,12 @@ export default function AgentBookingDetail() {
     booking.status !== "completed" &&
     !isPastBooking;
   const canShowEditButton = canEdit && !isPastBooking;
+
+  const handleCancelConfirm = () => {
+    const formData = new FormData();
+    formData.append("intent", "cancel");
+    cancelFetcher.submit(formData, { method: "post" });
+  };
 
   return (
     <PageLayout title={`Booking ${booking.booking_reference}`}>
@@ -347,7 +378,7 @@ export default function AgentBookingDetail() {
           </div>
 
           {clientInfo && (
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               {clientInfo.name} &middot; {clientInfo.email}
             </p>
           )}
@@ -357,19 +388,19 @@ export default function AgentBookingDetail() {
         <Card title="Client Information">
           <dl className="flex flex-col sm:grid sm:grid-cols-2 gap-4">
             <div>
-              <dt className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Client Name</dt>
+              <dt className="text-sm text-slate-500 dark:text-slate-400">Client Name</dt>
               <dd className="text-sm font-medium text-slate-900 dark:text-slate-100">
                 {clientInfo?.name ?? "\u2014"}
               </dd>
             </div>
             <div>
-              <dt className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Email</dt>
+              <dt className="text-sm text-slate-500 dark:text-slate-400">Email</dt>
               <dd className="text-sm font-medium text-slate-900 dark:text-slate-100">
                 {clientInfo?.email ?? "\u2014"}
               </dd>
             </div>
             <div>
-              <dt className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Booking Source</dt>
+              <dt className="text-sm text-slate-500 dark:text-slate-400">Booking Source</dt>
               <dd className="text-sm">
                 <span
                   className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -385,13 +416,13 @@ export default function AgentBookingDetail() {
               </dd>
             </div>
             <div>
-              <dt className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Created</dt>
+              <dt className="text-sm text-slate-500 dark:text-slate-400">Created</dt>
               <dd className="text-sm font-medium text-slate-900 dark:text-slate-100">
                 {formatDate(booking.created_at)}
               </dd>
             </div>
             <div>
-              <dt className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Total Amount</dt>
+              <dt className="text-sm text-slate-500 dark:text-slate-400">Total Amount</dt>
               <dd className="text-sm font-bold text-slate-900 dark:text-slate-100">
                 {booking.total_amount_gbp != null
                   ? `\u00A3${Number(booking.total_amount_gbp).toFixed(2)}`
@@ -399,7 +430,7 @@ export default function AgentBookingDetail() {
               </dd>
             </div>
             <div>
-              <dt className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Days Until Departure</dt>
+              <dt className="text-sm text-slate-500 dark:text-slate-400">Days Until Departure</dt>
               <dd className="text-sm font-medium text-slate-900 dark:text-slate-100">
                 {daysUntilDeparture !== null
                   ? daysUntilDeparture >= 0
@@ -419,20 +450,20 @@ export default function AgentBookingDetail() {
               {legs.map((leg, index) => (
                 <div key={leg.id} className="flex items-start gap-2 min-w-0 shrink-0">
                   {/* Leg card */}
-                  <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700 px-3 py-2 min-w-[180px]">
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 min-w-[180px]">
                     <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                       <span>{leg.origin_code}</span>
                       <Plane size={16} className="text-slate-500 dark:text-slate-400" />
                       <span>{leg.destination_code}</span>
                     </div>
-                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                       {formatDate(leg.leg_date)}
                       {leg.preferred_time && (
                         <span className="ml-1">&middot; {formatTime(leg.preferred_time)}</span>
                       )}
                     </div>
                     {leg.flight_id && (
-                      <div className="mt-1 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                      <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                         Flight #{leg.flight_id}
                       </div>
                     )}
@@ -480,7 +511,7 @@ export default function AgentBookingDetail() {
               </div>
             </>
           ) : (
-            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No passengers added yet.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">No passengers added yet.</p>
           )}
         </ExpandableSection>
 
@@ -488,7 +519,7 @@ export default function AgentBookingDetail() {
         <ExpandableSection title="Payment & Commission">
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <dt className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Payment Method</dt>
+              <dt className="text-sm text-slate-500 dark:text-slate-400">Payment Method</dt>
               <dd className="text-sm font-medium text-slate-900 dark:text-slate-100 capitalize">
                 {booking.payment_method
                   ? booking.payment_method.replace(/_/g, " ")
@@ -496,13 +527,13 @@ export default function AgentBookingDetail() {
               </dd>
             </div>
             <div>
-              <dt className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Payment Status</dt>
+              <dt className="text-sm text-slate-500 dark:text-slate-400">Payment Status</dt>
               <dd className="text-sm">
                 <PaymentStatusBadge status={booking.payment_status} />
               </dd>
             </div>
             <div>
-              <dt className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Total Amount</dt>
+              <dt className="text-sm text-slate-500 dark:text-slate-400">Total Amount</dt>
               <dd className="text-sm font-bold text-slate-900 dark:text-slate-100">
                 {booking.total_amount_gbp != null
                   ? `\u00A3${Number(booking.total_amount_gbp).toFixed(2)}`
@@ -510,12 +541,12 @@ export default function AgentBookingDetail() {
               </dd>
             </div>
             <div>
-              <dt className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Status</dt>
+              <dt className="text-sm text-slate-500 dark:text-slate-400">Status</dt>
               <dd className="text-sm">
                 {isPaid ? (
-                  <span className="text-green-600 font-medium">Paid</span>
+                  <span className="text-success font-medium">Paid</span>
                 ) : (
-                  <span className="text-amber-600 font-medium">
+                  <span className="text-warning font-medium">
                     {booking.payment_status === "overdue"
                       ? "Overdue"
                       : "Outstanding"}
@@ -544,7 +575,7 @@ export default function AgentBookingDetail() {
                   <span className="text-slate-600 dark:text-slate-300 tabular-nums">{l.leg_sequence as number}</span>
                 )},
                 { key: "route", header: "Route", sortable: true, render: (l: Record<string, unknown>) => (
-                  <span className="font-medium text-slate-900 dark:text-slate-100">{l.origin_code as string} &rarr; {l.destination_code as string}</span>
+                  <span className="font-medium text-slate-900 dark:text-slate-100">{l.origin_code as string} \u2192 {l.destination_code as string}</span>
                 )},
                 { key: "date", header: "Date", sortable: true, render: (l: Record<string, unknown>) => (
                   <span className="text-slate-600 dark:text-slate-300">{formatDate(l.leg_date as string)}</span>
@@ -564,7 +595,7 @@ export default function AgentBookingDetail() {
               sortable
             />
           ) : (
-            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No itinerary details available.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">No itinerary details available.</p>
           )}
         </ExpandableSection>
 
@@ -583,7 +614,7 @@ export default function AgentBookingDetail() {
                 type="text"
                 required
                 disabled={isNotifySubmitting}
-                className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:opacity-50"
+                className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:opacity-50"
                 placeholder="e.g. Booking confirmation update"
                 aria-describedby="subject_help"
               />
@@ -601,7 +632,7 @@ export default function AgentBookingDetail() {
                 rows={3}
                 required
                 disabled={isNotifySubmitting}
-                className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:opacity-50"
+                className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:opacity-50"
                 placeholder="Enter your message to the client..."
                 aria-describedby="message_help"
               />
@@ -609,10 +640,11 @@ export default function AgentBookingDetail() {
                 The message content that will be sent to the client.
               </p>
             </div>
-            <button
+            <Button
               type="submit"
+              size="md"
               disabled={isNotifySubmitting}
-              className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white shadow-sm dark:shadow-slate-900/20 hover:bg-sky-700 transition-colors disabled:opacity-50"
+              className="gap-2 shadow-sm dark:shadow-slate-900/20"
             >
               {isNotifySubmitting ? (
                 <>
@@ -625,7 +657,7 @@ export default function AgentBookingDetail() {
                   Send Notification
                 </>
               )}
-            </button>
+            </Button>
           </notifyFetcher.Form>
         </div>
 
@@ -635,44 +667,49 @@ export default function AgentBookingDetail() {
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3">Quick Actions</h3>
             <div className="flex flex-col sm:flex-row flex-wrap gap-3">
               {canShowPaymentButton && (
-                <Link
-                  to={`/bookings/${booking.id}/payment`}
-                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm dark:shadow-slate-900/20 hover:bg-emerald-700 transition-colors"
-                >
+                <Button to={`/bookings/${booking.id}/payment`} color="success" size="md" className="gap-2 shadow-sm dark:shadow-slate-900/20">
                   <CreditCard size={16} />
                   Make Payment
-                </Link>
+                </Button>
               )}
               {canShowCancelButton && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const msg = isPaid
-                      ? `This booking has been paid (£${Number(booking.total_amount_gbp ?? 0).toFixed(2)}). Cancelling will require a refund. Continue?`
-                      : "Are you sure you want to cancel this booking?";
-                    if (window.confirm(msg)) {
-                      window.location.href = `/bookings/${booking.id}?action=cancel`;
-                    }
-                  }}
-                  className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm dark:shadow-slate-900/20 hover:bg-red-700 transition-colors"
+                <Button
+                  color="danger"
+                  size="md"
+                  className="gap-2 shadow-sm dark:shadow-slate-900/20"
+                  disabled={cancelFetcher.state === "submitting"}
+                  onClick={() => setShowCancelDialog(true)}
                 >
                   <XCircle size={16} />
-                  Cancel Booking
-                </button>
+                  {cancelFetcher.state === "submitting" ? "Cancelling..." : "Cancel Booking"}
+                </Button>
               )}
               {canShowEditButton && (
-                <Link
+                <Button
                   to={`/bookings/${booking.id}`}
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 shadow-sm dark:shadow-slate-900/20 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                  variant="outlined"
+                  size="md"
+                  className="gap-2 shadow-sm dark:shadow-slate-900/20"
                 >
                   <Pencil size={16} />
                   Edit Booking
-                </Link>
+                </Button>
               )}
             </div>
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={showCancelDialog}
+        onClose={() => setShowCancelDialog(false)}
+        onConfirm={handleCancelConfirm}
+        title="Cancel Booking"
+        message={`Are you sure you want to cancel this booking?${isPaid ? ` A refund of £${Number(booking.total_amount_gbp ?? 0).toFixed(2)} will be required.` : ""}`}
+        confirmLabel="Cancel Booking"
+        cancelLabel="Go Back"
+        variant="danger"
+      />
     </PageLayout>
   );
 }
@@ -683,22 +720,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-400 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <Button size="md" onClick={() => window.location.reload()}>Try Again</Button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <Button size="md" onClick={() => window.location.reload()}>Try Again</Button>
       </div>
     </div>
   );

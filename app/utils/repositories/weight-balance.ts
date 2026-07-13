@@ -90,7 +90,7 @@ export const weightBalanceRepository = {
       .selectFrom("weight_balance_snapshots")
       .selectAll()
       .where("flight_leg_id", "=", flightLegId)
-      .orderBy("created_at desc")
+      .orderBy("created_at", "desc")
       .limit(1)
       .execute();
     return rows.length > 0 ? toRow(rows[0] as unknown as Record<string, unknown>) : null;
@@ -101,7 +101,7 @@ export const weightBalanceRepository = {
       .selectFrom("weight_balance_snapshots")
       .selectAll()
       .where("schedule_id", "=", scheduleId)
-      .orderBy("flight_leg_id asc")
+      .orderBy("flight_leg_id", "asc")
       .execute();
     return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
   },
@@ -157,6 +157,7 @@ export const weightBalanceRepository = {
         binding_constraint_detail: data.binding_constraint_detail ?? undefined,
         computed_by: data.computed_by ?? "system",
         notes: data.notes ?? undefined,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       .returningAll()
       .execute();

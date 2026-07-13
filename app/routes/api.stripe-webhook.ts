@@ -7,7 +7,7 @@ import { stripePaymentRepository } from "../utils/repositories/stripe-payment";
 import { bookingRepository } from "../utils/repositories/booking";
 import { db } from "../utils/db.server";
 import { sql } from "kysely";
-import { PaymentStatus } from "../utils/constants";
+import { PaymentStatus, StripePaymentStatus } from "../utils/constants";
 import { webhookEventRepository } from "../utils/repositories/webhook-event";
 
 /**
@@ -29,10 +29,6 @@ export async function action({ request }: ActionFunctionArgs) {
     }
 
     const rawBody = await request.text();
-
-    if (!getStripeWebhookSecret()) {
-      return json({ error: "Stripe webhook secret is not configured" }, { status: 500 });
-    }
 
     let event: Stripe.Event;
     try {
@@ -124,7 +120,7 @@ export async function action({ request }: ActionFunctionArgs) {
         try {
           const stripePayment = await stripePaymentRepository.findByPaymentIntentId(paymentIntent.id);
           if (stripePayment?.payment?.booking_id) {
-            await stripePaymentRepository.updateStatus(stripePayment.id, "failed");
+            await stripePaymentRepository.updateStatus(stripePayment.id, StripePaymentStatus.FAILED);
             await bookingRepository.updatePayment(stripePayment.payment.booking_id, {
               payment_status: PaymentStatus.FAILED,
             });
@@ -161,7 +157,7 @@ export async function action({ request }: ActionFunctionArgs) {
         try {
           const stripePayment = await stripePaymentRepository.findByPaymentIntentId(dispute.charge);
             if (stripePayment?.payment?.booking_id) {
-            const newStatus = dispute.status === "won" ? "succeeded" : "refunded";
+            const newStatus = dispute.status === "won" ? StripePaymentStatus.SUCCEEDED : PaymentStatus.REFUNDED;
             await sql`
               UPDATE payments SET status = ${newStatus}, notes = COALESCE(notes, '') || ${`\nDispute ${dispute.id} ${dispute.status}`} WHERE id = ${stripePayment.payment_id}
             `.execute(db);
@@ -180,7 +176,7 @@ export async function action({ request }: ActionFunctionArgs) {
           const stripePayment = await stripePaymentRepository.findByPaymentIntentId(charge.id);
           if (stripePayment?.payment?.booking_id) {
             await sql`
-              UPDATE payments SET status = 'refunded', notes = COALESCE(notes, '') || ${`\nRefunded: £${(charge.amount_refunded / 100).toFixed(2)}`} WHERE id = ${stripePayment.payment_id}
+              UPDATE payments SET status = ${PaymentStatus.REFUNDED}, notes = COALESCE(notes, '') || ${`\nRefunded: £${(charge.amount_refunded / 100).toFixed(2)}`} WHERE id = ${stripePayment.payment_id}
             `.execute(db);
             if (stripePayment.payment.booking_id) {
               await bookingRepository.updatePayment(stripePayment.payment.booking_id, {

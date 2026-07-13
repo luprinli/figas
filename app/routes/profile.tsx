@@ -1,6 +1,6 @@
-﻿import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Form, useActionData, useLoaderData , useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { Form, Link, useActionData, useLoaderData , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { useState } from "react";
 import { requireAuth } from "../utils/auth.server";
@@ -39,7 +39,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     throw new Response("User not found", { status: 404 });
   }
 
-  const upcomingBookings = await bookingRepository.findUpcomingByUserId(Number(userId));
+  const { bookings: upcomingBookings } = await bookingRepository.findUpcomingByUserId(Number(userId));
 
   return json({
     user: {
@@ -91,6 +91,7 @@ export async function action({ request }: ActionFunctionArgs) {
         id_document_type: idDocumentType,
         id_document_number: idDocumentNumber,
         updated_at: new Date(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any).where("id", "=", Number(userId)).execute();
       return json<ActionData>({ profileSuccess: "Profile updated successfully." });
     } catch (err) {
@@ -132,6 +133,7 @@ export async function action({ request }: ActionFunctionArgs) {
       await kdb.updateTable("users").set({
         password: hashedPassword,
         updated_at: new Date(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any).where("id", "=", Number(userId)).execute();
       return json<ActionData>({ passwordSuccess: "Password changed successfully." });
     } catch (err) {
@@ -149,10 +151,15 @@ export default function Profile() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
+      <div className="mb-2 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+        <Link to="/" className="hover:text-slate-700 dark:hover:text-slate-200 transition-colors">Home</Link>
+        <span>/</span>
+        <span>Profile</span>
+      </div>
       <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">My Profile</h1>
 
       {/* Profile Information */}
-      <div className="p-6 bg-white dark:bg-slate-800 rounded-lg shadow-sm dark:shadow-slate-900/20 border border-slate-200 dark:border-slate-700 dark:border-slate-700">
+      <div className="p-6 bg-white dark:bg-slate-800 rounded-lg shadow-sm dark:shadow-slate-900/20 border border-slate-200 dark:border-slate-700">
         <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Profile Information</h2>
         {actionData?.profileSuccess && (
           <p className="mt-2 text-sm text-green-600">{actionData.profileSuccess}</p>
@@ -171,7 +178,7 @@ export default function Profile() {
               name="name"
               defaultValue={user.name}
               required
-              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
 
@@ -193,7 +200,7 @@ export default function Profile() {
               id="phone"
               name="phone"
               defaultValue={user.phone ?? ""}
-              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
 
@@ -213,7 +220,7 @@ export default function Profile() {
               id="nationality"
               name="nationality"
               defaultValue={user.nationality ?? ""}
-              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
 
@@ -223,7 +230,7 @@ export default function Profile() {
               id="residency_status"
               name="residency_status"
               defaultValue={user.residency_status ?? ""}
-              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               <option value="">Select...</option>
               <option value="resident">Resident</option>
@@ -237,7 +244,7 @@ export default function Profile() {
               id="id_document_type"
               name="id_document_type"
               defaultValue={user.id_document_type ?? ""}
-              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               <option value="">Select...</option>
               <option value="passport">Passport</option>
@@ -253,7 +260,7 @@ export default function Profile() {
               id="id_document_number"
               name="id_document_number"
               defaultValue={user.id_document_number ?? ""}
-              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
 
@@ -269,7 +276,7 @@ export default function Profile() {
       </div>
 
       {/* Emergency Contact */}
-      <div className="p-6 bg-white dark:bg-slate-800 rounded-lg shadow-sm dark:shadow-slate-900/20 border border-slate-200 dark:border-slate-700 dark:border-slate-700">
+      <div className="p-6 bg-white dark:bg-slate-800 rounded-lg shadow-sm dark:shadow-slate-900/20 border border-slate-200 dark:border-slate-700">
         <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Emergency Contact</h2>
         <Form method="post" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <input type="hidden" name="intent" value="update_profile" />
@@ -281,7 +288,7 @@ export default function Profile() {
               id="emergency_contact_name"
               name="emergency_contact_name"
               defaultValue={user.emergency_contact_name ?? ""}
-              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
 
@@ -292,7 +299,7 @@ export default function Profile() {
               id="emergency_contact_phone"
               name="emergency_contact_phone"
               defaultValue={user.emergency_contact_phone ?? ""}
-              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
 
@@ -308,7 +315,7 @@ export default function Profile() {
       </div>
 
       {/* Change Password */}
-      <div className="p-6 bg-white dark:bg-slate-800 rounded-lg shadow-sm dark:shadow-slate-900/20 border border-slate-200 dark:border-slate-700 dark:border-slate-700">
+      <div className="p-6 bg-white dark:bg-slate-800 rounded-lg shadow-sm dark:shadow-slate-900/20 border border-slate-200 dark:border-slate-700">
         <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Change Password</h2>
         {actionData?.passwordSuccess && (
           <p className="mt-2 text-sm text-green-600">{actionData.passwordSuccess}</p>
@@ -326,7 +333,7 @@ export default function Profile() {
               id="current_password"
               name="current_password"
               required
-              className="mt-1 block w-full max-w-sm rounded-md border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full max-w-sm rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
 
@@ -338,7 +345,7 @@ export default function Profile() {
               name="new_password"
               required
               minLength={8}
-              className="mt-1 block w-full max-w-sm rounded-md border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full max-w-sm rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
 
@@ -350,7 +357,7 @@ export default function Profile() {
               name="confirm_password"
               required
               minLength={8}
-              className="mt-1 block w-full max-w-sm rounded-md border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full max-w-sm rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
 
@@ -364,10 +371,10 @@ export default function Profile() {
       </div>
 
       {/* Upcoming Bookings */}
-      <div className="p-6 bg-white dark:bg-slate-800 rounded-lg shadow-sm dark:shadow-slate-900/20 border border-slate-200 dark:border-slate-700 dark:border-slate-700">
+      <div className="p-6 bg-white dark:bg-slate-800 rounded-lg shadow-sm dark:shadow-slate-900/20 border border-slate-200 dark:border-slate-700">
         <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Upcoming Bookings</h2>
         {upcomingBookings.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No upcoming bookings found.</p>
+          <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">No upcoming bookings found.</p>
         ) : (
           <div className="mt-4 space-y-3">
             {upcomingBookings.map(({ booking, firstLeg }) => (
@@ -380,12 +387,12 @@ export default function Profile() {
                     <p className="font-medium text-slate-900 dark:text-slate-100">
                       {booking.booking_reference}
                     </p>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
                       Status: {booking.status}
                     </p>
                     {firstLeg && (
-                      <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
-                        {firstLeg.origin_code} &rarr; {firstLeg.destination_code}
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        {firstLeg.origin_code} \u2192 {firstLeg.destination_code}
                         {firstLeg.leg_date && ` | ${firstLeg.leg_date}`}
                       </p>
                     )}
@@ -415,22 +422,22 @@ export function ErrorBoundary() {
   const error = useRouteError();
   if (isRouteErrorResponse(error)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
       </div>
     </div>
   );

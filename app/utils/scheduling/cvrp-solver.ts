@@ -1,7 +1,7 @@
 /**
  * CVRP Solver using Clarke-Wright Savings algorithm.
  *
- * Given a set of passenger demands (origin→destination with passenger count),
+ * Given a set of passenger demands (origin\u2192destination with passenger count),
  * constructs optimal routes that:
  *   1. Start and end at the depot (STY)
  *   2. Respect aircraft capacity (max seats)
@@ -10,7 +10,7 @@
  *   5. Minimize total distance (secondary objective)
  *
  * Algorithm phases:
- *   Phase 1: Build initial routes (one per demand as STY→origin→dest→STY)
+ *   Phase 1: Build initial routes (one per demand as STY\u2192origin\u2192dest\u2192STY)
  *   Phase 2: Compute savings matrix for all route pairs
  *   Phase 3: Merge routes greedily by descending savings (capacity-constrained)
  *   Phase 4: Validate routes against constraints
@@ -39,9 +39,9 @@ function dist(matrix: Map<string, number>, a: string, b: string): number {
 
 /**
  * Phase 1: Build initial routes.
- * Each demand becomes its own route: STY → origin → destination → STY.
- * If origin is STY, route is: STY → destination → STY.
- * If destination is STY, route is: STY → origin → STY.
+ * Each demand becomes its own route: STY \u2192 origin \u2192 destination \u2192 STY.
+ * If origin is STY, route is: STY \u2192 destination \u2192 STY.
+ * If destination is STY, route is: STY \u2192 origin \u2192 STY.
  */
 function buildInitialRoutes(
   demands: PassengerDemand[],
@@ -147,7 +147,7 @@ function computeSavings(
  * Uses per-leg tracking based on boardAtStopIndex and alightAtStopIndex.
  */
 function computeMaxOnBoard(route: CvrpRoute): number {
-  const legCount = route.stops.length - 1; // n stops → n-1 legs
+  const legCount = route.stops.length - 1; // n stops \u2192 n-1 legs
   const perLeg = new Array(legCount).fill(0);
   for (const assignment of route.assignments) {
     for (let s = assignment.boardAtStopIndex; s < assignment.alightAtStopIndex; s++) {
@@ -332,5 +332,5 @@ export function solveCvrp(
  * Convert a CVRP route to a string representation (for testing/debugging).
  */
 export function routeToString(route: CvrpRoute): string {
-  return `${route.stops.join(" → ")} | ${route.passengerCount} pax | ${route.totalDistanceNm}nm`;
+  return `${route.stops.join(" \u2192 ")} | ${route.passengerCount} pax | ${route.totalDistanceNm}nm`;
 }

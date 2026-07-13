@@ -1,4 +1,4 @@
-﻿import CreditCardIcon from "../icons/CreditCardIcon";
+import CreditCardIcon from "../icons/CreditCardIcon";
 import InvoiceIcon from "../icons/InvoiceIcon";
 import CashIcon from "../icons/CashIcon";
 import type { ReactNode } from "react";
@@ -31,7 +31,7 @@ function getMethodIcon(method: string | null): ReactNode {
     case "offline":
       return <CashIcon className="w-8 h-8 text-emerald-600" />;
     default:
-      return <CreditCardIcon className="w-8 h-8 text-slate-500 dark:text-slate-400 dark:text-slate-500" />;
+      return <CreditCardIcon className="w-8 h-8 text-slate-500 dark:text-slate-500" />;
   }
 }
 
@@ -97,7 +97,7 @@ function getStatusConfig(status: PaymentStatus): {
         bgClass: "bg-slate-50 dark:bg-slate-700",
         borderClass: "border-slate-200 dark:border-slate-700",
         icon: (
-          <svg className="w-10 h-10 text-slate-500 dark:text-slate-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="w-10 h-10 text-slate-500 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         ),
@@ -136,14 +136,14 @@ export default function PaymentConfirmation({
           {/* Details */}
           <div className="mt-3 space-y-1.5 text-xs">
             <div className="flex items-center gap-2">
-              <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Amount:</span>
+              <span className="text-slate-500 dark:text-slate-500">Amount:</span>
               <span className="font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
                 {formatCurrency(amount)}
               </span>
             </div>
             {method && (
               <div className="flex items-center gap-2">
-                <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Method:</span>
+                <span className="text-slate-500 dark:text-slate-500">Method:</span>
                 <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200 capitalize">
                   {getMethodIcon(method)}
                   {method.replace(/_/g, " ")}
@@ -152,13 +152,13 @@ export default function PaymentConfirmation({
             )}
             {reference && (
               <div className="flex items-center gap-2">
-                <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Reference:</span>
+                <span className="text-slate-500 dark:text-slate-500">Reference:</span>
                 <span className="font-mono text-slate-700 dark:text-slate-200">{reference}</span>
               </div>
             )}
             {timestamp && (
               <div className="flex items-center gap-2">
-                <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Date:</span>
+                <span className="text-slate-500 dark:text-slate-500">Date:</span>
                 <span className="text-slate-700 dark:text-slate-200">
                   {new Date(timestamp).toLocaleDateString(undefined, {
                     year: "numeric",

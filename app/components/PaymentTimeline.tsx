@@ -1,4 +1,4 @@
-﻿export interface PaymentTimelineEvent {
+export interface PaymentTimelineEvent {
   id: string;
   type: "payment" | "refund" | "invoice" | "reminder";
   status: string;
@@ -63,7 +63,7 @@ export default function PaymentTimeline({ events }: PaymentTimelineProps) {
   if (sortedEvents.length === 0) {
     return (
       <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 text-center">
-        <p className="text-sm/5 text-slate-500 dark:text-slate-400 dark:text-slate-500">No payment events recorded</p>
+        <p className="text-sm/5 text-slate-500 dark:text-slate-500">No payment events recorded</p>
       </div>
     );
   }
@@ -107,12 +107,12 @@ export default function PaymentTimeline({ events }: PaymentTimelineProps) {
                         </p>
                       )}
                     </div>
-                    <span className="shrink-0 text-xs/5 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                    <span className="shrink-0 text-xs/5 text-slate-500 dark:text-slate-500">
                       {formatTimestamp(event.timestamp)}
                     </span>
                   </div>
                   {event.actor && (
-                    <p className="mt-0.5 text-xs/5 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                    <p className="mt-0.5 text-xs/5 text-slate-500 dark:text-slate-500">
                       by {event.actor}
                     </p>
                   )}

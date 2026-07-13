@@ -1,5 +1,6 @@
 import { kdb } from "../db.server";
 import { sql } from "kysely";
+import { InvoiceStatus } from "../constants";
 
 export interface InvoiceRow {
   id: string;
@@ -80,7 +81,7 @@ export const invoiceRepository = {
         booking_id: params.booking_id ? parseInt(params.booking_id, 10) : undefined,
         organization_id: params.organization_id ? parseInt(params.organization_id, 10) : undefined,
         user_id: params.user_id ? parseInt(params.user_id, 10) : undefined,
-        status: params.status ?? "draft",
+        status: params.status ?? InvoiceStatus.DRAFT,
         issue_date: params.issue_date,
         due_date: params.due_date,
         subtotal_gbp: String(params.subtotal_gbp),
@@ -91,6 +92,7 @@ export const invoiceRepository = {
         currency: params.currency || "GBP",
         notes: params.notes || undefined,
         created_by: parseInt(params.created_by, 10),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       .returningAll()
       .execute();
@@ -111,7 +113,7 @@ export const invoiceRepository = {
       .selectFrom("invoices")
       .selectAll()
       .where("booking_id", "=", parseInt(bookingId, 10))
-      .orderBy("created_at desc")
+      .orderBy("created_at", "desc")
       .execute();
     return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
   },
@@ -121,7 +123,7 @@ export const invoiceRepository = {
       .selectFrom("invoices")
       .selectAll()
       .where("organization_id", "=", parseInt(organizationId, 10))
-      .orderBy("created_at desc")
+      .orderBy("created_at", "desc")
       .execute();
     return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
   },
@@ -131,20 +133,21 @@ export const invoiceRepository = {
     const rows = await kdb
       .selectFrom("invoices")
       .selectAll()
-      .where("status", "=", "issued")
+      .where("status", "=", InvoiceStatus.ISSUED)
       .where("due_date", "<", now)
-      .orderBy("due_date asc")
+      .orderBy("due_date", "asc")
       .execute();
     return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
   },
 
   async updateStatus(id: string, status: string, paidAt?: string): Promise<InvoiceRow | null> {
     const data: Record<string, unknown> = { status };
-    if (status === "paid" && paidAt) {
+    if (status === InvoiceStatus.PAID && paidAt) {
       data.paid_at = paidAt;
     }
     const rows = await kdb
       .updateTable("invoices")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .set(data as any)
       .where("id", "=", id)
       .returningAll()
@@ -178,12 +181,13 @@ export const invoiceRepository = {
       amount_paid_gbp: String(amountPaid),
     };
     if (isFullyPaid) {
-      setData.status = "paid";
+      setData.status = InvoiceStatus.PAID;
       setData.paid_at = sql`NOW()`;
     }
 
     const rows = await kdb
       .updateTable("invoices")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .set(setData as any)
       .where("id", "=", id)
       .returningAll()

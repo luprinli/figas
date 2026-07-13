@@ -16,4 +16,14 @@ export const tourRegistry: Record<
     import("./definitions/operations-schedule"),
   "checkin-counter": () => import("./definitions/checkin-counter"),
   "pilot-briefing": () => import("./definitions/pilot-briefing"),
+  "admin-dashboard": () =>
+    import("./definitions/admin-dashboard"),
+  "finance-dashboard": () =>
+    import("./definitions/finance-dashboard"),
+  "bookings-list": () =>
+    import("./definitions/bookings-list"),
+  "operations-dashboard": () =>
+    import("./definitions/operations-dashboard"),
+  "engineer-dashboard": () =>
+    import("./definitions/engineer-dashboard"),
 };

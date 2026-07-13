@@ -180,7 +180,7 @@ CREATE TABLE IF NOT EXISTS weight_balance_snapshots (
 
   -- CG (Center of Gravity) — simplified calculation
   total_moment_kgm        NUMERIC(10,2) NOT NULL DEFAULT 0,
-    -- Sum of (weight × arm) for all components
+    -- Sum of (weight �— arm) for all components
   cg_position_pct         NUMERIC(5,1),
     -- CG position as percentage of MAC: total_moment / total_weight
   cg_ok                   BOOLEAN NOT NULL DEFAULT true,
@@ -209,7 +209,7 @@ CREATE INDEX idx_weight_snapshots_flight ON weight_balance_snapshots(flight_id);
 **Key simplifications:**
 - Unlike the original plan, this table does NOT store `aircraft_mtow_limit_kg`, `aircraft_mlw_limit_kg`, `aerodrome_mtow_limit_kg`, `aerodrome_mlw_limit_kg`, or `runway_length_m`. These are looked up dynamically from the `aircraft` and `aerodromes` tables. Only the computed effective limits are stored, avoiding data duplication and synchronization issues.
 - Fuel planning uses the actual [`data/fuel.csv`](../data/fuel.csv) lookup: `fuel_required_kg` = Required Fuel, `fuel_minimum_kg` = Minimum Fuel (the reserve that must remain), `fuel_state` = Fuel State string (what the refueler loads at Stanley).
-- CG calculation is simplified: `total_moment_kgm` stores the sum of (weight × arm), `cg_position_pct` = total_moment / total_weight, and `cg_ok` checks against the aircraft's forward/aft CG limits.
+- CG calculation is simplified: `total_moment_kgm` stores the sum of (weight �— arm), `cg_position_pct` = total_moment / total_weight, and `cg_ok` checks against the aircraft's forward/aft CG limits.
 
 #### 1.3.5 `pilot_assignments` Table
 
@@ -922,7 +922,7 @@ This is the primary scheduling interface with three panels:
 ```
 +----------------------------------------------------------------------+
 |  Schedule: [15 May 2026 ▼]  [Auto-Build]  [Approve]  [Publish]       |
-|  Status: Building ●●●○○○○○○○○○                                       |
+|  Status: Building �—��—��—��—��—��—��—��—��—��—��—��—�                                       |
 +----------------------------------------------------------------------+
 |  Timeline: 08:00    09:00    10:00    11:00    12:00    13:00        |
 |  VP-FBD   |███████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░|   |
@@ -980,7 +980,7 @@ The ScheduleBoard uses `@dnd-kit` for visual drag-and-drop:
 +------------------------------------------+
 | Weight Summary:                           |
 | Empty:  1,990 kg                         |
-| Pax:      240 kg (3 pax × 80 kg)         |
+| Pax:      240 kg (3 pax �— 80 kg)         |
 | Bag:      60 kg                          |
 | Freight:  120 kg                         |
 | Fuel:     330 kg                         |

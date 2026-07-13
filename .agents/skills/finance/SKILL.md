@@ -80,7 +80,7 @@ Booking Costing                 Invoice Generation
 | `app/utils/services/export.service.ts` | CSV/XML export engine with type-specific query builders |
 | `app/utils/services/reminder.service.ts` | Payment reminder scheduling and batch processing |
 | `app/utils/pricing/pricing-engine.server.ts` | Core fare lookup, discount rules, leg fare computation |
-| `app/utils/pricing/booking-costing.server.ts` | Full booking cost computation: legs × passengers × discounts |
+| `app/utils/pricing/booking-costing.server.ts` | Full booking cost computation: legs �— passengers �— discounts |
 | `app/utils/pricing/payment-allocation.server.ts` | Payment-to-invoice allocation logic |
 | `app/utils/pricing/invoice-lines.server.ts` | Invoice line item construction from booking legs |
 | `app/utils/pricing/fare-import.server.ts` | Bulk fare matrix import/export |
@@ -102,8 +102,8 @@ Booking Costing                 Invoice Generation
 ### Invoice Generation (`invoice.service.ts`)
 
 1. Fetch booking with legs, passengers, and freight data
-2. Compute cost per leg × passenger using `pricing-engine.server` (`computeLegFare`)
-3. Sum freight charges (`FREIGHT_RATE_PER_KG × freight_weight_kg`)
+2. Compute cost per leg �— passenger using `pricing-engine.server` (`computeLegFare`)
+3. Sum freight charges (`FREIGHT_RATE_PER_KG �— freight_weight_kg`)
 4. Apply discounts from `DISCOUNT_RULES`: child (50%), student (25%), senior (25%), veteran (30%), staff (100%)
 5. Create `invoices` record with `InvoiceStatus.DRAFT`
 6. Create `invoice_items` records for each line item

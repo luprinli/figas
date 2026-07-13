@@ -5,9 +5,11 @@ import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
 import { kdb } from "../utils/db.server.kysely";
 import { sql } from "kysely";
-import DashboardCard from "../components/DashboardCard";
+import MetricCard from "../components/MetricCard";
 import ProgressBar from "../components/ProgressBar";
 import Skeleton from "../components/Skeleton";
+import { TourTrigger } from "../components/TourTrigger";
+import { engineerDashboardTour } from "../utils/tour/definitions/engineer-dashboard";
 import EmptyState from "../components/EmptyState";
 
 export const meta: MetaFunction = () => [{ title: "Engineer Dashboard - FIGAS" }];
@@ -84,33 +86,34 @@ export default function EngineerDashboard() {
                 <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
                     Welcome, {user.name}
                 </h1>
+                <TourTrigger config={engineerDashboardTour} />
                 <Link
                     to="/engineer/aircraft"
                     className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400"
                 >
-                    View Fleet →
+                    View Fleet \u2192
                 </Link>
             </div>
 
             {/* KPI Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <DashboardCard
+                <MetricCard
                     label="Active Aircraft"
                     value={`${activeAircraft}/${aircraft.length}`}
                     color="emerald"
                 />
-                <DashboardCard
+                <MetricCard
                     label="Due for Service"
                     value={dueForService}
                     color={dueForService > 0 ? "amber" : "emerald"}
                     to={dueForService > 0 ? undefined : undefined}
                 />
-                <DashboardCard
+                <MetricCard
                     label="Total Fleet Hours"
                     value={totalHours.toLocaleString()}
                     color="blue"
                 />
-                <DashboardCard
+                <MetricCard
                     label="Airframe Records"
                     value={airframeHours.length}
                     color="purple"
@@ -118,7 +121,7 @@ export default function EngineerDashboard() {
             </div>
 
             {/* Fleet Status */}
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 overflow-hidden">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
                     <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
                         Fleet Status
@@ -135,7 +138,7 @@ export default function EngineerDashboard() {
                                 <ProgressBar
                                     key={ac.id as number}
                                     label={`${ac.registration as string}`}
-                                    subtitle={`${ac.type as string}${isActive ? "" : " — Inactive"}${defectMap.has(ac.id as number) ? ` · ${defectMap.get(ac.id as number)} open defect${defectMap.get(ac.id as number)! > 1 ? 's' : ''}` : ''}`}
+                                    subtitle={`${ac.type as string}${isActive ? "" : " Ã¢â‚¬â€ Inactive"}${defectMap.has(ac.id as number) ? ` Ã‚Â· ${defectMap.get(ac.id as number)} open defect${defectMap.get(ac.id as number)! > 1 ? 's' : ''}` : ''}`}
                                     current={hours}
                                     max={SERVICE_INTERVAL_HOURS}
                                     onClick={isActive ? () => {
@@ -149,7 +152,7 @@ export default function EngineerDashboard() {
             </div>
 
             {/* Recent Airframe Hours */}
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 overflow-hidden">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
                     <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
                         Recent Airframe Hours
@@ -167,7 +170,7 @@ export default function EngineerDashboard() {
                                     <p className="text-sm font-medium text-slate-800 dark:text-slate-100 dark:text-slate-200">
                                         {record.registration as string}
                                     </p>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
                                         {new Date(record.recorded_at as string).toLocaleDateString("en-GB")}
                                     </p>
                                 </div>
@@ -187,22 +190,22 @@ export function ErrorBoundary() {
     const error = useRouteError();
     if (isRouteErrorResponse(error)) {
         return (
-            <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+            <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
                 <div className="mx-auto max-w-lg text-center px-4">
-                    <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-500 dark:text-slate-600 dark:text-slate-300 dark:text-slate-500">{error.status}</div>
+                    <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
                     <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
-                    <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{error.statusText}</p>
-                    <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+                    <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+                    <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
                 </div>
             </div>
         );
     }
     return (
-        <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-700 dark:bg-slate-900">
+        <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
             <div className="mx-auto max-w-lg text-center px-4">
                 <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
-                <p className="mb-6 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">An unexpected error occurred. Please try again.</p>
-                <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+                <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+                <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
             </div>
         </div>
     );

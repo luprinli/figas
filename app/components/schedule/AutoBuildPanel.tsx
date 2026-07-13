@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useFetcher } from "@remix-run/react";
 import { RefreshCw, CheckCircle, XCircle, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 
@@ -129,6 +129,8 @@ export default function AutoBuildPanel({
       const data = acceptFetcher.data as { success?: boolean; error?: string };
       if (data.success) {
         onAcceptRef.current();
+      } else if (data.error) {
+        setAllErrors([data.error]);
       }
     }
   }, [acceptFetcher.state, acceptFetcher.data]);
@@ -212,7 +214,12 @@ export default function AutoBuildPanel({
         {isBuilding && (
           <div className="mt-3 ml-7 space-y-2">
             <div className="flex items-center gap-2">
-              <div className="h-1.5 flex-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+              <div
+                role="progressbar"
+                aria-valuenow={progressPct}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                className="h-1.5 flex-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
                 <div
                   className="h-full rounded-full bg-blue-500 transition-all duration-500"
                   style={{ width: `${progressPct}%` }}
@@ -322,7 +329,7 @@ export default function AutoBuildPanel({
                     <span>{plan.originCode}</span>
                     {plan.stops.map((s, j) => (
                       <span key={j} className="flex items-center gap-1">
-                        <span className="text-slate-300">→</span>
+                        <span className="text-slate-300">{'\u2192'}</span>
                         <span>{s}</span>
                       </span>
                     ))}

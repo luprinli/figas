@@ -59,6 +59,7 @@ export const invoiceItemRepository = {
         reference_type: params.reference_type ?? undefined,
         reference_id: params.reference_id ?? undefined,
         sort_order: params.sort_order ?? 0,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       .returningAll()
       .execute();
@@ -70,7 +71,7 @@ export const invoiceItemRepository = {
       .selectFrom("invoice_items")
       .selectAll()
       .where("invoice_id", "=", invoiceId)
-      .orderBy("sort_order asc")
+      .orderBy("sort_order", "asc")
       .execute();
     return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
   },

@@ -1,4 +1,4 @@
-﻿import { useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useFetcher } from "@remix-run/react";
 import type { BookingLegRow } from "../../utils/repositories/booking-leg";
 import type { BookingPassengerRow } from "../../utils/repositories/booking-passenger";
@@ -27,6 +27,7 @@ interface PostBookingChangesProps {
   legPassengers: BookingLegPassengerWithDetails[];
   storedTotal: number | null;
   canManagePayment: boolean;
+  changes?: PostBookingChange[];
   className?: string;
 }
 
@@ -61,7 +62,7 @@ function ChangeHistory({ changes }: { changes: PostBookingChange[] }) {
     return (
       <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-600 p-4 text-center">
         <WingIcon className="w-8 h-8 mx-auto mb-2 fill-slate-300" />
-        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No post-booking changes recorded</p>
+        <p className="text-sm text-slate-500 dark:text-slate-500">No post-booking changes recorded</p>
       </div>
     );
   }
@@ -77,7 +78,7 @@ function ChangeHistory({ changes }: { changes: PostBookingChange[] }) {
             <ChangeTypeBadge type={change.type} />
             <div>
               <p className="font-medium text-slate-800 dark:text-slate-100">{change.reason}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-500">
                 {change.createdBy} &middot;{" "}
                 {new Date(change.createdAt).toLocaleDateString("en-GB", {
                   day: "numeric",
@@ -107,6 +108,7 @@ export default function PostBookingChanges({
   bookingReference,
   paymentStatus,
   canManagePayment,
+  changes: externalChanges,
   className = "",
 }: PostBookingChangesProps) {
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
@@ -117,8 +119,7 @@ export default function PostBookingChanges({
 
   const isSubmitting = fetcher.state === "submitting";
 
-  // ── Mock change history (in production, fetch from API) ─────────────────
-  const [changes] = useState<PostBookingChange[]>([]);
+  const changes = externalChanges ?? [];
 
   const handleSubmit = useCallback(() => {
     const amount = parseFloat(changeAmount);
@@ -154,7 +155,7 @@ export default function PostBookingChanges({
 
       {/* New Change Form */}
       {canChange && (
-        <div className="rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
           {!showForm ? (
             <button
               type="button"
@@ -210,7 +211,7 @@ export default function PostBookingChanges({
                   value={changeAmount}
                   onChange={(e) => setChangeAmount(e.target.value)}
                   placeholder="0.00"
-                  className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 />
               </div>
 
@@ -225,7 +226,7 @@ export default function PostBookingChanges({
                   onChange={(e) => setChangeReason(e.target.value)}
                   rows={2}
                   placeholder="Reason for this change..."
-                  className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm shadow-sm dark:shadow-slate-900/20 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 />
               </div>
 
@@ -238,7 +239,7 @@ export default function PostBookingChanges({
                     setChangeAmount("");
                     setChangeReason("");
                   }}
-                  className="rounded-lg border border-slate-300 dark:border-slate-600 dark:border-slate-600 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 dark:hover:bg-slate-700/50 transition-colors"
+                  className="rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 dark:hover:bg-slate-700/50 transition-colors"
                 >
                   Cancel
                 </button>
@@ -264,7 +265,7 @@ export default function PostBookingChanges({
       {/* No permission message */}
       {!canChange && (
         <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-600 p-4 text-center">
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+          <p className="text-sm text-slate-500 dark:text-slate-500">
             Payment changes are only available for paid bookings.
           </p>
         </div>

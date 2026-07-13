@@ -8,13 +8,17 @@
   --color-primary-hover: #1d4ed8;
   --color-primary-light: #dbeafe;
   --color-success: #059669;
+  --color-success-hover: #047857;
   --color-success-light: #d1fae5;
   --color-warning: #d97706;
+  --color-warning-hover: #b45309;
   --color-warning-light: #fef3c7;
   --color-danger: #dc2626;
+  --color-danger-hover: #b91c1c;
   --color-danger-light: #fee2e2;
   --color-info: #0284c7;
   --color-info-light: #e0f2fe;
+  --color-teal: #06b6d4;
   --color-fuel-ok: #059669;
   --color-fuel-low: #d97706;
   --color-fuel-critical: #dc2626;

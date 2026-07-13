@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
-import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { HeadersFunction, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Form, Link, useLoaderData, useNavigation, useSearchParams, useSubmit, useRouteError, isRouteErrorResponse } from "@remix-run/react";
+import { Form, Link, useLoaderData, useNavigate, useNavigation, useRevalidator, useSearchParams, useSubmit, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import { requireAuth } from "../utils/auth.server";
 import { bookingRepository } from "../utils/repositories/booking";
 import { bookingLegRepository } from "../utils/repositories/booking-leg";
@@ -12,8 +12,14 @@ import type { BookingRow } from "../utils/repositories/booking";
 import DateRangePicker from "../components/DateRangePicker";
 import Pagination from "../components/Pagination";
 import Skeleton from "../components/Skeleton";
+import Button from "../components/Button";
+import { useKeyboardShortcuts } from "../utils/use-keyboard-shortcuts";
 
 export const meta: MetaFunction = () => [{ title: "My Bookings - FIGAS" }];
+
+export const headers: HeadersFunction = () => ({
+  "Cache-Control": "max-age=60, stale-while-revalidate=300",
+});
 
 interface BookingRowData {
   booking: BookingRow;
@@ -39,6 +45,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   let bookingsWithLegs: Array<{ booking: BookingRow; firstLeg: { origin_code: string; destination_code: string; leg_date: string } | null }>;
   let totalCount: number;
   let totalPages: number;
+  let upcomingTotalCount: number | null = null;
 
   if (dateFrom && dateTo) {
     const result = await bookingRepository.findByUserIdAndDateRange(Number(userId), dateFrom, dateTo, page);
@@ -46,12 +53,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
     totalCount = result.totalCount;
     totalPages = result.totalPages;
   } else if (q) {
-    const result = await bookingRepository.search(q, page);
-    bookingsWithLegs = result.bookings.filter((b) => b.booking.user_id === Number(userId));
-    totalCount = bookingsWithLegs.length;
-    totalPages = Math.ceil(totalCount / 20);
+    const result = await bookingRepository.searchByUser(q, Number(userId), page);
+    bookingsWithLegs = result.bookings;
+    totalCount = result.totalCount;
+    totalPages = result.totalPages;
   } else {
-    bookingsWithLegs = await bookingRepository.findUpcomingByUserId(Number(userId));
+    const result = await bookingRepository.findUpcomingByUserId(Number(userId));
+    bookingsWithLegs = result.bookings;
+    upcomingTotalCount = result.totalCount;
     totalCount = bookingsWithLegs.length;
     totalPages = 1;
   }
@@ -72,17 +81,25 @@ export async function loader({ request }: LoaderFunctionArgs) {
     bookings: bookingsWithLegs,
     legsMap: Array.from(legsMap.entries()),
     q, dateFrom, dateTo, status, page, totalCount, totalPages,
+    upcomingTotalCount,
   });
 }
 
 export default function BookingList() {
-  const { bookings, q, dateFrom, dateTo, status, page, totalCount, totalPages } =
+  const { bookings, q, dateFrom, dateTo, status, page, totalCount, totalPages, upcomingTotalCount } =
     useLoaderData<typeof loader>();
+  const revalidator = useRevalidator();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigation = useNavigation();
   const submit = useSubmit();
   const searchRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
   const isSearching = navigation.state === "loading" && navigation.location.pathname === "/bookings";
+
+  useKeyboardShortcuts({
+    "/": () => searchRef.current?.focus(),
+    "n": () => navigate("/bookings/new"),
+  });
 
   useEffect(() => {
     if (searchRef.current && !searchRef.current.value && q) {
@@ -129,7 +146,7 @@ export default function BookingList() {
       header: "Reference",
       sortable: true,
       render: (item) => (
-        <Link to={`/bookings/${item.booking.id}`} className="text-sky-600 hover:text-sky-800 font-medium">
+        <Link to={`/bookings/${item.booking.id}`} className="text-primary hover:text-primary-hover font-medium">
           {item.booking.booking_reference}
         </Link>
       ),
@@ -142,7 +159,7 @@ export default function BookingList() {
         <span className="text-slate-600 dark:text-slate-300">
           {item.firstLeg
             ? `${item.firstLeg.origin_code} ? ${item.firstLeg.destination_code}`
-            : "—"}
+            : "ï¿½"}
         </span>
       ),
     },
@@ -152,7 +169,7 @@ export default function BookingList() {
       sortable: true,
       render: (item) => (
         <span className="text-slate-600 dark:text-slate-300">
-          {item.firstLeg ? new Date(item.firstLeg.leg_date).toLocaleDateString("en-GB") : "—"}
+          {item.firstLeg ? new Date(item.firstLeg.leg_date).toLocaleDateString("en-GB") : "ï¿½"}
         </span>
       ),
     },
@@ -170,8 +187,8 @@ export default function BookingList() {
       render: (item) => (
         <span className="font-medium text-slate-900 dark:text-slate-100">
           {item.booking.total_amount_gbp != null
-            ? `£${Number(item.booking.total_amount_gbp).toFixed(2)}`
-            : "—"}
+            ? `ï¿½${Number(item.booking.total_amount_gbp).toFixed(2)}`
+            : "ï¿½"}
         </span>
       ),
     },
@@ -180,7 +197,7 @@ export default function BookingList() {
       header: "Actions",
       className: "text-right",
       render: (item) => (
-        <Link to={`/bookings/${item.booking.id}`} className="text-sky-600 hover:text-sky-800 font-medium">
+        <Link to={`/bookings/${item.booking.id}`} className="text-primary hover:text-primary-hover font-medium">
           View
         </Link>
       ),
@@ -192,19 +209,19 @@ export default function BookingList() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">My Bookings</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">My Bookings</h2>
+            <button onClick={() => revalidator.revalidate()} className="text-xs text-slate-500 hover:text-slate-700">Refresh</button>
+          </div>
           {hasActiveFilters && (
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
               {totalCount} booking{totalCount !== 1 ? "s" : ""} found
             </p>
           )}
         </div>
-        <Link
-          to="/bookings/new"
-          className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 transition-colors"
-        >
+        <Button to="/bookings/new" size="md">
           New Booking
-        </Link>
+        </Button>
       </div>
 
       {/* Search + Date filter row */}
@@ -216,7 +233,8 @@ export default function BookingList() {
               type="text"
               name="q"
               defaultValue={q}
-              placeholder="Search by reference..."
+              placeholder="Search by reference, passenger name, or email..."
+              aria-label="Search bookings by reference, passenger name, or email"
               className="block w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 pr-10 text-sm text-slate-800 dark:text-slate-100 dark:bg-slate-700 placeholder-slate-400 dark:placeholder-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
             />
             {isSearching && (
@@ -236,10 +254,12 @@ export default function BookingList() {
               key={value}
               type="button"
               onClick={() => setStatusFilter(value)}
+              role="tab"
+              aria-selected={isActive}
               className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                 isActive
-                  ? "bg-sky-600 text-white"
-                  : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+                  ? "bg-primary text-white"
+                  : "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
               }`}
             >
               {label}
@@ -254,7 +274,7 @@ export default function BookingList() {
           <button
             type="button"
             onClick={clearFilters}
-            className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-600 underline"
+            className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline"
           >
             Clear filters
           </button>
@@ -302,17 +322,14 @@ export default function BookingList() {
                     <button
                       type="button"
                       onClick={clearFilters}
-                      className="text-sky-600 hover:text-sky-800 text-sm font-medium"
+                      className="text-primary hover:text-primary-hover text-sm font-medium"
                     >
                       Clear filters
                     </button>
                   ) : (
-                    <Link
-                      to="/bookings/new"
-                      className="inline-block rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 transition-colors"
-                    >
+                    <Button to="/bookings/new" size="md">
                       Create your first booking
-                    </Link>
+                    </Button>
                   )}
                 </div>
               }
@@ -327,13 +344,13 @@ export default function BookingList() {
                   {hasActiveFilters ? "No bookings match your filters." : "You have no bookings yet."}
                 </p>
                 {hasActiveFilters ? (
-                  <button type="button" onClick={clearFilters} className="text-sky-600 hover:text-sky-800 text-sm font-medium">
+                  <button type="button" onClick={clearFilters} className="text-primary hover:text-primary-hover text-sm font-medium">
                     Clear filters
                   </button>
                 ) : (
-                  <Link to="/bookings/new" className="inline-block rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 transition-colors">
+                  <Button to="/bookings/new" size="md">
                     Create your first booking
-                  </Link>
+                  </Button>
                 )}
               </div>
             ) : (
@@ -351,15 +368,15 @@ export default function BookingList() {
                     <span>
                       {item.firstLeg
                         ? `${item.firstLeg.origin_code} ? ${item.firstLeg.destination_code}`
-                        : "—"}
+                        : "ï¿½"}
                     </span>
                     <span>
-                      {item.firstLeg ? new Date(item.firstLeg.leg_date).toLocaleDateString("en-GB") : "—"}
+                      {item.firstLeg ? new Date(item.firstLeg.leg_date).toLocaleDateString("en-GB") : "ï¿½"}
                     </span>
                   </div>
                   {item.booking.total_amount_gbp != null && (
                     <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                      £{Number(item.booking.total_amount_gbp).toFixed(2)}
+                      ï¿½{Number(item.booking.total_amount_gbp).toFixed(2)}
                     </span>
                   )}
                 </Link>
@@ -367,6 +384,13 @@ export default function BookingList() {
             )}
           </div>
         </>
+      )}
+
+      {/* Truncation indicator */}
+      {upcomingTotalCount != null && upcomingTotalCount > 5 && upcomingTotalCount > bookings.length && (
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 text-center">
+          Showing {bookings.length} of {upcomingTotalCount} upcoming bookings
+        </p>
       )}
 
       {/* Pagination */}
@@ -383,10 +407,10 @@ export function ErrorBoundary() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-lg text-center px-4">
-          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
+          <div className="mb-4 text-5xl font-bold text-slate-400 dark:text-slate-600">{error.status}</div>
           <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
           <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
-          <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+          <Button size="md" onClick={() => window.location.reload()}>Try Again</Button>
         </div>
       </div>
     );
@@ -396,7 +420,7 @@ export function ErrorBoundary() {
       <div className="mx-auto max-w-lg text-center px-4">
         <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
         <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
-        <button onClick={() => window.location.reload()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try Again</button>
+        <Button size="md" onClick={() => window.location.reload()}>Try Again</Button>
       </div>
     </div>
   );

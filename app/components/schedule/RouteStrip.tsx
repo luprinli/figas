@@ -1,4 +1,5 @@
-﻿import { ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { formatTimeHM } from "../../utils/format-time";
 
 export interface RouteStripLeg {
     leg_sequence: number;
@@ -20,7 +21,7 @@ export interface RouteStripProps {
  * States:
  * - Loading: Skeleton placeholder
  * - Empty: "No route data" message
- * - Single leg: Simple origin → destination display
+ * - Single leg: Simple origin \u2192 destination display
  * - Multi-leg: Full dot-and-line strip
  * - Compact: Collapsed view with "(N stops)" badge
  */
@@ -35,7 +36,7 @@ export default function RouteStrip({ legs, compact = false }: RouteStripProps) {
     // ── Empty state ─────────────────────────────────────────────────────────
     if (legs.length === 0) {
         return (
-            <div className="text-xs italic text-slate-500 dark:text-slate-400 dark:text-slate-500">No route data</div>
+            <div className="text-xs italic text-slate-500 dark:text-slate-500">No route data</div>
         );
     }
 
@@ -98,10 +99,10 @@ export default function RouteStrip({ legs, compact = false }: RouteStripProps) {
                     const time = s.departure_time ?? s.arrival_time ?? "";
                     const timeStr = time ? ` ${new Date(time).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : "";
                     return `${s.code}${timeStr}`;
-                }).join(" → ")}
+                }).join(" \u2192 ")}
             >
                 <span className="font-medium text-green-700 dark:text-green-400 dark:text-green-400">{firstCode}</span>
-                <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">→</span>
+                <span className="text-slate-500 dark:text-slate-500">{'\u2192'}</span>
                 <span className="font-medium text-red-700 dark:text-red-400 dark:text-red-400">{lastCode}</span>
                 {stopCount > 2 && (
                     <span className="rounded-full bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400 dark:text-amber-400">
@@ -110,18 +111,6 @@ export default function RouteStrip({ legs, compact = false }: RouteStripProps) {
                 )}
             </div>
         );
-    }
-
-    function formatTime(iso: string | null): string | null {
-        if (!iso) return null;
-        try {
-            return new Date(iso).toLocaleTimeString("en-GB", {
-                hour: "2-digit",
-                minute: "2-digit",
-            });
-        } catch {
-            return null;
-        }
     }
 
     function getStopColor(stop: typeof stops[0]): string {
@@ -144,11 +133,11 @@ export default function RouteStrip({ legs, compact = false }: RouteStripProps) {
 
     return (
         <div className="overflow-x-auto">
-            <div className="flex items-center gap-0 min-w-max py-1">
+            <div className="flex items-center gap-0 min-w-max py-1" role="list" aria-label={`Route: ${stops.map(s => s.code).join(" \u2192 ")}`}>
                 {stops.map((stop, idx) => {
                     const isLast = idx === stops.length - 1;
                     const time = stop.departure_time ?? stop.arrival_time;
-                    const timeStr = formatTime(time);
+                    const timeStr = formatTimeHM(time);
                     const showDuplicateBadge = totalOccurrences.get(stop.code)! > 1;
 
                     return (
@@ -162,7 +151,7 @@ export default function RouteStrip({ legs, compact = false }: RouteStripProps) {
                                             getStopDotRing(stop),
                                         ].join(" ")}
                                     />
-                                    <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-[10px] text-white opacity-0 shadow-lg dark:shadow-slate-900/50 dark:shadow-slate-900/50 transition-opacity group-hover:opacity-100">
+                                    <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-[10px] text-white opacity-0 shadow-lg dark:shadow-slate-900/50 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                                         <div className="font-semibold">{stop.code}</div>
                                         {stop.distance_nm != null && (
                                             <div className="text-slate-300 dark:text-slate-500">{stop.distance_nm} nm</div>
@@ -179,21 +168,21 @@ export default function RouteStrip({ legs, compact = false }: RouteStripProps) {
                                         {stop.code}
                                     </span>
                                     {showDuplicateBadge && (
-                                        <span className="rounded bg-slate-100 dark:bg-slate-700 px-0.5 text-[8px] font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">
-                                            {totalOccurrences.get(stop.code)!}×
+                                        <span className="rounded bg-slate-100 dark:bg-slate-700 px-0.5 text-[8px] font-medium text-slate-500 dark:text-slate-500">
+                                            {totalOccurrences.get(stop.code)!}�—
                                         </span>
                                     )}
                                 </div>
 
                                 {timeStr && (
-                                    <span className="text-[9px] text-slate-500 dark:text-slate-400 dark:text-slate-500">{timeStr}</span>
+                                    <span className="text-[9px] text-slate-500 dark:text-slate-500">{timeStr}</span>
                                 )}
                             </div>
 
                             {!isLast && (
                                 <div className="mx-1 flex items-center">
                                     <div className="h-0.5 w-5 bg-slate-300" />
-                                    <ArrowRight size={14} className="text-slate-500 dark:text-slate-400 dark:text-slate-500" strokeWidth={2} absoluteStrokeWidth />
+                                    <ArrowRight size={14} className="text-slate-500 dark:text-slate-500" strokeWidth={2} absoluteStrokeWidth />
                                 </div>
                             )}
                         </div>

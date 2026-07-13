@@ -1,5 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { kdb } from "../db.server";
 import { sql } from "kysely";
+import { BookingStatus, BookingSource, PaymentStatus, FlightStatus } from "../constants";
 
 export interface BookingRow {
   id: number;
@@ -64,31 +66,32 @@ function generateReference(): string {
   return ref;
 }
 
-function toBookingRow(r: Record<string, unknown>): BookingRow {
+function toBookingRow(r: unknown): BookingRow {
+  const row = r as Record<string, unknown>;
   return {
-    id: Number(r.id),
-    user_id: Number(r.user_id),
-    booking_reference: String(r.booking_reference ?? ""),
-    status: String(r.status ?? ""),
-    organization_id: r.organization_id != null ? Number(r.organization_id) : null,
-    is_organization_billing: Boolean(r.is_organization_billing),
-    total_amount: r.total_amount != null ? Number(r.total_amount) : null,
-    total_amount_gbp: r.total_amount_gbp != null ? Number(r.total_amount_gbp) : null,
-    payment_status: String(r.payment_status ?? ""),
-    payment_method: r.payment_method != null ? String(r.payment_method) : null,
-    payment_date: r.payment_date != null ? String(r.payment_date) : null,
-    payment_due_date: r.payment_due_date != null ? String(r.payment_due_date) : null,
-    payment_terms: r.payment_terms != null ? String(r.payment_terms) : null,
-    notes: r.notes != null ? String(r.notes) : null,
-    booking_source: String(r.booking_source ?? ""),
-    created_by: r.created_by != null ? Number(r.created_by) : null,
-    cancelled_at: r.cancelled_at != null ? String(r.cancelled_at) : null,
-    cancelled_by: r.cancelled_by != null ? Number(r.cancelled_by) : null,
-    cancellation_reason: r.cancellation_reason != null ? String(r.cancellation_reason) : null,
-    stripe_session_id: r.stripe_session_id != null ? String(r.stripe_session_id) : null,
-    invoice_id: r.invoice_id != null ? String(r.invoice_id) : null,
-    created_at: String(r.created_at ?? ""),
-    updated_at: String(r.updated_at ?? ""),
+    id: Number(row.id),
+    user_id: Number(row.user_id),
+    booking_reference: String(row.booking_reference),
+    status: String(row.status),
+    organization_id: row.organization_id != null ? Number(row.organization_id) : null,
+    is_organization_billing: Boolean(row.is_organization_billing),
+    total_amount: row.total_amount != null ? Number(row.total_amount) : null,
+    total_amount_gbp: row.total_amount_gbp != null ? Number(row.total_amount_gbp) : null,
+    payment_status: String(row.payment_status),
+    payment_method: row.payment_method != null ? String(row.payment_method) : null,
+    payment_date: row.payment_date != null ? String(row.payment_date) : null,
+    payment_due_date: row.payment_due_date != null ? String(row.payment_due_date) : null,
+    payment_terms: row.payment_terms != null ? String(row.payment_terms) : null,
+    notes: row.notes != null ? String(row.notes) : null,
+    booking_source: String(row.booking_source),
+    created_by: row.created_by != null ? Number(row.created_by) : null,
+    cancelled_at: row.cancelled_at != null ? String(row.cancelled_at) : null,
+    cancelled_by: row.cancelled_by != null ? Number(row.cancelled_by) : null,
+    cancellation_reason: row.cancellation_reason != null ? String(row.cancellation_reason) : null,
+    stripe_session_id: row.stripe_session_id != null ? String(row.stripe_session_id) : null,
+    invoice_id: row.invoice_id != null ? String(row.invoice_id) : null,
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
   };
 }
 
@@ -121,7 +124,7 @@ async function fetchFirstLegAndPassenger(
       .selectFrom("booking_passengers")
       .select(["first_name", "last_name", "email", "phone"])
       .where("booking_id", "=", bookingId)
-      .orderBy("id asc")
+      .orderBy("id", "asc")
       .limit(1)
       .execute(),
   ]);
@@ -164,22 +167,22 @@ export const bookingRepository = {
           .values({
             user_id: userId,
             booking_reference: reference,
-            status: "pending",
+            status: BookingStatus.PENDING,
             organization_id: organizationId,
             is_organization_billing: isOrganizationBilling,
-            booking_source: options?.booking_source ?? "customer_direct",
+            booking_source: options?.booking_source ?? BookingSource.CUSTOMER_DIRECT,
             created_by: options?.created_by ?? null,
           } as any)
           .returningAll()
           .execute();
-        return toBookingRow(rows[0] as unknown as Record<string, unknown>);
+        return toBookingRow(rows[0] as unknown);
       } catch (err: unknown) {
         const pgErr = err as { code?: string; constraint?: string };
         if (pgErr.code === "23505" || pgErr.constraint?.includes("booking_reference")) continue;
         throw err;
       }
     }
-    throw new Error("Failed to generate unique booking reference after 10 attempts");
+    throw new Error("Unable to generate unique booking reference after 10 attempts");
   },
 
   async findById(id: number): Promise<BookingRow | null> {
@@ -188,7 +191,7 @@ export const bookingRepository = {
       .selectAll()
       .where("id", "=", id)
       .execute();
-    return rows.length > 0 ? toBookingRow(rows[0] as unknown as Record<string, unknown>) : null;
+    return rows.length > 0 ? toBookingRow(rows[0] as unknown) : null;
   },
 
   async findByReference(reference: string): Promise<BookingRow | null> {
@@ -197,7 +200,7 @@ export const bookingRepository = {
       .selectAll()
       .where("booking_reference", "=", reference)
       .execute();
-    return rows.length > 0 ? toBookingRow(rows[0] as unknown as Record<string, unknown>) : null;
+    return rows.length > 0 ? toBookingRow(rows[0] as unknown) : null;
   },
 
   async updateStatus(id: number, status: string): Promise<void> {
@@ -235,7 +238,7 @@ export const bookingRepository = {
     await kdb
       .updateTable("bookings")
       .set({
-        status: "cancelled",
+        status: BookingStatus.CANCELLED,
         cancelled_at: now,
         cancelled_by: cancelledBy,
         cancellation_reason: reason ?? null,
@@ -245,14 +248,26 @@ export const bookingRepository = {
       .execute();
   },
 
-  async findUpcomingByUserId(userId: number): Promise<Array<{ booking: BookingRow; firstLeg: { origin_code: string; destination_code: string; leg_date: string } | null }>> {
-    const rows = await kdb
-      .selectFrom("bookings")
-      .selectAll()
-      .where("user_id", "=", userId)
-      .orderBy("created_at desc")
-      .limit(5)
-      .execute();
+  async findUpcomingByUserId(userId: number): Promise<{
+    bookings: Array<{ booking: BookingRow; firstLeg: { origin_code: string; destination_code: string; leg_date: string } | null }>;
+    totalCount: number;
+  }> {
+    const [countResult, rows] = await Promise.all([
+      kdb
+        .selectFrom("bookings")
+        .select(kdb.fn.countAll<number>().as("cnt"))
+        .where("user_id", "=", userId)
+        .execute(),
+      kdb
+        .selectFrom("bookings")
+        .selectAll()
+        .where("user_id", "=", userId)
+        .orderBy("created_at desc")
+        .limit(5)
+        .execute(),
+    ]);
+
+    const totalCount = Number(countResult[0]?.cnt ?? 0);
 
     const results = await Promise.all(
       rows.map(async (row) => {
@@ -265,7 +280,7 @@ export const bookingRepository = {
           .execute();
 
         return {
-          booking: toBookingRow(row as unknown as Record<string, unknown>),
+          booking: toBookingRow(row as unknown),
           firstLeg: legRows[0]
             ? {
                 origin_code: String(legRows[0].origin_code ?? ""),
@@ -276,7 +291,7 @@ export const bookingRepository = {
         };
       })
     );
-    return results;
+    return { bookings: results, totalCount };
   },
 
   async findAll(page = 1, pageSize = 20): Promise<{
@@ -302,7 +317,7 @@ export const bookingRepository = {
       rows.map(async (row) => {
         const { firstLeg, passenger } = await fetchFirstLegAndPassenger(Number(row.id));
         return {
-          booking: toBookingRow(row as unknown as Record<string, unknown>),
+          booking: toBookingRow(row as unknown),
           firstLeg,
           passenger,
         };
@@ -322,11 +337,11 @@ export const bookingRepository = {
 
     let statusFilter;
     if (status === "upcoming") {
-      statusFilter = sql`status NOT IN ('completed', 'cancelled')`;
-    } else if (status === "completed") {
-      statusFilter = sql`status = 'completed'`;
-    } else if (status === "cancelled") {
-      statusFilter = sql`status = 'cancelled'`;
+      statusFilter = sql`status NOT IN (${BookingStatus.COMPLETED}, ${BookingStatus.CANCELLED})`;
+    } else if (status === BookingStatus.COMPLETED) {
+      statusFilter = sql`status = ${BookingStatus.COMPLETED}`;
+    } else if (status === BookingStatus.CANCELLED) {
+      statusFilter = sql`status = ${BookingStatus.CANCELLED}`;
     } else {
       statusFilter = sql`status = ${status}`;
     }
@@ -345,7 +360,7 @@ export const bookingRepository = {
       (dataRows.rows as Record<string, unknown>[]).map(async (row) => {
         const { firstLeg, passenger } = await fetchFirstLegAndPassenger(Number(row.id));
         return {
-          booking: toBookingRow(row as unknown as Record<string, unknown>),
+          booking: toBookingRow(row as unknown),
           firstLeg,
           passenger,
         };
@@ -383,7 +398,7 @@ export const bookingRepository = {
       rows.map(async (row) => {
         const { firstLeg, passenger } = await fetchFirstLegAndPassenger(Number(row.id));
         return {
-          booking: toBookingRow(row as unknown as Record<string, unknown>),
+          booking: toBookingRow(row as unknown),
           firstLeg,
           passenger,
         };
@@ -406,14 +421,14 @@ export const bookingRepository = {
         SELECT COUNT(DISTINCT b.id)::int AS cnt
         FROM bookings b
         INNER JOIN booking_legs bl ON bl.booking_id = b.id
-        WHERE b.status NOT IN ('cancelled', 'completed')
+        WHERE b.status NOT IN (${BookingStatus.CANCELLED}, ${BookingStatus.COMPLETED})
           AND bl.flight_id IS NULL
       `.execute(kdb),
       sql`
         SELECT DISTINCT b.*
         FROM bookings b
         INNER JOIN booking_legs bl ON bl.booking_id = b.id
-        WHERE b.status NOT IN ('cancelled', 'completed')
+        WHERE b.status NOT IN (${BookingStatus.CANCELLED}, ${BookingStatus.COMPLETED})
           AND bl.flight_id IS NULL
         ORDER BY b.created_at DESC
         LIMIT ${pageSize} OFFSET ${offset}
@@ -436,12 +451,12 @@ export const bookingRepository = {
           .selectFrom("booking_passengers")
           .select(["first_name", "last_name", "email", "phone"])
           .where("booking_id", "=", Number(row.id))
-          .orderBy("id asc")
+          .orderBy("id", "asc")
           .limit(1)
           .execute();
 
         return {
-          booking: toBookingRow(row as unknown as Record<string, unknown>),
+          booking: toBookingRow(row as unknown),
           firstLeg: legRows[0]
             ? {
                 origin_code: String(legRows[0].origin_code ?? ""),
@@ -483,6 +498,9 @@ export const bookingRepository = {
            OR p.last_name ILIKE ${pattern}
            OR p.email ILIKE ${pattern}
            OR p.phone ILIKE ${pattern}
+           OR p.passport_number ILIKE ${pattern}
+           OR p.id_document_number ILIKE ${pattern}
+           OR p.nationality ILIKE ${pattern}
       `.execute(kdb),
       sql`
         SELECT DISTINCT b.*, bl.origin_code, bl.destination_code, bl.leg_date, bl.flight_id,
@@ -496,6 +514,81 @@ export const bookingRepository = {
            OR p.last_name ILIKE ${pattern}
            OR p.email ILIKE ${pattern}
            OR p.phone ILIKE ${pattern}
+           OR p.passport_number ILIKE ${pattern}
+           OR p.id_document_number ILIKE ${pattern}
+           OR p.nationality ILIKE ${pattern}
+        ORDER BY b.created_at DESC
+        LIMIT ${pageSize} OFFSET ${offset}
+      `.execute(kdb),
+    ]);
+
+    const totalCount = Number((countResult.rows[0] as { cnt: number | bigint } | undefined)?.cnt ?? 0);
+    return {
+      bookings: (dataResult.rows as Record<string, unknown>[]).map((row: Record<string, unknown>) => ({
+        booking: toBookingRow(row),
+        firstLeg: row.origin_code
+          ? {
+              origin_code: row.origin_code as string,
+              destination_code: row.destination_code as string,
+              leg_date: formatLegDate(row.leg_date as string),
+              flight_id: (row.flight_id as number) ?? null,
+            }
+          : null,
+        passenger: row.passenger_first_name
+          ? {
+              first_name: row.passenger_first_name as string,
+              last_name: row.passenger_last_name as string,
+              email: (row.passenger_email as string) ?? "",
+              phone: row.passenger_phone as string | null,
+            }
+          : null,
+      })),
+      totalCount,
+      page,
+      totalPages: Math.ceil(totalCount / pageSize),
+    };
+  },
+
+  async searchByUser(query: string, userId: number, page = 1, pageSize = 20): Promise<{
+    bookings: Array<{ booking: BookingRow; firstLeg: { origin_code: string; destination_code: string; leg_date: string; flight_id: number | null } | null; passenger: { first_name: string; last_name: string; email: string; phone: string | null } | null }>;
+    totalCount: number;
+    page: number;
+    totalPages: number;
+  }> {
+    const pattern = `%${query}%`;
+    const offset = (page - 1) * pageSize;
+
+    const [countResult, dataResult] = await Promise.all([
+      sql`
+        SELECT COUNT(DISTINCT b.id) as cnt
+        FROM bookings b
+        LEFT JOIN booking_passengers p ON p.booking_id = b.id
+        WHERE b.user_id = ${userId}
+          AND (b.booking_reference ILIKE ${pattern}
+            OR p.first_name ILIKE ${pattern}
+            OR p.last_name ILIKE ${pattern}
+            OR p.email ILIKE ${pattern}
+            OR p.phone ILIKE ${pattern}
+            OR p.passport_number ILIKE ${pattern}
+            OR p.id_document_number ILIKE ${pattern}
+            OR p.nationality ILIKE ${pattern})
+      `.execute(kdb),
+      sql`
+        SELECT DISTINCT b.*, bl.origin_code, bl.destination_code, bl.leg_date, bl.flight_id,
+                p.first_name AS passenger_first_name, p.last_name AS passenger_last_name,
+                p.email AS passenger_email, p.phone AS passenger_phone
+        FROM bookings b
+        LEFT JOIN booking_legs bl ON bl.booking_id = b.id AND bl.leg_sequence = 1
+        LEFT JOIN booking_passengers p ON p.booking_id = b.id
+        WHERE b.user_id = ${userId}
+          AND (b.booking_reference ILIKE ${pattern}
+            OR p.first_name ILIKE ${pattern}
+            OR p.last_name ILIKE ${pattern}
+            OR p.email ILIKE ${pattern}
+            OR p.phone ILIKE ${pattern}
+            OR p.passport_number ILIKE ${pattern}
+            OR p.id_document_number ILIKE ${pattern}
+            OR p.nationality ILIKE ${pattern})
         ORDER BY b.created_at DESC
         LIMIT ${pageSize} OFFSET ${offset}
       `.execute(kdb),
@@ -573,7 +666,7 @@ export const bookingRepository = {
           .selectFrom("booking_passengers")
           .select(["first_name", "last_name", "email", "phone"])
           .where("booking_id", "=", bid)
-          .orderBy("id asc")
+          .orderBy("id", "asc")
           .limit(1)
           .execute();
 
@@ -680,7 +773,7 @@ export const bookingRepository = {
           .execute();
 
         return {
-          booking: toBookingRow(row as unknown as Record<string, unknown>),
+          booking: toBookingRow(row as unknown),
           firstLeg: legRows[0]
             ? {
                 origin_code: String(legRows[0].origin_code ?? ""),
@@ -712,7 +805,7 @@ export const bookingRepository = {
       .selectFrom("booking_legs")
       .select("leg_date")
       .where("booking_id", "=", bookingId)
-      .orderBy("leg_date asc")
+      .orderBy("leg_date", "asc")
       .limit(1)
       .execute();
     if (rows.length === 0) return null;
@@ -733,11 +826,11 @@ export const bookingRepository = {
           SELECT b.id
           FROM bookings b
           WHERE
-            (b.updated_at < NOW() - INTERVAL '48 hours' AND b.status NOT IN ('cancelled', 'completed'))
+            (b.updated_at < NOW() - INTERVAL '48 hours' AND b.status NOT IN (${BookingStatus.CANCELLED}, ${BookingStatus.COMPLETED}))
             OR
-            (b.payment_status = 'pending' AND b.payment_due_date IS NOT NULL AND b.payment_due_date < CURRENT_DATE)
+            (b.payment_status = ${PaymentStatus.PENDING} AND b.payment_due_date IS NOT NULL AND b.payment_due_date < CURRENT_DATE)
             OR
-            (b.status NOT IN ('cancelled', 'completed')
+            (b.status NOT IN (${BookingStatus.CANCELLED}, ${BookingStatus.COMPLETED})
              AND EXISTS (
                SELECT 1 FROM booking_legs bl
                WHERE bl.booking_id = b.id
@@ -746,7 +839,7 @@ export const bookingRepository = {
                  AND bl.leg_date >= CURRENT_DATE
              ))
             OR
-            (b.status = 'cancelled' AND b.cancelled_at IS NOT NULL AND b.cancelled_at >= NOW() - INTERVAL '1 hour')
+            (b.status = ${BookingStatus.CANCELLED} AND b.cancelled_at IS NOT NULL AND b.cancelled_at >= NOW() - INTERVAL '1 hour')
         ) sub
       `.execute(kdb),
       sql`
@@ -763,11 +856,11 @@ export const bookingRepository = {
           LIMIT 1
         ) p ON true
         WHERE
-          (b.updated_at < NOW() - INTERVAL '48 hours' AND b.status NOT IN ('cancelled', 'completed'))
+          (b.updated_at < NOW() - INTERVAL '48 hours' AND b.status NOT IN (${BookingStatus.CANCELLED}, ${BookingStatus.COMPLETED}))
           OR
-          (b.payment_status = 'pending' AND b.payment_due_date IS NOT NULL AND b.payment_due_date < CURRENT_DATE)
+          (b.payment_status = ${PaymentStatus.PENDING} AND b.payment_due_date IS NOT NULL AND b.payment_due_date < CURRENT_DATE)
           OR
-          (b.status NOT IN ('cancelled', 'completed')
+          (b.status NOT IN (${BookingStatus.CANCELLED}, ${BookingStatus.COMPLETED})
            AND EXISTS (
              SELECT 1 FROM booking_legs bl2
              WHERE bl2.booking_id = b.id
@@ -776,7 +869,7 @@ export const bookingRepository = {
                AND bl2.leg_date >= CURRENT_DATE
            ))
           OR
-          (b.status = 'cancelled' AND b.cancelled_at IS NOT NULL AND b.cancelled_at >= NOW() - INTERVAL '1 hour')
+          (b.status = ${BookingStatus.CANCELLED} AND b.cancelled_at IS NOT NULL AND b.cancelled_at >= NOW() - INTERVAL '1 hour')
         ORDER BY b.created_at DESC
         LIMIT ${pageSize} OFFSET ${offset}
       `.execute(kdb),
@@ -810,17 +903,17 @@ export const bookingRepository = {
       kdb
         .selectFrom("bookings")
         .select(kdb.fn.countAll<number>().as("cnt"))
-        .where("status", "not in", ["completed", "cancelled"])
+        .where("status", "not in", [BookingStatus.COMPLETED, BookingStatus.CANCELLED])
         .execute(),
       kdb
         .selectFrom("bookings")
         .select(kdb.fn.countAll<number>().as("cnt"))
-        .where("status", "=", "completed")
+        .where("status", "=", BookingStatus.COMPLETED)
         .execute(),
       kdb
         .selectFrom("bookings")
         .select(kdb.fn.countAll<number>().as("cnt"))
-        .where("status", "=", "cancelled")
+        .where("status", "=", BookingStatus.CANCELLED)
         .execute(),
     ]);
     return {
@@ -842,8 +935,8 @@ export const bookingRepository = {
         "f.destination_code",
         "a.seat_count",
       ])
-      .where("f.status", "=", "scheduled")
-      .orderBy("f.departure_time asc")
+      .where("f.status", "=", FlightStatus.SCHEDULED)
+      .orderBy("f.departure_time", "asc")
       .execute();
 
     const results = await Promise.all(
@@ -857,7 +950,7 @@ export const bookingRepository = {
           .innerJoin("bookings as b", "b.id", "bl.booking_id")
           .select("bl.booking_id")
           .where("bl.flight_id", "=", Number(flight.id))
-          .where("b.status", "!=", "cancelled")
+          .where("b.status", "!=", BookingStatus.CANCELLED)
           .execute();
 
         const uniqueBookingIds = [...new Set(bookingLegs.map((bl) => bl.booking_id))];
@@ -906,7 +999,7 @@ export const bookingRepository = {
           .selectFrom("booking_passengers")
           .select(["first_name", "last_name", "email"])
           .where("booking_id", "=", bookingId)
-          .orderBy("id asc")
+          .orderBy("id", "asc")
           .limit(1)
           .execute(),
         kdb
@@ -936,7 +1029,7 @@ export const bookingRepository = {
 
       const group = groups.get(clientName)!;
       group.bookings.push({
-        booking: toBookingRow(row as unknown as Record<string, unknown>),
+        booking: toBookingRow(row as unknown),
         firstLeg: leg
           ? {
               origin_code: String(leg.origin_code ?? ""),
@@ -944,7 +1037,7 @@ export const bookingRepository = {
               leg_date: formatLegDate(String(leg.leg_date ?? "")),
             }
           : null,
-        paymentStatus: String(row.payment_status ?? "pending"),
+        paymentStatus: String(row.payment_status ?? PaymentStatus.PENDING),
       });
     }
 
@@ -992,7 +1085,7 @@ export const bookingRepository = {
         .selectFrom("booking_passengers")
         .select(["first_name", "last_name"])
         .where("booking_id", "=", Number(booking.id))
-        .orderBy("id asc")
+        .orderBy("id", "asc")
         .limit(1)
         .execute();
       passengerMap.set(Number(booking.id), {

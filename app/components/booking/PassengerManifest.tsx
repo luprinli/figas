@@ -2,6 +2,7 @@ import type { BookingPassengerRow } from "../../utils/repositories/booking-passe
 import type { BookingLegPassengerWithDetails } from "../../utils/repositories/booking-leg-passenger";
 import { Users, AlertCircle } from "lucide-react";
 import Skeleton from "../Skeleton";
+import StatusBadge from "../StatusBadge";
 import { Link } from "@remix-run/react";
 
 interface PassengerManifestProps {
@@ -33,7 +34,7 @@ function BoardingPassCard({
   );
 
   return (
-    <div className="relative rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm dark:shadow-slate-900/20 overflow-hidden">
+    <div className="relative rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm dark:shadow-slate-900/20 overflow-hidden">
       {/* Perforated edge effect */}
       <div className="absolute right-0 top-0 bottom-0 w-3 bg-gradient-to-r from-transparent via-slate-100 to-slate-200 border-l border-dashed border-slate-300 dark:border-slate-600" />
 
@@ -45,25 +46,13 @@ function BoardingPassCard({
               {passenger.first_name} {passenger.last_name}
             </h4>
             {passenger.email && (
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{passenger.email}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-500">{passenger.email}</p>
             )}
           </div>
           <div className="flex items-center gap-2">
-            {isBoarded && (
-              <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                Boarded
-              </span>
-            )}
-            {isCheckedIn && !isBoarded && (
-              <span className="inline-flex items-center rounded-full bg-sky-100 dark:bg-sky-900/30 px-2 py-0.5 text-[10px] font-medium text-sky-700">
-                Checked In
-              </span>
-            )}
-            {!isCheckedIn && (
-              <span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">
-                Not Checked In
-              </span>
-            )}
+            {isBoarded && <StatusBadge status="Boarded" />}
+            {isCheckedIn && !isBoarded && <StatusBadge status="Checked In" />}
+            {!isCheckedIn && <StatusBadge status="Not Checked In" />}
           </div>
         </div>
 
@@ -71,25 +60,25 @@ function BoardingPassCard({
         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
           {passenger.clothed_weight_kg != null && (
             <div>
-              <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Weight:</span>{" "}
+              <span className="text-slate-500 dark:text-slate-500">Weight:</span>{" "}
               <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">{passenger.clothed_weight_kg} kg</span>
             </div>
           )}
           {totalWeight > 0 && (
             <div>
-              <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Total (inc. baggage):</span>{" "}
+              <span className="text-slate-500 dark:text-slate-500">Total (inc. baggage):</span>{" "}
               <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">{totalWeight} kg</span>
             </div>
           )}
           {passenger.residency && (
             <div>
-              <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Residency:</span>{" "}
+              <span className="text-slate-500 dark:text-slate-500">Residency:</span>{" "}
               <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">{passenger.residency}</span>
             </div>
           )}
           {passenger.date_of_birth && (
             <div>
-              <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">DOB:</span>{" "}
+              <span className="text-slate-500 dark:text-slate-500">DOB:</span>{" "}
               <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">
                 {new Date(passenger.date_of_birth).toLocaleDateString("en-GB")}
               </span>
@@ -151,7 +140,7 @@ function EmptyState() {
   return (
     <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 p-6 text-center">
       <Users size={40} className="mx-auto text-slate-300 dark:text-slate-500 mb-2" absoluteStrokeWidth />
-      <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No passengers added yet.</p>
+      <p className="text-sm text-slate-500 dark:text-slate-500">No passengers added yet.</p>
     </div>
   );
 }
@@ -160,7 +149,7 @@ function LoadingSkeleton() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {[1, 2, 3].map((i) => (
-        <div key={i} className="rounded-lg border border-slate-200 dark:border-slate-700 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20">
+        <div key={i} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20">
           <Skeleton className="h-5 w-32 rounded mb-2" />
           <Skeleton className="h-3 w-24 rounded mb-3" />
           <Skeleton className="h-3 w-full rounded mb-1" />

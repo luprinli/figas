@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, Form } from "@remix-run/react";
+import { useLoaderData, Form, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
 import { requireUser } from "../utils/layout.server";
@@ -9,7 +9,7 @@ import { sql } from "kysely";
 import DataGrid from "../components/DataGrid";
 import type { Column } from "../components/DataTable";
 import EmptyState from "../components/EmptyState";
-import DashboardCard from "../components/DashboardCard";
+import MetricCard from "../components/MetricCard";
 import Card from "../components/Card";
 import Button from "../components/Button";
 
@@ -108,8 +108,8 @@ export default function FreightReceiving() {
     <div className="p-6 space-y-5">
       <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Freight Receiving</h1>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <DashboardCard label="Unassigned" value={unassigned} color={unassigned > 0 ? 'amber' : 'emerald'} />
-        <DashboardCard label="Assigned to Flights" value={assigned} color="emerald" />
+        <MetricCard label="Unassigned" value={unassigned} color={unassigned > 0 ? 'amber' : 'emerald'} />
+        <MetricCard label="Assigned to Flights" value={assigned} color="emerald" />
       </div>
 
       {/* Create Freight Form */}
@@ -188,6 +188,31 @@ export default function FreightReceiving() {
           emptyState={<EmptyState title="No freight consignments" description="Create a freight consignment above." />}
         />
       </Card>
+    </div>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  if (isRouteErrorResponse(error)) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
+        <div className="mx-auto max-w-lg text-center px-4">
+          <div className="mb-4 text-5xl font-bold text-slate-300 dark:text-slate-600">{error.status}</div>
+          <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">{error.statusText}</p>
+          <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
+      <div className="mx-auto max-w-lg text-center px-4">
+        <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Unexpected Error</h1>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">An unexpected error occurred. Please try again.</p>
+        <button onClick={() => window.location.reload()} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">Try Again</button>
+      </div>
     </div>
   );
 }

@@ -1,4 +1,5 @@
-﻿import { useDraggable } from "@dnd-kit/core";
+import { useDraggable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 
 export interface UnassignedBookingRow {
   id: number;
@@ -17,7 +18,7 @@ export function DraggableBookingItem({ booking }: { booking: UnassignedBookingRo
   });
 
   const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 50 }
+    ? { transform: CSS.Translate.toString(transform), zIndex: 50, touchAction: "none" } as React.CSSProperties
     : undefined;
 
   if (isDragging) {
@@ -45,12 +46,11 @@ export function DraggableBookingItem({ booking }: { booking: UnassignedBookingRo
       data-testid="booking-item"
       aria-grabbed={false}
       aria-label={`Passenger ${booking.passenger_name}, booking ${booking.booking_reference}, ${booking.origin_code} to ${booking.destination_code}. Press spacebar or enter to start dragging.`}
-      aria-describedby={`booking-desc-${booking.id}`}
       className="group cursor-grab active:cursor-grabbing rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs shadow-sm dark:shadow-slate-900/20 transition hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-md"
     >
       <div className="font-medium text-slate-800 dark:text-slate-100 truncate">{booking.passenger_name}</div>
       <div className="mt-0.5 text-slate-500 dark:text-slate-400">
-        {booking.origin_code} → {booking.destination_code}
+        {booking.origin_code} {'\u2192'} {booking.destination_code}
       </div>
       <div className="flex items-center justify-between mt-0.5">
         <span className="text-[10px] text-slate-400 dark:text-slate-500">{booking.booking_reference} (L{booking.booking_leg_id})</span>

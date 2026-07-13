@@ -1,4 +1,4 @@
-﻿export interface CostBreakdownItem {
+export interface CostBreakdownItem {
   label: string;
   amount: number;
   type?: string;

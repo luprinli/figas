@@ -1,7 +1,7 @@
 /**
  * Fuel lookup backed by the fuel_rules database table.
  *
- * Previously this module contained a hardcoded 30×30 fuel matrix that
+ * Previously this module contained a hardcoded 30�—30 fuel matrix that
  * duplicated data from the fuel_rules table. It now queries the DB via
  * Prisma, with in-memory caching for performance.
  *
@@ -9,9 +9,7 @@
  */
 
 import { kdb } from "../db.server.kysely";
-import { sql } from "kysely";
-import type { DB } from "../../../generated/kysely/database";
-import { lookupFuelByFlightTime, clearFuelRulesCache } from "./fuel-lookup";
+import { lookupFuelByFlightTime, clearFuelRulesCache } from "./fuel-planning";
 import { DEFAULT_CRUISE_SPEED_KTAS, DEFAULT_BN2_BURN_RATE_KG_PER_HOUR } from "../constants";
 
 export { clearFuelRulesCache };

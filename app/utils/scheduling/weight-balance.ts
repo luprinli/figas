@@ -6,7 +6,6 @@ import { computeFuelPlan, computeFlightTime } from "./fuel-planning";
 import { applyRunwayDerating } from "./runway-derating";
 import { kdb } from "../db.server.kysely";
 import { sql } from "kysely";
-import type { DB } from "../../../generated/kysely/database";
 
 /**
  * Phase 4: Compute weight and balance for each leg of a route.
@@ -175,6 +174,13 @@ export async function computeWeightBalance(
     destinationAerodrome
   );
 
+  // ── CG envelope validation ────────────────────────────────────────────────
+  // BN-2 Islander typical envelope: 15%–35% MAC. Use aircraft-specific limits
+  // if available, otherwise fall back to BN-2 defaults.
+  const cgForwardLimit = ((aircraft as unknown as Record<string, unknown>).cg_forward_limit_pct as number) || 15;
+  const cgAftLimit = ((aircraft as unknown as Record<string, unknown>).cg_aft_limit_pct as number) || 35;
+  const cgWithinEnvelope = cgPositionPct >= cgForwardLimit && cgPositionPct <= cgAftLimit;
+
   return {
     flightLegId: leg.id,
     passengerWeightKg,
@@ -192,6 +198,9 @@ export async function computeWeightBalance(
     mtowUsedPct,
     mlwUsedPct,
     bindingConstraint,
+    cgForwardLimit,
+    cgAftLimit,
+    cgWithinEnvelope,
   };
 }
 

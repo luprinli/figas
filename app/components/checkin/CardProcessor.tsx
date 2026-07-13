@@ -4,14 +4,27 @@ import Button from "../Button";
 interface CardProcessorProps {
   onComplete: (approved: boolean, ref: string) => void;
   mockDelay?: number;
+  /** Set to "real" when integrating with Stripe Terminal or similar card reader. */
+  mode?: "mock" | "real";
+  /** Called when "real" mode initiates card processing. Parent handles hardware interaction. */
+  onRealProcess?: () => void;
 }
 
-export default function CardProcessor({ onComplete, mockDelay = 2000 }: CardProcessorProps) {
+export default function CardProcessor({
+  onComplete,
+  mockDelay = 2000,
+  mode = "mock",
+  onRealProcess,
+}: CardProcessorProps) {
   const [state, setState] = useState<"idle" | "processing" | "approved" | "declined">("idle");
 
   const process = () => {
     setState("processing");
-    setTimeout(() => setState("approved"), mockDelay);
+    if (mode === "real" && onRealProcess) {
+      onRealProcess();
+    } else {
+      setTimeout(() => setState("approved"), mockDelay);
+    }
   };
 
   const statusClasses: Record<typeof state, string> = {

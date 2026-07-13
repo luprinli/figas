@@ -4,11 +4,16 @@ import { requirePermission, hasPermission } from "../../utils/permissions.server
 import { handleAutoBuild, handleApprove, handleRevise, handlePublish, handleCancel, handleCreateFlightFromBooking, handleUnassignBooking, handleAssignBooking, handleTransferBooking, handleAssignPilot, handleAssignAircraft, handleReorderFlights, handleResetDraft, handleRemoveFlight } from "../../utils/schedule-handlers.server";
 import { convertBigInts } from "../../utils/bigint";
 import { todayISO } from "../../utils/dates";
+import { validateCsrfRequest } from "../../utils/csrf-check.server";
 import type { ScheduleBuildResult } from "../../utils/scheduling/types";
 
 export async function action({ request }: ActionFunctionArgs) {
   const user = await requirePermission(request, "schedule:create");
   const formData = await request.formData();
+
+  if (!(await validateCsrfRequest(request, formData))) {
+    return json({ error: "CSRF token validation failed" }, { status: 403 });
+  }
   const intent = formData.get("intent")?.toString();
   const date = formData.get("date")?.toString() ?? todayISO();
 

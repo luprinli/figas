@@ -1,4 +1,4 @@
-﻿import type { BookingLegRow } from "../utils/repositories/booking-leg";
+import type { BookingLegRow } from "../utils/repositories/booking-leg";
 import type { BookingLegPassengerWithDetails } from "../utils/repositories/booking-leg-passenger";
 import ItineraryIcon from "./icons/ItineraryIcon";
 
@@ -49,10 +49,10 @@ export default function ItineraryGroup({ legs, legPassengers = [] }: ItineraryGr
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-3">
                     <span className="text-lg font-bold text-slate-900 dark:text-slate-100">{leg.origin_code}</span>
-                    <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">&rarr;</span>
+                    <span className="text-slate-500 dark:text-slate-500">\u2192</span>
                     <span className="text-lg font-bold text-slate-900 dark:text-slate-100">{leg.destination_code}</span>
                   </div>
-                  <span className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                  <span className="text-sm text-slate-500 dark:text-slate-500">
                     {new Date(leg.leg_date).toLocaleDateString(undefined, {
                       weekday: "short",
                       year: "numeric",
