@@ -60,6 +60,7 @@ interface LoaderData {
   aerodromeNames: Record<string, string>;
   aerodromes: { id: number; code: string; name: string }[];
   buildResult: ScheduleBuildResult | null;
+  csrfToken: string | null;
 }
 
 
@@ -163,7 +164,7 @@ export default function ScheduleBuilder() {
   const { schedule, flights: initialFlights, flightLegs: initialFlightLegs,
     passengerManifests: initialPassengerManifests, unassignedBookings: initialUnassignedBookings,
     selectedDate, isNoFlyDay: isNoFlyDayDate, canApprove, canPublish, canEdit, canAssignPilot, availablePilots,
-    canAssignAircraft, availableAircraft, buildResult } = loaderData;
+    canAssignAircraft, availableAircraft, buildResult, csrfToken } = loaderData;
   const fetcher = useFetcher();
   const [, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
@@ -220,7 +221,7 @@ export default function ScheduleBuilder() {
     dragEndParams: {
       flights, setFlights, optimisticAssignedIds, setOptimisticAssignedIds,
       scheduleId: schedule?.id, selectedDate,
-      fetcherSubmit: (fd, opts) => fetcher.submit(fd, opts),
+      fetcherSubmit: (fd, opts) => { if (csrfToken) fd.set("csrf_token", csrfToken); return fetcher.submit(fd, opts); },
       setActiveDragItem, setActiveOverId, setIsDraggingBooking,
       pendingOpsRef, pendingAssignAfterCreateRef,
     },
@@ -445,6 +446,7 @@ export default function ScheduleBuilder() {
             assignFormData.set("intent", "assign-booking");
             assignFormData.set("bookingLegId", String(b.bookingLegId));
             assignFormData.set("flightId", String(createData.flightId));
+            if (csrfToken) assignFormData.set("csrf_token", csrfToken);
             fetcher.submit(assignFormData, { method: "post" });
           }
         }
@@ -472,6 +474,7 @@ export default function ScheduleBuilder() {
   function submitAction(intent: string, extraFields?: Record<string, string>) {
     const formData = new FormData();
     formData.set("intent", intent);
+    if (csrfToken) formData.set("csrf_token", csrfToken);
     if (schedule) formData.set("scheduleId", String(schedule.id));
     if (extraFields) {
       for (const [key, value] of Object.entries(extraFields)) {
@@ -526,6 +529,7 @@ export default function ScheduleBuilder() {
         const formData = new FormData();
         formData.set("intent", "reset-draft");
         formData.set("scheduleId", String(schedule?.id ?? 0));
+        if (csrfToken) formData.set("csrf_token", csrfToken);
         fetcher.submit(formData, { method: "post" });
       },
     });

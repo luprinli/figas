@@ -2,6 +2,8 @@ import type { LoaderData } from "./shared";
 
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
+import { getSession } from "../../session.server";
+import { generateCsrfToken } from "../../utils/csrf.server";
 import { requirePermission, hasPermission } from "../../utils/permissions.server";
 import { kdb } from "../../utils/db.server.kysely";
 import { sql } from "kysely";
@@ -22,6 +24,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const selectedDate = url.searchParams.get("date") ?? todayISO();
   const schedule = await scheduleRepository.findByDate(selectedDate);
   const noFlyDay = await isNoFlyDay(selectedDate);
+
+  // Generate CSRF token from session for drag-and-drop fetcher submissions
+  const session = await getSession(request.headers.get("Cookie"));
+  const csrfToken = session.id ? generateCsrfToken(session.id) : null;
 
 
   let flights: FlightSummaryRow[] = [];
@@ -136,5 +142,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
     aerodromeNames,
     aerodromes,
     buildResult: null,
+    csrfToken,
   });
 }
