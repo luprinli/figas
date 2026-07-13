@@ -37,7 +37,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const permissions = await getUserPermissions(Number(userId));
 
   const isPilot = permissions.includes("flight:view") && !permissions.includes("schedule:create");
-  const isOps = permissions.includes("schedule:create") || permissions.includes("schedule:edit") || permissions.includes("schedule:view");
+  const isOps = permissions.includes("schedule:create") || permissions.includes("schedule:update") || permissions.includes("schedule:view");
 
   let pilotId: number | null = null;
   let pilotFilter = false;

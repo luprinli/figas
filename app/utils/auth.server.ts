@@ -140,7 +140,7 @@ export function redirectToRoleHome(
   //    Operations is a superset of Pilot, so schedule:* must precede flight:manage-*
   //    Finance is a superset of Pilot (both have flight:view), so finance:view must precede flight:view
   if (permissions.includes("admin:access")) return "/admin";
-  if (permissions.includes("schedule:create") || permissions.includes("schedule:edit") || permissions.includes("schedule:view")) return "/operations";
+  if (permissions.includes("schedule:create") || permissions.includes("schedule:update") || permissions.includes("schedule:view")) return "/operations";
   if (permissions.includes("finance:view")) return "/finance";
   if (permissions.includes("flight:manage-manifest") || permissions.includes("flight:manage-seats")) return "/pilot";
   if (permissions.includes("checkin:process") || permissions.includes("checkin:view")) return "/checkin/counter";

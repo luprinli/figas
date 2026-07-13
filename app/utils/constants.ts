@@ -60,7 +60,7 @@ export const Permission = {
   // Schedules
   SCHEDULE_CREATE: "schedule:create",
   SCHEDULE_VIEW: "schedule:view",
-  SCHEDULE_EDIT: "schedule:edit",
+  SCHEDULE_EDIT: "schedule:update",
   SCHEDULE_APPROVE: "schedule:approve",
   SCHEDULE_PUBLISH: "schedule:publish",
   SCHEDULE_ASSIGN_PILOT: "schedule:assign-pilot",

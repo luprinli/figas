@@ -33,7 +33,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
   switch (intent) {
     case "auto-build": {
-      if (!(await requireActionPermission("schedule:edit"))) {
+      if (!(await requireActionPermission("schedule:update"))) {
         return json({ error: "You do not have permission to build schedules" }, { status: 403 });
       }
       const result = await handleAutoBuild(date, Number(user.id));
@@ -41,7 +41,7 @@ export async function action({ request }: ActionFunctionArgs) {
       return ok({ success: true, buildResult: (result as { result?: ScheduleBuildResult }).result ?? null });
     }
     case "preview-build": {
-      if (!(await requireActionPermission("schedule:edit"))) {
+      if (!(await requireActionPermission("schedule:update"))) {
         return json({ error: "You do not have permission to preview schedules" }, { status: 403 });
       }
       const { handlePreviewBuild } = await import("../../utils/schedule-handlers.server");
@@ -50,7 +50,7 @@ export async function action({ request }: ActionFunctionArgs) {
       return ok(result);
     }
     case "accept-build": {
-      if (!(await requireActionPermission("schedule:edit"))) {
+      if (!(await requireActionPermission("schedule:update"))) {
         return json({ error: "You do not have permission to build schedules" }, { status: 403 });
       }
       const { handleAcceptBuild } = await import("../../utils/schedule-handlers.server");
@@ -68,7 +68,7 @@ export async function action({ request }: ActionFunctionArgs) {
       return ok(result);
     }
     case "revise": {
-      if (!(await requireActionPermission("schedule:edit"))) {
+      if (!(await requireActionPermission("schedule:update"))) {
         return json({ error: "You do not have permission to revise schedules" }, { status: 403 });
       }
       const scheduleId = Number(formData.get("scheduleId"));
@@ -96,7 +96,7 @@ export async function action({ request }: ActionFunctionArgs) {
       return ok(result);
     }
     case "cancel": {
-      if (!(await requireActionPermission("schedule:edit"))) {
+      if (!(await requireActionPermission("schedule:update"))) {
         return json({ error: "You do not have permission to cancel schedules" }, { status: 403 });
       }
       const scheduleId = Number(formData.get("scheduleId"));
@@ -106,7 +106,7 @@ export async function action({ request }: ActionFunctionArgs) {
       return ok(result);
     }
     case "reorder-flights": {
-      if (!(await requireActionPermission("schedule:edit"))) {
+      if (!(await requireActionPermission("schedule:update"))) {
         return json({ error: "You do not have permission to reorder flights" }, { status: 403 });
       }
       const scheduleId = Number(formData.get("scheduleId"));
@@ -118,7 +118,7 @@ export async function action({ request }: ActionFunctionArgs) {
       return ok(result);
     }
     case "assign-booking": {
-      if (!(await requireActionPermission("schedule:edit"))) {
+      if (!(await requireActionPermission("schedule:update"))) {
         return json({ error: "You do not have permission to assign bookings" }, { status: 403 });
       }
       const bookingLegId = Number(formData.get("bookingLegId"));
@@ -129,7 +129,7 @@ export async function action({ request }: ActionFunctionArgs) {
       return ok(result);
     }
     case "transfer-booking": {
-      if (!(await requireActionPermission("schedule:edit"))) {
+      if (!(await requireActionPermission("schedule:update"))) {
         return json({ error: "You do not have permission to transfer bookings" }, { status: 403 });
       }
       const bookingLegPassengerId = Number(formData.get("bookingLegPassengerId"));
@@ -139,7 +139,7 @@ export async function action({ request }: ActionFunctionArgs) {
       return ok(result);
     }
     case "create-flight-from-booking": {
-      if (!(await requireActionPermission("schedule:edit"))) {
+      if (!(await requireActionPermission("schedule:update"))) {
         return json({ error: "You do not have permission to create flights" }, { status: 403 });
       }
       const scheduleId = Number(formData.get("scheduleId"));
@@ -162,7 +162,7 @@ export async function action({ request }: ActionFunctionArgs) {
       return ok(convertBigInts(result));
     }
     case "unassign-booking": {
-      if (!(await requireActionPermission("schedule:edit"))) {
+      if (!(await requireActionPermission("schedule:update"))) {
         return json({ error: "You do not have permission to unassign bookings" }, { status: 403 });
       }
       const bookingLegId = Number(formData.get("bookingLegId"));
@@ -172,7 +172,7 @@ export async function action({ request }: ActionFunctionArgs) {
       return ok(result);
     }
     case "remove-flight": {
-      if (!(await requireActionPermission("schedule:edit"))) {
+      if (!(await requireActionPermission("schedule:update"))) {
         return json({ error: "You do not have permission to remove flights" }, { status: 403 });
       }
       const flightId = Number(formData.get("flightId"));
@@ -192,7 +192,7 @@ export async function action({ request }: ActionFunctionArgs) {
       return ok(result);
     }
     case "assign-aircraft": {
-      if (!(await requireActionPermission("schedule:edit"))) {
+      if (!(await requireActionPermission("schedule:update"))) {
         return json({ error: "You do not have permission to assign aircraft" }, { status: 403 });
       }
       const flightId = Number(formData.get("flightId"));
@@ -211,7 +211,7 @@ export async function action({ request }: ActionFunctionArgs) {
       return ok((result ?? {}) as Record<string, unknown>);
     }
     case "reset-draft": {
-      if (!(await requireActionPermission("schedule:edit"))) {
+      if (!(await requireActionPermission("schedule:update"))) {
         return json({ error: "You do not have permission to reset schedules" }, { status: 403 });
       }
       const scheduleId = Number(formData.get("scheduleId"));

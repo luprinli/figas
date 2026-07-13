@@ -88,9 +88,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const [canApprove, canPublish, canEdit, canAssignPilot, canAssignAircraft] = await Promise.all([
     hasPermission(Number(user.id), "schedule:approve"),
     hasPermission(Number(user.id), "schedule:publish"),
-    hasPermission(Number(user.id), "schedule:edit"),
-    hasPermission(Number(user.id), "schedule:assign-pilot"),
-    hasPermission(Number(user.id), "schedule:edit"), // Same permission as edit for now
+    hasPermission(Number(user.id), "schedule:update"),
+    // Check publish permission
+    hasPermission(Number(user.id), "schedule:update"), // Same permission as edit for now
   ]);
 
   // Load available pilots for the pilot assignment dropdown
