@@ -24,4 +24,5 @@ export interface LoaderData {
   aerodromeNames: Record<string, string>;
   aerodromes: { id: number; code: string; name: string }[];
   buildResult: ScheduleBuildResult | null;
+  csrfToken: string | null;
 }

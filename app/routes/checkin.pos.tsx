@@ -10,9 +10,7 @@ import { requirePermission } from "../utils/permissions.server";
 import { Permission, DEFAULT_BN2_MTOW_KG, DEFAULT_BN2_EMPTY_WEIGHT_KG, DEFAULT_CLOTHED_BODY_WEIGHT_KG } from "../utils/constants";
 import { bookingLegPassengerRepository, createPaymentForCheckin } from "../utils/repositories/booking-leg-passenger";
 import { bookingPassengerRepository } from "../utils/repositories/booking-passenger";
-import { validateCsrfRequest } from "../utils/csrf-check.server";
-import { getSession } from "../session.server";
-import { generateCsrfToken } from "../utils/csrf.server";
+import { validateCsrfRequest, generateCsrfTokenFromRequest } from "../utils/csrf-check.server";
 import Button from "../components/Button";
 import CardPaymentSimulator from "../components/CardPaymentSimulator";
 import PrintButton from "../components/PrintButton";
@@ -62,7 +60,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const paxId = url.searchParams.get("pax");
 
   if (!flightId || !paxId) {
-    return json({ session: null });
+    return json({ session: null, csrfToken: null });
   }
 
   const [flight, pax] = await Promise.all([
@@ -82,7 +80,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   ]);
 
   if (!flight.rows.length || !pax.rows.length) {
-    return json({ session: null });
+    return json({ session: null, csrfToken: null });
   }
 
   const f = flight.rows[0] as Record<string, unknown>;
@@ -105,8 +103,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     payloadCapacity: capacity,
   };
 
-  const session1 = await getSession(request.headers.get("Cookie"));
-  const csrfToken = session1.id ? generateCsrfToken(session1.id) : null;
+  const csrfToken = generateCsrfTokenFromRequest(request);
 
   return json({ session, csrfToken });
 }

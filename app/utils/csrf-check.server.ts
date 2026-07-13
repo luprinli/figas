@@ -1,12 +1,11 @@
-import { getSession } from "../session.server";
-import { validateCsrfToken } from "./csrf.server";
+import { validateCsrfToken, generateCsrfToken } from "./csrf.server";
 
 /**
- * Validate a CSRF token from a FormData against the user's session.
- * Extracts the session from the request Cookie header, then validates
- * the `csrf_token` field from the form submission.
+ * Validate a CSRF token from a FormData against the user's session cookie.
+ * Uses the full Cookie header value as the token basis (not session.id,
+ * which is always empty for cookie-based sessions).
  *
- * Returns true if the token is valid or CSRF is disabled (dev fallback).
+ * Returns true if the token is valid.
  * Returns false and logs a warning if validation fails.
  */
 export async function validateCsrfRequest(
@@ -19,17 +18,26 @@ export async function validateCsrfRequest(
     return false;
   }
 
-  const session = await getSession(request.headers.get("Cookie"));
-  const sessionId = session.id;
-  if (!sessionId) {
-    console.warn("[CSRF] No session ID found — cannot validate CSRF token");
+  const cookieHeader = request.headers.get("Cookie") ?? "";
+  if (!cookieHeader) {
+    console.warn("[CSRF] No session cookie found — cannot validate CSRF token");
     return false;
   }
 
-  if (!validateCsrfToken(token, sessionId)) {
-    console.warn("[CSRF] Token validation failed for session", sessionId.slice(0, 8));
+  if (!validateCsrfToken(token, cookieHeader)) {
+    console.warn("[CSRF] Token validation failed");
     return false;
   }
 
   return true;
+}
+
+/**
+ * Generate a CSRF token from a Request's cookie header.
+ * Use this in loaders to embed the token for client-side fetcher.submit calls.
+ */
+export function generateCsrfTokenFromRequest(request: Request): string | null {
+  const cookieHeader = request.headers.get("Cookie");
+  if (!cookieHeader) return null;
+  return generateCsrfToken(cookieHeader);
 }
