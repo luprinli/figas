@@ -423,9 +423,9 @@ export async function handleCancel(
   if (!schedule) {
     return { error: "Schedule not found", status: 404 };
   }
-  if (schedule.status !== ScheduleStatus.BUILDING && schedule.status !== ScheduleStatus.APPROVED) {
+  if (schedule.status !== ScheduleStatus.DRAFT && schedule.status !== ScheduleStatus.BUILDING && schedule.status !== ScheduleStatus.APPROVED) {
     return {
-      error: `Cannot cancel a schedule with status "${schedule.status}". Only "building" or "approved" schedules can be cancelled.`,
+      error: `Cannot cancel a schedule with status "${schedule.status}". Only "draft", "building", or "approved" schedules can be cancelled.`,
       status: 400,
     };
   }
