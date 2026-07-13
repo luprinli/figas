@@ -1,5 +1,5 @@
 import { Form, Link } from "@remix-run/react";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { RotateCcw } from "lucide-react";
 
 import Popup from "./Popup";
@@ -17,6 +17,7 @@ export default function ProfilePopup({ user }: Props) {
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const popupButtonRef = useRef<HTMLButtonElement>(null);
   const { theme, toggle } = useTheme();
+  const [openUpward, setOpenUpward] = useState(false);
 
   const initials = user?.name
     ? user.name
@@ -26,6 +27,18 @@ export default function ProfilePopup({ user }: Props) {
         .toUpperCase()
         .slice(0, 2)
     : "?";
+
+  useEffect(() => {
+    if (isPopupOpen && popupButtonRef.current) {
+      const rect = popupButtonRef.current.getBoundingClientRect();
+      // If the button is in the bottom half of the viewport, open upward
+      setOpenUpward(rect.top > window.innerHeight / 2);
+    }
+  }, [isPopupOpen]);
+
+  const popupPosition = openUpward
+    ? "right-0 mb-2 bottom-full"
+    : "right-0 mt-2 top-full";
 
   return (
     <div className="relative">
@@ -43,7 +56,7 @@ export default function ProfilePopup({ user }: Props) {
           isOpen={isPopupOpen}
           setIsOpen={setIsPopupOpen}
           buttonRef={popupButtonRef}
-          className="right-0 p-4 mt-2 bg-white dark:bg-slate-800 rounded-md shadow-sm dark:shadow-slate-900/20 top-full dark:bg-slate-800"
+          className={`${popupPosition} right-0 p-4 bg-white dark:bg-slate-800 rounded-md shadow-sm dark:shadow-slate-900/20`}
         >
           <div className="px-2 py-2 text-sm dark:text-slate-200">
             <p className="font-semibold">{user?.name ?? "User"}</p>
