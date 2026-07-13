@@ -1,0 +1,1 @@
+ALTER TABLE flights ALTER COLUMN base_fare SET DEFAULT 0;
