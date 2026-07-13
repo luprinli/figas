@@ -11,6 +11,8 @@ import { Permission, DEFAULT_BN2_MTOW_KG, DEFAULT_BN2_EMPTY_WEIGHT_KG, DEFAULT_C
 import { bookingLegPassengerRepository, createPaymentForCheckin } from "../utils/repositories/booking-leg-passenger";
 import { bookingPassengerRepository } from "../utils/repositories/booking-passenger";
 import { validateCsrfRequest } from "../utils/csrf-check.server";
+import { getSession } from "../session.server";
+import { generateCsrfToken } from "../utils/csrf.server";
 import Button from "../components/Button";
 import CardPaymentSimulator from "../components/CardPaymentSimulator";
 import PrintButton from "../components/PrintButton";
@@ -103,7 +105,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
     payloadCapacity: capacity,
   };
 
-  return json({ session });
+  const session1 = await getSession(request.headers.get("Cookie"));
+  const csrfToken = session1.id ? generateCsrfToken(session1.id) : null;
+
+  return json({ session, csrfToken });
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -200,7 +205,7 @@ function CashKeypad({ onEnter, onQuick }: { onEnter: (val: string) => void; onQu
 
 
 export default function PosTerminal() {
-  const { session } = useLoaderData<typeof loader>();
+  const { session, csrfToken } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
 
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
@@ -270,6 +275,7 @@ export default function PosTerminal() {
     formData.set("authorization_code", authorizationCode);
     formData.set("weight_override_code", manualOverrideCode);
     formData.set("payments", JSON.stringify(payments.map((p) => ({ method: p.method, amount: p.amount, reference: p.reference }))));
+    if (csrfToken) formData.set("csrf_token", csrfToken);
     fetcher.submit(formData, { method: "post" });
   };
 

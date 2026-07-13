@@ -21,6 +21,8 @@ import { bookingLegRepository } from "../utils/repositories/booking-leg";
 import { bookingPassengerRepository } from "../utils/repositories/booking-passenger";
 import { bookingLegPassengerRepository } from "../utils/repositories/booking-leg-passenger";
 import { requirePermission } from "../utils/permissions.server";
+import { getSession } from "../session.server";
+import { generateCsrfToken } from "../utils/csrf.server";
 import { Permission, BookingStatus, BookingSource, PaymentStatus } from "../utils/constants";
 import type { BookingLegRow } from "../utils/repositories/booking-leg";
 import DataTable from "../components/DataTable";
@@ -67,6 +69,8 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => {
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
   const user = await requirePermission(request, Permission.BOOKING_VIEW);
+  const session = await getSession(request.headers.get("Cookie"));
+  const csrfToken = session.id ? generateCsrfToken(session.id) : null;
 
   const bookingId = Number(params.bookingId);
   if (isNaN(bookingId)) {
@@ -154,6 +158,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
       canManageFreight,
       canCheckin,
     },
+    csrfToken,
   });
 }
 
@@ -172,6 +177,7 @@ export default function OperationsBookingDetail() {
     fareBreakdown,
     availablePaymentMethods,
     permissions,
+    csrfToken,
   } = useLoaderData<typeof loader>();
   const revalidator = useRevalidator();
   const navigation = useNavigation();
@@ -475,6 +481,7 @@ export default function OperationsBookingDetail() {
                   bookingId={bookingId}
                   totalAmount={totalCost}
                   availableMethods={availablePaymentMethods}
+                  csrfToken={csrfToken}
                   onPaymentInitiated={(method) => {
                     setPaymentNotification({
                       type: "info",

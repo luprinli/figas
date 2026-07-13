@@ -17,6 +17,7 @@ export interface PaymentMethodSelectorProps {
   availableMethods: Array<{ code: string; name: string; description: string | null }>;
   onPaymentInitiated: (method: string) => void;
   disabled?: boolean;
+  csrfToken?: string | null;
 }
 
 interface PaymentMethodConfig {
@@ -173,6 +174,7 @@ export default function PaymentMethodSelector({
   availableMethods,
   onPaymentInitiated,
   disabled = false,
+  csrfToken,
 }: PaymentMethodSelectorProps) {
   const fetcher = useFetcher();
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
@@ -198,25 +200,26 @@ export default function PaymentMethodSelector({
     if (!selectedMethod || isSubmitting || disabled) return;
 
     let intent: string;
-    let formData: Record<string, string | number>;
+    let data: Record<string, string | number>;
 
     switch (selectedMethod) {
       case "stripe":
         intent = "initiate_stripe";
-        formData = { intent, bookingId, amount: totalAmount };
+        data = { intent, bookingId, amount: totalAmount };
         break;
       case "invoice":
         intent = "generate_invoice";
-        formData = { intent, bookingId };
+        data = { intent, bookingId };
         break;
       case "pay_on_departure":
         intent = "set_pay_on_departure";
-        formData = { intent, bookingId };
+        data = { intent, bookingId };
         break;
       case "bank_transfer":
         intent = "set_bank_transfer";
-        formData = { intent, bookingId };
-        fetcher.submit(formData, { method: "post" });
+        data = { intent, bookingId };
+        if (csrfToken) data.csrf_token = csrfToken;
+        fetcher.submit(data, { method: "post" });
         setShowBankInstructions(true);
         onPaymentInitiated(selectedMethod);
         return;
@@ -224,9 +227,10 @@ export default function PaymentMethodSelector({
         return;
     }
 
-    fetcher.submit(formData, { method: "post" });
+    if (csrfToken) data.csrf_token = csrfToken;
+    fetcher.submit(data, { method: "post" });
     onPaymentInitiated(selectedMethod);
-  }, [selectedMethod, isSubmitting, disabled, bookingId, totalAmount, fetcher, onPaymentInitiated]);
+  }, [selectedMethod, isSubmitting, disabled, bookingId, totalAmount, fetcher, onPaymentInitiated, csrfToken]);
 
   // Handle fetcher response — redirect for Stripe, show success for others
   // Use useEffect to avoid state updates during render (race condition fix)
