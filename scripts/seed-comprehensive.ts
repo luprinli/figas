@@ -254,6 +254,12 @@ async function main() {
     { email: "pilot1@figas.gov.fk", name: "Felix Captain", role: "pilot" },
     { email: "pilot2@figas.gov.fk", name: "Oscar First", role: "pilot" },
     { email: "pilot3@figas.gov.fk", name: "Nina Relief", role: "pilot" },
+    { email: "felix.pilot@figas.gov.fk", name: "Felix Pilot", role: "pilot" },
+    { email: "oscar.pilot@figas.gov.fk", name: "Oscar Pilot", role: "pilot" },
+    { email: "derek.pilot@figas.gov.fk", name: "Derek Pilot", role: "pilot" },
+    { email: "drew.pilot@figas.gov.fk", name: "Drew Pilot", role: "pilot" },
+    { email: "paul.pilot@figas.gov.fk", name: "Paul Pilot", role: "pilot" },
+    { email: "josiah.pilot@figas.gov.fk", name: "Josiah Pilot", role: "pilot" },
     { email: "engineer@figas.gov.fk", name: "Mike Engineer", role: "engineer" },
     { email: "passenger@figas.gov.fk", name: "Test Passenger", role: "passenger" },
   ];
@@ -268,7 +274,7 @@ async function main() {
     userIdMap[u.email] = r[0].id;
   }
   // Pilot records — resolve their actual name from sysUsers (skip if already seeded)
-  for (const [email, license, rating, medExp] of [["pilot1@figas.gov.fk","ATPL-001","BN-2 Type Rating","2027-01-15"],["pilot2@figas.gov.fk","CPL-002","BN-2 Type Rating","2026-09-30"],["pilot3@figas.gov.fk","CPL-003","BN-2 Type Rating","2027-06-01"]] as const) {
+  for (const [email, license, rating, medExp] of [["pilot1@figas.gov.fk","ATPL-001","BN-2 Type Rating","2027-01-15"],["pilot2@figas.gov.fk","CPL-002","BN-2 Type Rating","2026-09-30"],["pilot3@figas.gov.fk","CPL-003","BN-2 Type Rating","2027-06-01"],["felix.pilot@figas.gov.fk","ATPL-004","BN-2 Type Rating","2027-03-01"],["oscar.pilot@figas.gov.fk","CPL-005","BN-2 Type Rating","2026-11-01"],["derek.pilot@figas.gov.fk","CPL-006","BN-2 Type Rating","2027-04-01"],["drew.pilot@figas.gov.fk","CPL-007","BN-2 Type Rating","2027-05-01"],["paul.pilot@figas.gov.fk","CPL-008","BN-2 Type Rating","2027-02-01"],["josiah.pilot@figas.gov.fk","CPL-009","BN-2 Type Rating","2027-08-01"]] as const) {
     const pilotName = sysUsers.find(u => u.email === email)?.name ?? email.split("@")[0];
     const existing = await prisma.$queryRawUnsafe<Array<{id:number}>>(
       `SELECT id FROM pilots WHERE email = $1`, email
