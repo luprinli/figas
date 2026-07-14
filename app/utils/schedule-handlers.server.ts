@@ -1671,7 +1671,10 @@ export async function handleAssignAircraft(
   }
 
   // Update the flight's aircraft_id
-  await flightRepository.assignAircraft(flightId, aircraftId);
+  await db.updateTable("flights")
+    .set({ aircraft_id: aircraftId, updated_at: new Date().toISOString() } as any)
+    .where("id", "=", flightId)
+    .execute();
 
   // Audit trail: log the aircraft assignment
   await createAuditLogEntry({
