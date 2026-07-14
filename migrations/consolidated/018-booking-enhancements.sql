@@ -15,8 +15,8 @@ CREATE TABLE IF NOT EXISTS payment_allocations (
   created_at                TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_payment_allocations_payment ON payment_allocations(payment_id);
-CREATE INDEX idx_payment_allocations_blp ON payment_allocations(booking_leg_passenger_id);
+CREATE INDEX IF NOT EXISTS idx_payment_allocations_payment ON payment_allocations(payment_id);
+CREATE INDEX IF NOT EXISTS idx_payment_allocations_blp ON payment_allocations(booking_leg_passenger_id);
 
 -- Phase 4: Line-item invoices
 CREATE TABLE IF NOT EXISTS invoice_line_items (
@@ -33,4 +33,4 @@ CREATE TABLE IF NOT EXISTS invoice_line_items (
   created_at                TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_invoice_line_items_invoice ON invoice_line_items(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_line_items_invoice ON invoice_line_items(invoice_id);

@@ -1,7 +1,7 @@
 # FIGAS End-to-End Playwright Test Suite
 
-**Last Updated:** 2026-07-13
-**Status:** Active — 15 E2E spec files, 42 Vitest test files, CI-integrated
+**Last Updated:** 2026-07-14
+**Status:** Active — 18 E2E spec files, 50 Vitest test files, CI-integrated
 
 ---
 
@@ -13,9 +13,9 @@ The project has a mature test suite with the following layers:
 
 | Layer | Framework | File Count | Location |
 |-------|-----------|------------|----------|
-| E2E (browser) | Playwright 1.60 | 15 specs + 2 page objects + 1 helper | `tests/e2e/` |
+| E2E (browser) | Playwright 1.60 | 18 specs + 2 page objects + 1 helper | `tests/e2e/` |
 | Integration | Vitest | 11 specs | `tests/integration/` |
-| Unit | Vitest | 26 specs | `tests/unit/` |
+| Unit | Vitest | 34 specs | `tests/unit/` |
 | Smoke (import) | Vitest | 5 specs | `tests/smoke/` |
 | Fixtures | Vitest | 3 files | `tests/fixtures/` |
 

@@ -118,12 +118,15 @@ export async function action({ request }: ActionFunctionArgs) {
   const intent = formData.get("intent")?.toString();
 
   if (intent === "process-card") {
-    // MOCK CARD PROCESSING \u2014 replace with real payment processor integration.
-    // This simulates a 2-second processing delay and approves amounts under \u00A35000.
-    console.warn("Using mock card processing \u2014 replace before production deployment");
+    // Real payment processor integration required for production.
+    // This mock implementation is available only in development mode.
+    if (process.env.NODE_ENV === "production") {
+      return json({ error: "Card processing not available in production" }, { status: 501 });
+    }
+    console.warn("Using mock card processing — replace before production deployment");
     const amount = parseFloat(formData.get("amount")?.toString() ?? "0");
     await new Promise((r) => setTimeout(r, 2000));
-    const approved = amount < 5000; // Mock: approve under Â£5000
+    const approved = amount < 5000; // Mock: approve under £5000
     return json({ cardResult: approved ? "approved" : "declined", amount });
   }
 
