@@ -14,8 +14,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
   // Authenticated — redirect to permission-based home
   const identity = await getUserIdentity(userId);
   const permissions = identity?.permissions ?? [];
+  const roles = identity?.roles ?? [];
 
-  return redirect(redirectToRoleHome(permissions, request.url));
+  return redirect(redirectToRoleHome(permissions, roles, request.url));
 }
 
 export function ErrorBoundary() {

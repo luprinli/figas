@@ -125,6 +125,7 @@ export async function requireAnyRole(
  */
 export function redirectToRoleHome(
   permissions: string[],
+  roles: string[],
   requestUrl?: string
 ): string {
   // 1. Check for explicit redirect parameter (user intent)
@@ -136,19 +137,17 @@ export function redirectToRoleHome(
     }
   }
 
-  // 2. Permission-based default — most specific roles first
-  //    Pilots have schedule:view but should go to /pilot, so flight:manage-*
-  //    checks must precede the schedule:* check.
+  // 2. Role-slug-based routing — role slugs are authoritative for disambiguation
+  //    Permissions overlap between roles (both ops and pilots have schedule:view
+  //    and flight:manage-*), so permission-only checks are unreliable.
   if (permissions.includes("admin:access")) return "/admin";
   if (permissions.includes("schedule:create") || permissions.includes("schedule:update") || permissions.includes("schedule:view")) {
-    // Pilots also have schedule:view — redirect them to /pilot, not /operations
-    if (permissions.includes("flight:manage-manifest") || permissions.includes("flight:manage-seats")) {
-      return "/pilot";
-    }
+    // Both ops and pilots have schedule:view — use role slug to disambiguate
+    if (roles.includes("pilot")) return "/pilot";
     return "/operations";
   }
   if (permissions.includes("finance:view")) return "/finance";
-  if (permissions.includes("flight:manage-manifest") || permissions.includes("flight:manage-seats")) return "/pilot";
+  if (roles.includes("pilot")) return "/pilot";
   if (permissions.includes("checkin:process") || permissions.includes("checkin:view")) return "/checkin/counter";
   if (permissions.includes("maintenance:view")) return "/engineer";
   if (permissions.includes("flight:view")) return "/pilot";

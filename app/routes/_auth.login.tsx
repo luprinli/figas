@@ -26,7 +26,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
     // Fetch user identity with PBAC permissions for redirect
     const identity = await getUserIdentity(userId);
     const permissions = identity?.permissions ?? [];
-    return redirect(redirectToRoleHome(permissions, request.url));
+    const roles = identity?.roles ?? [];
+    return redirect(redirectToRoleHome(permissions, roles, request.url));
   }
 
   return json({});
@@ -72,8 +73,9 @@ export async function action({ request }: ActionFunctionArgs) {
   // Fetch permissions for PBAC-based redirect
   const identity = await getUserIdentity(user.id);
   const permissions = identity?.permissions ?? [];
+  const roles = identity?.roles ?? [];
 
-  const redirectTo = redirectToRoleHome(permissions, request.url);
+  const redirectTo = redirectToRoleHome(permissions, roles, request.url);
 
   return redirect(redirectTo, {
     headers: {
