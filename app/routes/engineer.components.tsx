@@ -13,6 +13,7 @@ import EmptyState from "../components/EmptyState";
 import MetricCard from "../components/MetricCard";
 import Card from "../components/Card";
 import Button from "../components/Button";
+import { useCsrf } from "~/utils/use-csrf";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   await requirePermission(request, Permission.MAINTENANCE_VIEW);
@@ -96,6 +97,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
 export default function EngineerComponents() {
   const { components, active, critical, aircraft } = useLoaderData<typeof loader>();
+  const { csrfHiddenInput } = useCsrf();
   const columns: Column<Record<string, unknown>>[] = [
     { key: "registration", header: "Aircraft", sortable: true, render: (r) => (
       <span className="font-medium text-slate-800 dark:text-slate-100">{String(r.registration)}</span>
@@ -147,6 +149,7 @@ export default function EngineerComponents() {
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Install Component</h2>
         </div>
         <Form method="post" className="p-4 space-y-3 bg-white dark:bg-slate-800">
+          {csrfHiddenInput}
           <input type="hidden" name="intent" value="install" />
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
@@ -209,6 +212,7 @@ export default function EngineerComponents() {
             if (r.status === 'active') {
               return (
                 <Form method="post" className="inline">
+                  {csrfHiddenInput}
                   <input type="hidden" name="intent" value="replace" />
                   <input type="hidden" name="component_id" value={String(r.id)} />
                   <Button type="submit" variant="outlined" color="danger" className="text-xs px-2 py-0.5">Remove</Button>

@@ -6,6 +6,7 @@ import { requirePermission } from "../utils/permissions.server";
 import { validateCsrfRequest } from "../utils/csrf-check.server";
 import { Permission, DEFAULT_PAGE_SIZE } from "../utils/constants";
 import { adminRepository } from "../utils/repositories/admin";
+import { useCsrf } from "~/utils/use-csrf";
 import DataTable from "../components/DataTable";
 import type { Column } from "../components/DataTable";
 
@@ -106,6 +107,7 @@ export default function ManageFuelRules() {
   const { items, totalCount, page, totalPages } =
     useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
+  const { csrfHiddenInput } = useCsrf();
 
   return (
     <div className="p-6 space-y-6">
@@ -123,6 +125,7 @@ export default function ManageFuelRules() {
           Add Fuel Rule
         </h2>
         <Form method="post" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {csrfHiddenInput}
           <input type="hidden" name="intent" value="create" />
           <div>
             <label htmlFor="create-flight-time" className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
@@ -248,6 +251,7 @@ export default function ManageFuelRules() {
                     </summary>
                     <div className="absolute left-0 top-6 z-10 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg dark:shadow-slate-900/50 p-4 w-80">
                       <Form method="post" className="space-y-2">
+                        {csrfHiddenInput}
                         <input type="hidden" name="intent" value="update" />
                         <input type="hidden" name="id" value={rule.id as number} />
                         <div>
@@ -329,6 +333,7 @@ export default function ManageFuelRules() {
 
                   {/* Delete form */}
                   <Form method="post" className="inline">
+                    {csrfHiddenInput}
                     <input type="hidden" name="intent" value="delete" />
                     <input type="hidden" name="id" value={rule.id as number} />
                     <button

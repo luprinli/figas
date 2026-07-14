@@ -2,6 +2,7 @@ import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "@r
 import { json } from "@remix-run/node";
 import { Link, useLoaderData, useNavigation, useFetcher, useRevalidator, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import { useEffect, useState } from "react";
+import { useCsrf } from "~/utils/use-csrf";
 import { bookingRepository } from "../utils/repositories/booking";
 import { bookingLegRepository } from "../utils/repositories/booking-leg";
 import { bookingPassengerRepository } from "../utils/repositories/booking-passenger";
@@ -269,6 +270,7 @@ export default function AgentBookingDetail() {
   const notifyFetcher = useFetcher<{ success?: boolean; error?: string; message?: string }>();
   const cancelFetcher = useFetcher<{ success?: boolean; newStatus?: string; error?: string }>();
   const revalidator = useRevalidator();
+  const { injectCsrf } = useCsrf();
 
   const [showCancelDialog, setShowCancelDialog] = useState(false);
 
@@ -334,6 +336,7 @@ export default function AgentBookingDetail() {
   const handleCancelConfirm = () => {
     const formData = new FormData();
     formData.append("intent", "cancel");
+    injectCsrf(formData);
     cancelFetcher.submit(formData, { method: "post" });
   };
 

@@ -16,6 +16,7 @@ import DatePicker from "../components/DatePicker";
 import { TourTrigger } from "../components/TourTrigger";
 import { checkinCounterTour } from "../utils/tour/definitions/checkin-counter";
 import { validateCsrfRequest } from "../utils/csrf-check.server";
+import { useCsrf } from "~/utils/use-csrf";
 
 export const meta: MetaFunction = () => [{ title: "Check-In Counter - FIGAS" }];
 
@@ -297,6 +298,7 @@ function CashKeypad({ onEnter, onQuick }: { onEnter: (val: string) => void; onQu
 
 function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<string, unknown>; passengers: FlightPassenger[]; tillPayments: PaymentRecord[] }) {
   const flightId = String(flight.id);
+  const { csrfHiddenInput } = useCsrf();
   const [selectedPassenger, setSelectedPassenger] = useState<FlightPassenger | null>(null);
   const [bodyWeight, setBodyWeight] = useState(70);
   const [baggageWeight, setBaggageWeight] = useState(0);
@@ -359,6 +361,7 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
         <div className="flex items-center gap-3">
           <TourTrigger config={checkinCounterTour} />
           <Form method="post" onSubmit={(e) => { if (!confirm(`Check in all ${uncheckin.length} unchecked passengers?`)) e.preventDefault(); }}>
+            {csrfHiddenInput}
             <input type="hidden" name="intent" value="batch-checkin" />
             <input type="hidden" name="flight_id" value={String(flight.id)} />
             <button type="submit" disabled={uncheckin.length === 0}
@@ -508,6 +511,7 @@ function CheckinWorkflow({ flight, passengers, tillPayments }: { flight: Record<
               {/* Complete Sale */}
               <div className="p-3" data-tour="checkin-complete">
                 <Form method="post">
+                  {csrfHiddenInput}
                   <input type="hidden" name="intent" value="checkin-with-payment" />
                   <input type="hidden" name="leg_pax_id" value={pax?.legPassengerId ?? 0} />
                   <input type="hidden" name="body_weight_kg" value={bodyWeight} />

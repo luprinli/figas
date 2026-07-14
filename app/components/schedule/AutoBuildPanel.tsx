@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useFetcher } from "@remix-run/react";
+import { useCsrf } from "~/utils/use-csrf";
 import { RefreshCw, CheckCircle, XCircle, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 
 interface FlightPlanLeg {
@@ -91,6 +92,7 @@ export default function AutoBuildPanel({
 }) {
   const previewFetcher = useFetcher<PreviewResponse>();
   const acceptFetcher = useFetcher();
+  const { injectCsrf } = useCsrf();
   const [isBuilding, setIsBuilding] = useState(false);
   const [buildConfig, setBuildConfig] = useState<BuildConfig | null>(null);
   const [allErrors, setAllErrors] = useState<string[]>([]);
@@ -145,6 +147,7 @@ export default function AutoBuildPanel({
     const formData = new FormData();
     formData.set("intent", "preview-build");
     formData.set("date", selectedDate);
+    injectCsrf(formData);
     previewFetcher.submit(formData, { method: "post" });
 
     phaseIntervalRef.current = setInterval(() => {
@@ -162,6 +165,7 @@ export default function AutoBuildPanel({
     const formData = new FormData();
     formData.set("intent", "accept-build");
     formData.set("date", selectedDate);
+    injectCsrf(formData);
     acceptFetcher.submit(formData, { method: "post" });
   }
 

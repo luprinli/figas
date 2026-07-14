@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { useFetcher } from "@remix-run/react";
+import { useCsrf } from "~/utils/use-csrf";
 import type { BookingLegRow } from "../../utils/repositories/booking-leg";
 import type { BookingPassengerRow } from "../../utils/repositories/booking-passenger";
 import type { BookingLegPassengerWithDetails } from "../../utils/repositories/booking-leg-passenger";
@@ -112,6 +113,7 @@ export default function PostBookingChanges({
   className = "",
 }: PostBookingChangesProps) {
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
+  const { injectCsrfObject } = useCsrf();
   const [changeType, setChangeType] = useState<"refund" | "top_up">("refund");
   const [changeAmount, setChangeAmount] = useState("");
   const [changeReason, setChangeReason] = useState("");
@@ -127,16 +129,16 @@ export default function PostBookingChanges({
     if (!changeReason.trim()) return;
 
     fetcher.submit(
-      {
+      injectCsrfObject({
         intent: "post_booking_change",
         bookingId: String(bookingId),
         changeType,
         amount: String(amount),
         reason: changeReason.trim(),
-      },
+      }),
       { method: "post" }
     );
-  }, [changeAmount, changeReason, changeType, bookingId, fetcher]);
+  }, [changeAmount, changeReason, changeType, bookingId, fetcher, injectCsrfObject]);
 
   const canChange =
     canManagePayment &&

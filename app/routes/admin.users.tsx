@@ -12,6 +12,7 @@ import { getSession } from "../session.server";
 import { validateCsrfRequest } from "../utils/csrf-check.server";
 import DataTable from "../components/DataTable";
 import type { Column } from "../components/DataTable";
+import { useCsrf } from "~/utils/use-csrf";
 import DOBPicker from "../components/DOBPicker";
 
 export const meta: MetaFunction = () => [{ title: "Manage Users - FIGAS" }];
@@ -120,6 +121,7 @@ export default function ManageUsers() {
   const actionData = useActionData<typeof action>();
   const [, setSearchParams] = useSearchParams();
   const [dateOfBirth, setDateOfBirth] = useState("");
+  const { csrfHiddenInput } = useCsrf();
 
   const roleBadge = (role: string) => {
     const colors: Record<string, string> = {
@@ -183,6 +185,7 @@ export default function ManageUsers() {
           Create New User
         </h2>
         <Form method="post" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {csrfHiddenInput}
           <input type="hidden" name="intent" value="create" />
           <div>
             <label htmlFor="create-name" className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Name</label>
@@ -315,6 +318,7 @@ export default function ManageUsers() {
                 <div className="flex gap-2">
                   {/* Role update */}
                   <Form method="post" className="inline-flex items-center gap-1">
+                    {csrfHiddenInput}
                     <input type="hidden" name="intent" value="updateRole" />
                     <input type="hidden" name="userId" value={user.id as number} />
                     <select
@@ -336,6 +340,7 @@ export default function ManageUsers() {
 
                   {/* Toggle status */}
                   <Form method="post" className="inline">
+                    {csrfHiddenInput}
                     <input type="hidden" name="intent" value="toggleStatus" />
                     <input type="hidden" name="userId" value={user.id as number} />
                     <input type="hidden" name="isActive" value={String(user.is_active)} />

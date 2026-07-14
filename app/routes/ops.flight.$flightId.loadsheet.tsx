@@ -349,7 +349,7 @@ export default function LoadsheetPage() {
               </table>
             </div>
             <div className="mt-2 flex items-center gap-4 text-[10px] text-slate-500 dark:text-slate-400">
-              <span>CG limits: 81.0"–101.0" (2057–2565 mm)</span>
+              <span>{`CG limits: 81.0"–101.0" (2057–2565 mm)`}</span>
               <span className="text-slate-300 dark:text-slate-500">|</span>
               <span>MTOW: {sectors[0]?.takeoff_weight_kg ? `${Number(sectors[0].takeoff_weight_kg)}kg` : "—"}</span>
               <span className="text-slate-300 dark:text-slate-500">|</span>

@@ -16,6 +16,7 @@ import {
 } from "@remix-run/react";
 import { useEffect, useState } from "react";
 import { RefreshCw, User } from "lucide-react";
+import { useCsrf } from "~/utils/use-csrf";
 import { bookingRepository } from "../utils/repositories/booking";
 import { bookingLegRepository } from "../utils/repositories/booking-leg";
 import { bookingPassengerRepository } from "../utils/repositories/booking-passenger";
@@ -181,6 +182,7 @@ export default function OperationsBookingDetail() {
   const navigation = useNavigation();
   const statusFetcher = useFetcher<{ success?: boolean; newStatus?: string; error?: string }>();
   const cancelFetcher = useFetcher<{ success?: boolean; newStatus?: string; error?: string }>();
+  const { injectCsrf } = useCsrf();
 
   const isInitialLoading = navigation.state === "loading" && !navigation.formData;
   const isCancelled = booking.status === BookingStatus.CANCELLED;
@@ -221,6 +223,7 @@ export default function OperationsBookingDetail() {
     const formData = new FormData();
     formData.append("intent", "cancel");
     formData.append("cancellation_reason", "Cancelled by operations");
+    injectCsrf(formData);
     cancelFetcher.submit(formData, { method: "post" });
   };
 
@@ -228,6 +231,7 @@ export default function OperationsBookingDetail() {
     const formData = new FormData();
     formData.append("intent", "update_status");
     formData.append("status", pendingStatus);
+    injectCsrf(formData);
     statusFetcher.submit(formData, { method: "post" });
   };
 

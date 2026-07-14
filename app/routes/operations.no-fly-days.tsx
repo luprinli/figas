@@ -5,6 +5,7 @@ export { loader, action } from "~/utils/server-actions/operations.no-fly-days.ac
 import type { loader, action } from "~/utils/server-actions/operations.no-fly-days.action.server";
 
 import { useState, useMemo, useCallback } from "react";
+import { useCsrf } from "~/utils/use-csrf";
 import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
 import type { NoFlyRuleRow } from "../utils/services/no-fly.service";
 import { MONTH_NAMES, DAY_NAMES_SHORT, getCalendarGrid, formatDate } from "../utils/dates";
@@ -58,6 +59,7 @@ export default function NoFlyDaysPage() {
   const submit = useSubmit();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
+  const { csrfHiddenInput } = useCsrf();
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -386,6 +388,7 @@ export default function NoFlyDaysPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl dark:shadow-slate-900/50 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
             <Form method="post" onSubmit={closeModal}>
+              {csrfHiddenInput}
               <input
                 type="hidden"
                 name="intent"

@@ -13,6 +13,7 @@ import EmptyState from "../components/EmptyState";
 import MetricCard from "../components/MetricCard";
 import Card from "../components/Card";
 import Button from "../components/Button";
+import { useCsrf } from "~/utils/use-csrf";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   await requirePermission(request, Permission.MAINTENANCE_VIEW);
@@ -122,6 +123,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
 export default function EngineerDefects() {
   const { defects, openCount, rectified, aircraft } = useLoaderData<typeof loader>();
+  const { csrfHiddenInput } = useCsrf();
   const columns: Column<Record<string, unknown>>[] = [
     { key: "registration", header: "Aircraft", sortable: true, render: (r) => (
       <span className="font-medium text-slate-800 dark:text-slate-100">{String(r.registration)}</span>
@@ -168,6 +170,7 @@ export default function EngineerDefects() {
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Report Defect</h2>
         </div>
         <Form method="post" className="p-4 space-y-3 bg-white dark:bg-slate-800">
+          {csrfHiddenInput}
           <input type="hidden" name="intent" value="report" />
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
@@ -230,6 +233,7 @@ export default function EngineerDefects() {
             if (r.deferral_status === 'open') {
               return (
                 <Form method="post" className="inline-flex items-center gap-1">
+                  {csrfHiddenInput}
                   <input type="hidden" name="intent" value="defer" />
                   <input type="hidden" name="defect_id" value={String(r.id)} />
                   <input type="text" name="mel_reference" placeholder="MEL ref" className="w-16 text-xs px-1 py-0.5 rounded border border-slate-300 dark:border-slate-600" />
@@ -240,6 +244,7 @@ export default function EngineerDefects() {
             if (r.deferral_status === 'open' || r.deferral_status === 'deferred') {
               return (
                 <Form method="post" className="inline-flex items-center gap-1">
+                  {csrfHiddenInput}
                   <input type="hidden" name="intent" value="rectify" />
                   <input type="hidden" name="defect_id" value={String(r.id)} />
                   <input type="text" name="rectification" placeholder="Action taken" className="w-20 text-xs px-1 py-0.5 rounded border border-slate-300 dark:border-slate-600" />

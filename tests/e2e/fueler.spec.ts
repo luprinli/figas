@@ -1,3 +1,4 @@
+/* eslint-disable no-empty */
 import { test, expect } from "@playwright/test";
 
 test.setTimeout(120_000);

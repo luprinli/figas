@@ -13,6 +13,7 @@ import EmptyState from "../components/EmptyState";
 import MetricCard from "../components/MetricCard";
 import Card from "../components/Card";
 import Button from "../components/Button";
+import { useCsrf } from "~/utils/use-csrf";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   await requirePermission(request, Permission.MAINTENANCE_VIEW);
@@ -111,6 +112,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
 export default function EngineerTaskBoard() {
   const { tasks, openCount, inProgress, overdue, aircraft } = useLoaderData<typeof loader>();
+  const { csrfHiddenInput } = useCsrf();
 
   const columns: Column<Record<string, unknown>>[] = [
     { key: "registration", header: "Aircraft", sortable: true, render: (r) => (
@@ -157,6 +159,7 @@ export default function EngineerTaskBoard() {
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Create Task</h2>
         </div>
         <Form method="post" className="p-4 space-y-3 bg-white dark:bg-slate-800">
+          {csrfHiddenInput}
           <input type="hidden" name="intent" value="create" />
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
@@ -235,6 +238,7 @@ export default function EngineerTaskBoard() {
             if (r.status === 'open') {
               return (
                 <Form method="post" className="inline">
+                  {csrfHiddenInput}
                   <input type="hidden" name="intent" value="start" />
                   <input type="hidden" name="task_id" value={String(r.id)} />
                   <Button type="submit" variant="outlined" className="text-xs px-2 py-0.5">Start</Button>
@@ -244,6 +248,7 @@ export default function EngineerTaskBoard() {
             if (r.status === 'in_progress') {
               return (
                 <Form method="post" className="inline">
+                  {csrfHiddenInput}
                   <input type="hidden" name="intent" value="complete" />
                   <input type="hidden" name="task_id" value={String(r.id)} />
                   <Button type="submit" color="success" className="text-xs px-2 py-0.5">Complete</Button>

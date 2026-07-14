@@ -8,6 +8,7 @@ import { validateCsrfRequest } from "../utils/csrf-check.server";
 import { Permission, DEFAULT_PAGE_SIZE } from "../utils/constants";
 import { adminRepository } from "../utils/repositories/admin";
 import { clearDistanceCaches } from "../utils/scheduling/distance-lookup";
+import { useCsrf } from "~/utils/use-csrf";
 import DataTable from "../components/DataTable";
 import type { Column } from "../components/DataTable";
 
@@ -107,6 +108,7 @@ export default function ManageAerodromeDistances() {
   const { items, totalCount, page, totalPages, aerodromes } =
     useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
+  const { csrfHiddenInput } = useCsrf();
 
   return (
     <div className="p-6 space-y-6">
@@ -129,6 +131,7 @@ export default function ManageAerodromeDistances() {
           method="post"
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"
         >
+          {csrfHiddenInput}
           <input type="hidden" name="intent" value="create" />
           <div>
             <label
@@ -237,6 +240,7 @@ export default function ManageAerodromeDistances() {
                     </summary>
                     <div className="absolute left-0 top-6 z-10 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg dark:shadow-slate-900/50 p-4 w-80">
                       <Form method="post" className="space-y-2">
+                        {csrfHiddenInput}
                         <input
                           type="hidden"
                           name="intent"
@@ -318,6 +322,7 @@ export default function ManageAerodromeDistances() {
 
                   {/* Delete form */}
                   <Form method="post" className="inline">
+                    {csrfHiddenInput}
                     <input
                       type="hidden"
                       name="intent"

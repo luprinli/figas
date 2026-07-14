@@ -8,6 +8,7 @@ import { notificationRepository } from "../utils/repositories/notification";
 import { processPendingNotifications } from "../utils/email.server";
 import { requireUser } from "../utils/layout.server";
 import { validateCsrfRequest } from "../utils/csrf-check.server";
+import { useCsrf } from "~/utils/use-csrf";
 import DataTable from "../components/DataTable";
 import type { Column } from "../components/DataTable";
 
@@ -67,6 +68,7 @@ type NotificationRow = Record<string, unknown>;
 export default function Notifications() {
   const { notifications } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
+  const { csrfHiddenInput } = useCsrf();
 
   const statusBadge = (status: string) => {
     const colors: Record<string, string> = {
@@ -188,6 +190,7 @@ export default function Notifications() {
 
       <div className="mb-4">
         <Form method="post">
+          {csrfHiddenInput}
           <input type="hidden" name="intent" value="process-pending" />
           <button
             type="submit"
@@ -214,6 +217,7 @@ export default function Notifications() {
           actions={(notif) =>
             (notif.status as string) === "failed" ? (
               <Form method="post" className="inline">
+                {csrfHiddenInput}
                 <input type="hidden" name="intent" value="resend" />
                 <input type="hidden" name="notificationId" value={notif.id as number} />
                 <button
