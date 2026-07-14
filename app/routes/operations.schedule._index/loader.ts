@@ -89,8 +89,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
     hasPermission(Number(user.id), "schedule:approve"),
     hasPermission(Number(user.id), "schedule:publish"),
     hasPermission(Number(user.id), "schedule:update"),
-    // Check publish permission
-    hasPermission(Number(user.id), "schedule:update"), // Same permission as edit for now
+    hasPermission(Number(user.id), "schedule:assign-pilot"),
+    hasPermission(Number(user.id), "schedule:update"), // same permission as edit for aircraft assignment
   ]);
 
   // Load available pilots for the pilot assignment dropdown
