@@ -308,7 +308,7 @@ describe("Schedule Status Flow", () => {
         created_by: testUserId,
       });
 
-      // Schedule is in draft status â€” not approved
+      // Schedule is in draft status — not approved
       const result = await handlePublish(schedule.id, testUserId);
       const err = getError(result);
 
@@ -326,7 +326,7 @@ describe("Schedule Status Flow", () => {
         created_by: testUserId,
       });
 
-      // Schedule is in draft status â€” not published or approved
+      // Schedule is in draft status — not published or approved
       const result = await handleRevise(schedule.id, testUserId);
       const err = getError(result);
 

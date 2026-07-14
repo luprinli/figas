@@ -41,8 +41,8 @@ export default function EngineerLayout() {
 
   const navItems = [
     { to: "/engineer", label: "Dashboard" },
-    { to: "/engineer/aircraft", label: `Fleet � ${aircraft.length}` },
-    { to: "/engineer/airframe-hours", label: `Airframe � ${totalAirframe}` },
+    { to: "/engineer/aircraft", label: `Fleet  ${aircraft.length}` },
+    { to: "/engineer/airframe-hours", label: `Airframe  ${totalAirframe}` },
     { to: "/engineer/components", label: "Components" },
     { to: "/engineer/loadsheets", label: "Loadsheets" },
     { to: "/engineer/maintenance", label: "Maintenance" },

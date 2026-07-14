@@ -52,7 +52,7 @@ export default function AdminDashboard() {
         { label: "Database", status: "ok", detail: "PostgreSQL 16" },
         { label: "Stripe", status: stripeConfigured ? "ok" : "warning", detail: "Payments" },
         { label: "Migrations", status: "ok", detail: "Up to date" },
-        { label: "SoD Enforcement", status: "ok", detail: "Active Ã¢â‚¬â€ enforced on role assignment" },
+        { label: "SoD Enforcement", status: "ok", detail: "Active — enforced on role assignment" },
     ];
 
     return (
@@ -104,11 +104,11 @@ export default function AdminDashboard() {
                         </div>
                         <div className="flex items-center justify-between">
                             <span className="text-sm text-slate-600 dark:text-slate-300 dark:text-slate-500">Active Aerodromes</span>
-                            <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{(stats as Record<string, unknown>).activeAerodromes as number ?? "Ã¢â‚¬â€"}</span>
+                            <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{(stats as Record<string, unknown>).activeAerodromes as number ?? "—"}</span>
                         </div>
                         <div className="flex items-center justify-between">
                             <span className="text-sm text-slate-600 dark:text-slate-300 dark:text-slate-500">Fare Routes</span>
-                            <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{(stats as Record<string, unknown>).fareRoutes as number ?? "Ã¢â‚¬â€"}</span>
+                            <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{(stats as Record<string, unknown>).fareRoutes as number ?? "—"}</span>
                         </div>
                     </div>
                 </div>

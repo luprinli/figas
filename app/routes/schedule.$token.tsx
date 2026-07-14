@@ -8,7 +8,7 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => {
   const publishedAt = data.schedule.publishedAt
     ? new Date(String(data.schedule.publishedAt)).toLocaleDateString("en-GB")
     : "";
-  return [{ title: `Flight Schedule${publishedAt ? ` Ã¢â‚¬â€ ${publishedAt}` : ""} | FIGAS` }];
+  return [{ title: `Flight Schedule${publishedAt ? ` — ${publishedAt}` : ""} | FIGAS` }];
 };
 
 export async function loader({ params }: LoaderFunctionArgs) {
@@ -63,7 +63,7 @@ export default function PublicSchedule() {
           <div className="text-sm font-bold tracking-wide text-cyan-700">FIGAS</div>
           <div className="text-xs text-slate-500 dark:text-slate-400">Falkland Islands Government Air Service</div>
           <h1 className="mt-3 text-xl font-bold text-slate-800 dark:text-slate-100">
-            Flight Schedule Ã¢â‚¬â€ {depDate}
+            Flight Schedule — {depDate}
           </h1>
           {schedule?.isAmendment && (
             <span className="mt-1 inline-block rounded-full bg-amber-100 px-3 py-0.5 text-xs font-medium text-amber-700">
@@ -91,8 +91,8 @@ export default function PublicSchedule() {
                   {f.departureTime ? (
                     <span>
                       {new Date(f.departureTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
-                      {" Ã¢â‚¬â€œ "}
-                      {f.arrivalTime ? new Date(f.arrivalTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "Ã¢â‚¬â€"}
+                      {" – "}
+                      {f.arrivalTime ? new Date(f.arrivalTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—"}
                     </span>
                   ) : null}
                   {f.aircraftType ? <span>{f.aircraftType} {f.aircraftRegistration}</span> : null}
@@ -106,7 +106,7 @@ export default function PublicSchedule() {
 
         <div className="mt-8 border-t border-slate-200 dark:border-slate-700 pt-4 text-center text-xs text-slate-500 dark:text-slate-400">
           <p className="font-medium text-amber-600 mb-1">{schedule?.disclaimerText ?? "Flights may change at short notice. Check for updates before travel."}</p>
-          <p>Contact: {data.contactEmail} Ã‚Â· {data.contactPhone}</p>
+          <p>Contact: {data.contactEmail} Ã‚· {data.contactPhone}</p>
           <p className="mt-1">
             Published: {schedule?.publishedAt ? new Date(schedule.publishedAt).toLocaleString("en-GB") : ""}
           </p>

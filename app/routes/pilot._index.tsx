@@ -103,13 +103,13 @@ export default function PilotDashboard() {
                 />
                 <MetricCard
                     label="Active Schedule"
-                    value={activeSchedule ? "Published" : "Ã¢â‚¬â€"}
+                    value={activeSchedule ? "Published" : "—"}
                     color="emerald"
                     to={activeSchedule ? `/pilot/schedule/${activeSchedule.id}` : undefined}
                 />
                 <MetricCard
                     label="Next Flight"
-                    value={nextFlight ? (nextFlight.departure_time as string).slice(11, 16) : "Ã¢â‚¬â€"}
+                    value={nextFlight ? (nextFlight.departure_time as string).slice(11, 16) : "—"}
                     color={nextFlight ? "blue" : "purple"}
                 />
                 <MetricCard

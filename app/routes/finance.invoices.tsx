@@ -116,7 +116,7 @@ export default function InvoiceList() {
       header: "Booking",
       render: (inv) => (
         <span className="text-sm/5 text-slate-700 dark:text-slate-200">
-          {inv.booking_reference ?? "Ã¢â‚¬â€"}
+          {inv.booking_reference ?? "—"}
         </span>
       ),
     },
@@ -125,7 +125,7 @@ export default function InvoiceList() {
       header: "Organization",
       render: (inv) => (
         <span className="text-sm/5 text-slate-700 dark:text-slate-200">
-          {inv.organization_name ?? "Ã¢â‚¬â€"}
+          {inv.organization_name ?? "—"}
         </span>
       ),
     },
@@ -135,7 +135,7 @@ export default function InvoiceList() {
       sortable: true,
       render: (inv) => (
         <span className="text-sm/5 text-slate-500 dark:text-slate-400 tabular-nums">
-          {inv.issue_date ? new Date(inv.issue_date).toLocaleDateString("en-GB") : "Ã¢â‚¬â€"}
+          {inv.issue_date ? new Date(inv.issue_date).toLocaleDateString("en-GB") : "—"}
         </span>
       ),
     },
@@ -145,7 +145,7 @@ export default function InvoiceList() {
       sortable: true,
       render: (inv) => (
         <span className="text-sm/5 text-slate-500 dark:text-slate-400 tabular-nums">
-          {inv.due_date ? new Date(inv.due_date).toLocaleDateString("en-GB") : "Ã¢â‚¬â€"}
+          {inv.due_date ? new Date(inv.due_date).toLocaleDateString("en-GB") : "—"}
         </span>
       ),
     },

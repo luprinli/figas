@@ -45,7 +45,7 @@ function getRuleSummary(rule: NoFlyRuleRow): string {
   }
   const dayNames = rule.day_of_week?.map((d) => DAY_NAMES[d]).join(", ") ?? "Unknown";
   if (rule.season_start && rule.season_end) {
-    return `Recurring: Every ${dayNames} (${formatDisplayDate(rule.season_start)} Ã¢â‚¬â€œ ${formatDisplayDate(rule.season_end)})`;
+    return `Recurring: Every ${dayNames} (${formatDisplayDate(rule.season_start)} – ${formatDisplayDate(rule.season_end)})`;
   }
   return `Recurring: Every ${dayNames}`;
 }

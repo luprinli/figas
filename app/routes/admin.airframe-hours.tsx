@@ -311,7 +311,7 @@ export default function ManageAirframeHours() {
         </div>
         {(() => {
           const statusBadge = (status: string | null | undefined) => {
-            if (!status) return <span className="text-slate-500 dark:text-slate-400">Ã¢â‚¬â€</span>;
+            if (!status) return <span className="text-slate-500 dark:text-slate-400">—</span>;
             let colorClass = "bg-yellow-100 text-yellow-800";
             if (status === "OK") colorClass = "bg-green-100 text-green-800";
             else if (status === "DUE" || status === "OVERDUE") colorClass = "bg-red-100 text-red-800";
@@ -334,7 +334,7 @@ export default function ManageAirframeHours() {
             {
               key: "next_check_date",
               header: "Next Check Date",
-              render: (h) => <span>{(h.next_check_date as string) ?? "Ã¢â‚¬â€"}</span>,
+              render: (h) => <span>{(h.next_check_date as string) ?? "—"}</span>,
             },
             {
               key: "status",

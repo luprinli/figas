@@ -38,7 +38,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
  ORDER BY f.flight_number
     `.execute(kdb);
 
-    // Build the true STY \u2192 Ã¢â‚¬Â¦ \u2192 STY route path from flight_legs (RULE 1).
+    // Build the true STY \u2192 … \u2192 STY route path from flight_legs (RULE 1).
     // The flight-level origin/destination aerodrome is STYÃ¢â€ â€STY for round-trip
     // sorties, so the human-readable path MUST come from the ordered legs.
     const legsResult = await sql<Record<string, unknown>>`
@@ -76,7 +76,7 @@ export default function ScheduleDetail() {
             </Link>
             <div className="rounded-lg bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20">
                 <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
-                    Schedule Ã¢â‚¬â€ {schedule.schedule_date}
+                    Schedule — {schedule.schedule_date}
                 </h2>
                 <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400 mt-1 ring-1 ring-amber-300">
                     {schedule.status}

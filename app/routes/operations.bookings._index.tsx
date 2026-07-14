@@ -425,7 +425,7 @@ export default function OperationsBookingsIndex() {
 
     return (
       <div className="flex items-center justify-end gap-3">
-        {/* View � always active */}
+        {/* View  always active */}
         <Link
           to={`/operations/bookings/${booking.id}`}
           className="text-slate-500 hover:text-primary transition-colors"
@@ -435,7 +435,7 @@ export default function OperationsBookingsIndex() {
           <Eye size={16} absoluteStrokeWidth />
         </Link>
 
-        {/* Edit � always rendered, grayed out when inactive */}
+        {/* Edit  always rendered, grayed out when inactive */}
         {canEditActive ? (
           <Link
             to={`/operations/bookings/${booking.id}/edit`}
@@ -449,13 +449,13 @@ export default function OperationsBookingsIndex() {
           <span
             className="text-slate-300 dark:text-slate-600 cursor-not-allowed"
             aria-label={`Edit booking ${booking.booking_reference}`}
-            title="Cannot edit � departure date has passed"
+            title="Cannot edit  departure date has passed"
           >
             <Pencil size={16} absoluteStrokeWidth />
           </span>
         )}
 
-        {/* Cancel � always rendered, grayed out when inactive */}
+        {/* Cancel  always rendered, grayed out when inactive */}
         {canCancelActive ? (
           <Link
             to={`/operations/bookings/${booking.id}/cancel`}
@@ -469,7 +469,7 @@ export default function OperationsBookingsIndex() {
           <span
             className="text-slate-300 dark:text-slate-600 cursor-not-allowed"
             aria-label={`Cancel booking ${booking.booking_reference}`}
-            title="Cannot cancel � departure date has passed"
+            title="Cannot cancel  departure date has passed"
           >
             <XCircle size={16} absoluteStrokeWidth />
           </span>
@@ -730,7 +730,7 @@ export default function OperationsBookingsIndex() {
         </div>
       </div>
 
-      {/* F. Pagination � always visible to maintain filter bar context */}
+      {/* F. Pagination  always visible to maintain filter bar context */}
       <div className="flex items-center justify-center">
         {totalPages > 1 ? (
           <Pagination

@@ -123,7 +123,7 @@ export default function Notifications() {
               Booking: {notif.booking_reference as string}
             </span>
           ) : (
-            <span className="text-slate-500 dark:text-slate-400">Ã¢â‚¬â€</span>
+            <span className="text-slate-500 dark:text-slate-400">—</span>
           )}
         </>
       ),
@@ -151,7 +151,7 @@ export default function Notifications() {
         <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">
           {notif.sent_at
             ? new Date(notif.sent_at as string).toLocaleDateString("en-GB")
-            : "Ã¢â‚¬â€"}
+            : "—"}
         </span>
       ),
     },

@@ -11,7 +11,7 @@ export default function PrivateNotFound() {
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100 sm:text-3xl lg:text-4xl">
           Page Not Found
         </h1>
-        <p>The page youÃ¢â‚¬â„¢re looking for doesnÃ¢â‚¬â„¢t exist.</p>
+        <p>The page you're looking for doesn't exist.</p>
         <Link to="/" className="underline text-cyan-600">
           Go back home
         </Link>

@@ -156,7 +156,7 @@ describe("Schedule Error and Edge Cases", () => {
       const err = getError(result);
 
       if (err) {
-        // May fail with "no unassigned booking legs" or "no-fly day" â€” both acceptable
+        // May fail with "no unassigned booking legs" or "no-fly day" — both acceptable
         expect(
           err.error.includes("No unassigned booking legs") ||
           err.error.includes("no-fly day")

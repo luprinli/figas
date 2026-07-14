@@ -98,7 +98,7 @@ export default function PaymentList() {
       header: "Booking Ref",
       render: (p) => (
         <span className="text-sm/5 font-medium text-slate-900 dark:text-slate-100">
-          {p.booking_reference ?? "â€”"}
+          {p.booking_reference ?? "—"}
         </span>
       ),
     },
@@ -118,7 +118,7 @@ export default function PaymentList() {
       header: "Method",
       render: (p) => (
         <span className="text-sm/5 text-slate-700 dark:text-slate-200">
-          {p.payment_method?.replace(/_/g, " ") ?? "â€”"}
+          {p.payment_method?.replace(/_/g, " ") ?? "—"}
         </span>
       ),
     },
@@ -134,7 +134,7 @@ export default function PaymentList() {
       sortable: true,
       render: (p) => (
         <span className="text-sm/5 text-slate-500 dark:text-slate-400 tabular-nums">
-          {p.created_at ? new Date(p.created_at).toLocaleDateString("en-GB") : "â€”"}
+          {p.created_at ? new Date(p.created_at).toLocaleDateString("en-GB") : "—"}
         </span>
       ),
     },
@@ -150,7 +150,7 @@ export default function PaymentList() {
             View Booking
           </Link>
         ) : (
-          <span className="text-sm/5 text-slate-500 dark:text-slate-400">â€”</span>
+          <span className="text-sm/5 text-slate-500 dark:text-slate-400">—</span>
         ),
     },
   ];

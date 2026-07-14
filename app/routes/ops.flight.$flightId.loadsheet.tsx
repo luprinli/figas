@@ -39,7 +39,7 @@ export default function LoadsheetPage() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto">
-      {/* Overlay backdrop Ã¢â‚¬â€ click to close */}
+      {/* Overlay backdrop — click to close */}
       <div
         className="fixed inset-0 bg-slate-900/50 dark:bg-slate-950/70 backdrop-blur-sm"
         onClick={handleClose}
@@ -47,7 +47,7 @@ export default function LoadsheetPage() {
       />
       {/* Content panel */}
       <div className="relative z-10 w-full max-w-5xl min-h-screen my-0">
-        {/* Close button Ã¢â‚¬â€ fixed position */}
+        {/* Close button — fixed position */}
         <button
           type="button"
           onClick={handleClose}
@@ -103,7 +103,7 @@ export default function LoadsheetPage() {
             </span>
             <span>
               <span className="text-slate-500 dark:text-slate-400">Fuel:</span>{" "}
-              <span className="font-medium">{sectors.length > 0 ? `${Number(sectors[0].fuel_on_board_kg)}kg` : "Ã¢â‚¬â€"}</span>
+              <span className="font-medium">{sectors.length > 0 ? `${Number(sectors[0].fuel_on_board_kg)}kg` : "—"}</span>
             </span>
           </div>
         </div>
@@ -181,7 +181,7 @@ export default function LoadsheetPage() {
                           {p.clothedWeightKg}kg
                         </td>
                         <td className="py-1.5 pr-2 border-b border-slate-100 dark:border-slate-700 font-mono text-slate-500 dark:text-slate-400">
-                          {p.baggageWeightKg > 0 ? `${p.baggageWeightKg}kg` : "Ã¢â‚¬â€"}
+                          {p.baggageWeightKg > 0 ? `${p.baggageWeightKg}kg` : "—"}
                         </td>
                         {stopCodes.map((code, i) => {
                           const isOrigin = p.origin === code;
@@ -204,7 +204,7 @@ export default function LoadsheetPage() {
                               ) : isBetween ? (
                                 <span className="h-0.5 w-full bg-cyan-300 inline-block rounded" />
                               ) : (
-                                <span className="text-[10px] text-slate-200">Ã¢â‚¬â€</span>
+                                <span className="text-[10px] text-slate-200">—</span>
                               )}
                             </td>
                           );
@@ -217,7 +217,7 @@ export default function LoadsheetPage() {
                     <td className="py-1.5 pr-2 sticky left-0 bg-white dark:bg-slate-800" colSpan={2}>
                       <span className="text-[10px] font-medium text-amber-600">Aft Hold (Baggage)</span>
                     </td>
-                    <td className="py-1.5 pr-2 text-[10px] text-slate-500 dark:text-slate-400">Ã¢â‚¬â€</td>
+                    <td className="py-1.5 pr-2 text-[10px] text-slate-500 dark:text-slate-400">—</td>
                     <td className="py-1.5 pr-2 font-mono text-slate-500 dark:text-slate-400">
                       {passengers.reduce((s, p) => s + p.baggageWeightKg, 0)}kg
                     </td>
@@ -349,9 +349,9 @@ export default function LoadsheetPage() {
               </table>
             </div>
             <div className="mt-2 flex items-center gap-4 text-[10px] text-slate-500 dark:text-slate-400">
-              <span>CG limits: 81.0Ã¢â‚¬Â³Ã¢â‚¬â€œ101.0Ã¢â‚¬Â³ (2057Ã¢â‚¬â€œ2565 mm)</span>
+              <span>CG limits: 81.0"–101.0" (2057–2565 mm)</span>
               <span className="text-slate-300 dark:text-slate-500">|</span>
-              <span>MTOW: {sectors[0]?.takeoff_weight_kg ? `${Number(sectors[0].takeoff_weight_kg)}kg` : "Ã¢â‚¬â€"}</span>
+              <span>MTOW: {sectors[0]?.takeoff_weight_kg ? `${Number(sectors[0].takeoff_weight_kg)}kg` : "—"}</span>
               <span className="text-slate-300 dark:text-slate-500">|</span>
               <span>Bordered columns = Weight &amp; Balance</span>
             </div>

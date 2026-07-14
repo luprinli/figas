@@ -166,7 +166,7 @@ export default function PrintLoadsheet() {
                     const between = oi >= 0 && di >= 0 && i > oi && i < di;
                     return (
                       <td key={i} className="py-1 px-0.5 text-center">
-                        {isOrigin ? <span style={{ color: TEAL, fontWeight: "bold", fontSize: "14pt" }}>�—�</span>
+                        {isOrigin ? <span style={{ color: TEAL, fontWeight: "bold", fontSize: "14pt" }}>—</span>
                          : isDest ? <span style={{ color: TEAL, fontWeight: "bold", fontSize: "14pt" }}>▶</span>
                          : between ? <span style={{ color: TEAL, opacity: 0.5 }}>┝</span>
                          : <span className="text-slate-300 dark:text-slate-500">—</span>}
@@ -191,7 +191,7 @@ export default function PrintLoadsheet() {
 
         <div className="mt-2 flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2 text-[7pt] text-slate-500 dark:text-slate-500">
           <span>Total Pax: {data.loadsheet.total_pax} · Pax Wt: {data.totalPaxWt}kg · Baggage: {data.totalBaggage}kg</span>
-          <span>�—� Board &nbsp; ▶ Alight &nbsp; ┝ In transit</span>
+          <span>— Board &nbsp; ▶ Alight &nbsp; ┝ In transit</span>
         </div>
 
         <PrintFooter now={data.now} loadsheetId={`LS-${String(data.loadsheet.id).padStart(4, "0")}`} />

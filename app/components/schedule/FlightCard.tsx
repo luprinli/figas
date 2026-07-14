@@ -277,7 +277,7 @@ export default function FlightCard({
             : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-500"}`}>
           <svg className="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M21 14v-2l-8-4V4a1 1 0 0 0-1-1 1 1 0 0 0-1 1v4l-8 4v2l8-2v5l-2 1.5V20l3-.5 3 .5v-1.5L13 17v-5l8 2Z" /></svg>
           <span className="max-w-[120px] truncate">{assigningType === "aircraft" ? "Assigning..." : hasAircraft ? (optimisticAircraftReg || flight.aircraft_registration) : (canAssignAircraft ? "Aircraft" : "TBC")}</span>
-          {flight.seat_count != null && <span className="font-normal opacity-70">Â·{flight.seat_count}s</span>}
+          {flight.seat_count != null && <span className="font-normal opacity-70">·{flight.seat_count}s</span>}
         </button>
 
         <div className="flex items-center gap-1.5 ml-auto">
@@ -317,7 +317,7 @@ export default function FlightCard({
           {flight.availableAircraft.map(a => (
             <button key={a.id} type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); submitAssign("aircraft", a.id); }}
               className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:text-slate-200 hover:border-cyan-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 transition-colors cursor-pointer">
-              {a.registration} <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">{a.type} Â· {a.seat_count}s</span>
+              {a.registration} <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">{a.type} · {a.seat_count}s</span>
             </button>
           ))}
           <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowAircraftOptions(false); }}
@@ -358,7 +358,7 @@ export default function FlightCard({
         )}
         {arrDisplay && (
           <>
-            <span className="text-slate-300 dark:text-slate-500">â€“</span>
+            <span className="text-slate-300 dark:text-slate-500">–</span>
             <span className="font-mono tabular-nums text-xs font-semibold text-slate-700 dark:text-slate-200">{arrDisplay}</span>
           </>
         )}

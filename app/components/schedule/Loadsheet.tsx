@@ -363,7 +363,7 @@ export default function Loadsheet({
                     >
                       {validation.ok
                         ? "✓ Loadsheet valid — all weights within limits"
-                        : "�— Loadsheet invalid — weight limit exceeded"}
+                        : "— Loadsheet invalid — weight limit exceeded"}
                     </span>
                   </div>
                 </div>

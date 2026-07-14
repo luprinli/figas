@@ -26,7 +26,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         sql<{ cnt: string }>`SELECT COUNT(*) as cnt FROM invoices WHERE status = 'overdue'`.execute(kdb),
         sql<Record<string, unknown>>`
             SELECT p.id, p.amount_gbp, p.status, p.created_at, p.payment_method,
-       COALESCE(b.booking_reference, 'Ã¢â‚¬â€') AS booking_reference
+       COALESCE(b.booking_reference, '—') AS booking_reference
  FROM payments p
   LEFT JOIN invoices i ON i.booking_id = p.booking_id
  LEFT JOIN bookings b ON b.id = i.booking_id
@@ -52,7 +52,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
  GROUP BY month
  ORDER BY month
         `.execute(kdb),
-        // Operations Overview queries (read-only, finance:view permission) Ã¢â‚¬â€ isolated with fallbacks
+        // Operations Overview queries (read-only, finance:view permission) — isolated with fallbacks
         sql<{ status: string; flight_count: number }>`SELECT s.status, COUNT(f.id)::int AS flight_count FROM schedules s LEFT JOIN flights f ON f.schedule_id = s.id WHERE s.schedule_date = CURRENT_DATE::date GROUP BY s.status`.execute(kdb).catch(() => ({ rows: [] })),
         sql<{ total: number; active: number }>`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status NOT IN ('completed','cancelled'))::int AS active FROM bookings WHERE created_at::date = CURRENT_DATE::date`.execute(kdb).catch(() => ({ rows: [{ total: 0, active: 0 }] })),
         sql<{ total: number; unassigned: number }>`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE aircraft_id IS NULL)::int AS unassigned FROM flights WHERE departure_time::date = CURRENT_DATE::date`.execute(kdb).catch(() => ({ rows: [{ total: 0, unassigned: 0 }] })),
@@ -79,7 +79,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     if (overdueInvoices > 0) {
         alerts.push({
             id: "overdue",
-            message: `${overdueInvoices} invoice${overdueInvoices > 1 ? "s" : ""} overdue Ã¢â‚¬â€ payment reminders recommended`,
+            message: `${overdueInvoices} invoice${overdueInvoices > 1 ? "s" : ""} overdue — payment reminders recommended`,
             severity: "red",
             action: { label: "View", to: "/finance/payments?status=overdue" },
         });
@@ -172,9 +172,9 @@ export default function FinanceDashboard() {
     ];
 
     const agingBuckets = [
-        { label: "0Ã¢â‚¬â€œ30 days", value: aging.due30, color: "text-emerald-600 dark:text-emerald-400" },
-        { label: "31Ã¢â‚¬â€œ60 days", value: aging.due60, color: "text-amber-600 dark:text-amber-400" },
-        { label: "61Ã¢â‚¬â€œ90 days", value: aging.due90, color: "text-amber-700 dark:text-amber-400 dark:text-amber-300" },
+        { label: "0–30 days", value: aging.due30, color: "text-emerald-600 dark:text-emerald-400" },
+        { label: "31–60 days", value: aging.due60, color: "text-amber-600 dark:text-amber-400" },
+        { label: "61–90 days", value: aging.due90, color: "text-amber-700 dark:text-amber-400 dark:text-amber-300" },
         { label: "90+ days", value: aging.overdue, color: "text-red-600 dark:text-red-400" },
     ];
 
@@ -222,7 +222,7 @@ export default function FinanceDashboard() {
                 <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
                     <div className="flex items-center justify-between mb-3">
                         <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Revenue Trend Ã¢â‚¬â€ 6 Months
+                            Revenue Trend — 6 Months
                         </span>
                         <Sparkline data={monthlyData} width={240} height={40} color="#059669" />
                     </div>
@@ -238,7 +238,7 @@ export default function FinanceDashboard() {
                     <div className="text-center">
                         <p className="text-xs text-slate-500 dark:text-slate-400">Schedule</p>
                         <p className="text-lg font-bold text-sky-600 dark:text-sky-400">
-                            {opsData.scheduleStatus.length > 0 ? (opsData.scheduleStatus as Array<{ status: string; flight_count: number }>).find(s => s.status === 'published')?.flight_count ?? 'Ã¢â‚¬â€' : 'Ã¢â‚¬â€'}
+                            {opsData.scheduleStatus.length > 0 ? (opsData.scheduleStatus as Array<{ status: string; flight_count: number }>).find(s => s.status === 'published')?.flight_count ?? '—' : '—'}
                         </p>
                     </div>
                     <div className="text-center">

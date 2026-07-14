@@ -154,7 +154,7 @@ describe("handleUnassignBooking()", () => {
       booking_passenger_id: passenger.id,
     });
 
-    // Unassign the only booking â€” may fail if unique-date generation hits a no-fly day
+    // Unassign the only booking — may fail if unique-date generation hits a no-fly day
     const result = await handleUnassignBooking(leg.id);
     const err = getError(result);
     if (err) {

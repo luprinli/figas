@@ -81,7 +81,7 @@ export default function CheckinLookup() {
       key: "flight_number",
       header: "Flight",
       render: (row) => (
-        <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">{row.flight_number ?? "Ã¢â‚¬â€"}</span>
+        <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">{row.flight_number ?? "—"}</span>
       ),
       sortable: true,
     },
@@ -92,7 +92,7 @@ export default function CheckinLookup() {
         <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">
           {row.origin_code && row.destination_code
             ? `${row.origin_code} \u2192 ${row.destination_code}`
-            : "Ã¢â‚¬â€"}
+            : "—"}
         </span>
       ),
     },

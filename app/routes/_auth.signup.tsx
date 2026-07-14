@@ -93,7 +93,7 @@ export async function action({ request }: ActionFunctionArgs) {
       await sql`INSERT INTO user_roles (user_id, role_id) VALUES (${user.id}, ${role.rows[0].id}) ON CONFLICT DO NOTHING`.execute(kdb);
     }
   } catch {
-    // Non-critical Ã¢â‚¬â€ user can still be assigned roles later via admin
+    // Non-critical — user can still be assigned roles later via admin
   }
 
   // Create session and redirect

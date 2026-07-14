@@ -75,7 +75,7 @@ export default function PassengerView() {
           </Link>
           <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Passengers</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Flight #{loadsheet.flight_id} Ã‚Â· {boardedCount}/{passengers.length} boarded
+            Flight #{loadsheet.flight_id} Ã‚· {boardedCount}/{passengers.length} boarded
           </p>
         </div>
 
@@ -129,7 +129,7 @@ export default function PassengerView() {
               </button>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                  Seat {p.seat} Ã¢â‚¬â€ Passenger #{p.bookingPassengerId}
+                  Seat {p.seat} — Passenger #{p.bookingPassengerId}
                 </div>
                 <div className="text-xs text-slate-500 dark:text-slate-400">
                   {p.weight}kg {p.baggage > 0 ? `+ ${p.baggage}kg baggage` : ""}

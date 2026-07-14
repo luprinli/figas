@@ -13,7 +13,7 @@ import { TourTrigger } from "../components/TourTrigger";
 import { pilotBriefingTour } from "../utils/tour/definitions/pilot-briefing";
 
 export const meta: MetaFunction<typeof loader> = ({ data }) => [
-    { title: `Pilot Briefing Ã¢â‚¬â€ ${data?.flightNumber ?? ""} - FIGAS` },
+    { title: `Pilot Briefing — ${data?.flightNumber ?? ""} - FIGAS` },
 ];
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
@@ -46,7 +46,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 
     const f = flight.rows[0];
 
-    // Ordered flight legs Ã¢â‚¬â€ the true STY \u2192 Ã¢â‚¬Â¦ \u2192 STY route (RULE 1).
+    // Ordered flight legs — the true STY \u2192 … \u2192 STY route (RULE 1).
     // Route display MUST derive from flight_legs, not the flight-level
     // origin/destination aerodrome (which is STYÃ¢â€ â€STY for round-trip sorties).
     const legs = await sql<{
@@ -70,7 +70,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     }>`
         SELECT bp.first_name || ' ' || bp.last_name AS name,
        bl.origin_code AS origin, bl.destination_code AS destination,
-       COALESCE(blp.seat_number, 'Ã¢â‚¬â€') AS seat,
+       COALESCE(blp.seat_number, '—') AS seat,
        COALESCE(blp.clothed_weight_kg, ${DEFAULT_CLOTHED_BODY_WEIGHT_KG}) AS "weightKg"
  FROM booking_leg_passengers blp
  JOIN booking_legs bl ON bl.id = blp.booking_leg_id

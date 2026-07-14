@@ -77,7 +77,7 @@ export async function action({ request }: ActionFunctionArgs) {
     {
       error: null,
       success: true,
-      // Never return the token in the response body Ã¢â‚¬â€ it's logged server-side for dev
+      // Never return the token in the response body — it's logged server-side for dev
     },
     { status: 200 }
   );

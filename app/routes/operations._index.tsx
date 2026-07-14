@@ -125,7 +125,7 @@ export async function loader() {
     if (!todaySchedule) {
         alerts.push({
             id: "no-schedule",
-            message: "No schedule built for today Ã¢â‚¬â€ flights may not be assigned",
+            message: "No schedule built for today — flights may not be assigned",
             severity: "blue",
             action: { label: "Build Schedule", to: "/operations/schedule" },
         });
@@ -174,7 +174,7 @@ export default function OperationsDashboard() {
 
     const bookingColumns: Column<BookingDisplayItem>[] = [
         { key: "booking_reference", header: "Reference", render: (item) => <span className="font-medium text-slate-800 dark:text-slate-100">{item.booking.booking_reference}</span>, sortable: true },
-        { key: "passenger", header: "Passenger", render: (item) => <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">{item.passenger ? `${item.passenger.first_name} ${item.passenger.last_name}` : "Ã¢â‚¬â€"}</span>, sortable: true },
+        { key: "passenger", header: "Passenger", render: (item) => <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">{item.passenger ? `${item.passenger.first_name} ${item.passenger.last_name}` : "—"}</span>, sortable: true },
         { key: "status", header: "Status", render: (item) => <StatusBadge status={item.booking.status} />, sortable: true },
         { key: "date", header: "Date", render: (item) => <span className="text-slate-600 dark:text-slate-300 dark:text-slate-500">{item.firstLeg ? new Date(item.firstLeg.leg_date).toLocaleDateString("en-GB") : new Date(item.booking.created_at).toLocaleDateString("en-GB")}</span>, sortable: true },
         { key: "time-in-status", header: "Waiting", render: (item) => <TimeInStatus updatedAt={item.booking.updated_at} status={item.booking.status} />, sortable: true },
@@ -196,7 +196,7 @@ export default function OperationsDashboard() {
             ),
         },
         { key: "aircraft_registration", header: "Aircraft" },
-        { key: "pilot_name", header: "Pilot", render: (f) => <span>{(f.pilot_name as string) ?? "Ã¢â‚¬â€"}</span> },
+        { key: "pilot_name", header: "Pilot", render: (f) => <span>{(f.pilot_name as string) ?? "—"}</span> },
     ];
 
     return (
@@ -215,11 +215,11 @@ export default function OperationsDashboard() {
                 </div>
             </div>
 
-            {/* KPI Row Ã¢â‚¬â€ 6 cards, single row */}
+            {/* KPI Row — 6 cards, single row */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                 <MetricCard label="Needs Attention" value={attentionCount} color={attentionCount > 0 ? "amber" : "emerald"} />
                 <MetricCard label="Today's Flights" value={flightData.length} color="blue" />
-                <MetricCard label="Today's Schedule" value={todaySchedule ? scheduleFlightCount : "Ã¢â‚¬â€"} color="emerald" to={todaySchedule ? "/operations/schedule" : undefined} />
+                <MetricCard label="Today's Schedule" value={todaySchedule ? scheduleFlightCount : "—"} color="emerald" to={todaySchedule ? "/operations/schedule" : undefined} />
                 <MetricCard label="Pending Manifests" value={pendingManifests} color={pendingManifests > 0 ? "amber" : "emerald"} to="/operations/loadsheets" />
                 <MetricCard label="Upcoming" value={upcomingCount} color="purple" />
                 <MetricCard label="Completed" value={completedCount} color="emerald" />

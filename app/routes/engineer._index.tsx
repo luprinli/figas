@@ -138,7 +138,7 @@ export default function EngineerDashboard() {
                                 <ProgressBar
                                     key={ac.id as number}
                                     label={`${ac.registration as string}`}
-                                    subtitle={`${ac.type as string}${isActive ? "" : " Ã¢â‚¬â€ Inactive"}${defectMap.has(ac.id as number) ? ` Ã‚Â· ${defectMap.get(ac.id as number)} open defect${defectMap.get(ac.id as number)! > 1 ? 's' : ''}` : ''}`}
+                                    subtitle={`${ac.type as string}${isActive ? "" : " — Inactive"}${defectMap.has(ac.id as number) ? ` Ã‚· ${defectMap.get(ac.id as number)} open defect${defectMap.get(ac.id as number)! > 1 ? 's' : ''}` : ''}`}
                                     current={hours}
                                     max={SERVICE_INTERVAL_HOURS}
                                     onClick={isActive ? () => {

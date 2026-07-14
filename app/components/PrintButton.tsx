@@ -69,16 +69,16 @@ export function buildBaggageTagOptions(passenger: {
   date: string;
 }): PrintOptions {
   return {
-    title: `Baggage Tag â€” ${passenger.name}`,
+    title: `Baggage Tag — ${passenger.name}`,
     header: "FIGAS Baggage Tag",
-    subheader: `${passenger.flightNumber} â€” ${passenger.date}`,
+    subheader: `${passenger.flightNumber} — ${passenger.date}`,
     sections: [
       {
         heading: "Passenger",
         rows: [
           { label: "Name", value: passenger.name },
           { label: "Booking Ref", value: passenger.bookingRef },
-          { label: "Seat", value: passenger.seat || "â€”" },
+          { label: "Seat", value: passenger.seat || "—" },
         ],
       },
       {
@@ -103,6 +103,6 @@ export function buildBaggageTagOptions(passenger: {
         ],
       },
     ],
-    footer: "FIGAS Flight Operations â€” Baggage Tag â€” Uncontrolled when printed",
+    footer: "FIGAS Flight Operations — Baggage Tag — Uncontrolled when printed",
   };
 }
