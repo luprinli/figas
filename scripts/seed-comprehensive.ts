@@ -1186,20 +1186,27 @@ async function main() {
       (SELECT COUNT(*) FROM payments) AS payments,
       (SELECT COUNT(*) FROM freight_consignments) AS freight,
       (SELECT COUNT(*) FROM weight_balance_snapshots) AS wb_snapshots,
-      (SELECT COUNT(*) FROM booking_leg_passengers WHERE checked_in = true) AS checked_in,
-      (SELECT COUNT(*) FROM chart_of_accounts) AS chart_of_accounts,
-      (SELECT COUNT(*) FROM payment_methods) AS payment_methods,
-      (SELECT COUNT(*) FROM system_settings) AS system_settings,
-      (SELECT COUNT(*) FROM fuel_orders) AS fuel_orders,
-      (SELECT COUNT(*) FROM flight_manifests) AS flight_manifests,
-      (SELECT COUNT(*) FROM seat_assignments) AS seat_assignments,
-      (SELECT COUNT(*) FROM stripe_payments) AS stripe_payments,
-      (SELECT COUNT(*) FROM bank_transactions) AS bank_transactions,
-      (SELECT COUNT(*) FROM payment_reminders) AS payment_reminders,
-      (SELECT COUNT(*) FROM export_log) AS export_log,
-      (SELECT COUNT(*) FROM defects) AS defects,
-      (SELECT COUNT(*) FROM airframe_hours) AS airframe_hours`
+      (SELECT COUNT(*) FROM booking_leg_passengers WHERE checked_in = true) AS checked_in`
   );
+  // Extension tables — may not exist if schema was created via prisma db push
+  let extCounts: Record<string,number> = {};
+  try {
+    extCounts = (await prisma.$queryRawUnsafe<Array<Record<string,number>>>(
+      `SELECT
+        (SELECT COUNT(*) FROM chart_of_accounts) AS chart_of_accounts,
+        (SELECT COUNT(*) FROM payment_methods) AS payment_methods,
+        (SELECT COUNT(*) FROM system_settings) AS system_settings,
+        (SELECT COUNT(*) FROM fuel_orders) AS fuel_orders,
+        (SELECT COUNT(*) FROM flight_manifests) AS flight_manifests,
+        (SELECT COUNT(*) FROM seat_assignments) AS seat_assignments,
+        (SELECT COUNT(*) FROM stripe_payments) AS stripe_payments,
+        (SELECT COUNT(*) FROM bank_transactions) AS bank_transactions,
+        (SELECT COUNT(*) FROM payment_reminders) AS payment_reminders,
+        (SELECT COUNT(*) FROM export_log) AS export_log,
+        (SELECT COUNT(*) FROM defects) AS defects,
+        (SELECT COUNT(*) FROM airframe_hours) AS airframe_hours`
+    ))[0];
+  } catch { /* extension tables may not exist with prisma db push */ }
   const c = counts[0];
 
   // ── Required-data integrity gate ────────────────────────────────────────
@@ -1246,18 +1253,18 @@ async function main() {
   console.log(`  Checked In:          ${c.checked_in}`);
   console.log(`  Freight:             ${c.freight}`);
   console.log(`  W&B Snapshots:       ${c.wb_snapshots}`);
-  console.log(`  Chart of Accounts:   ${c.chart_of_accounts}`);
-  console.log(`  Payment Methods:     ${c.payment_methods}`);
-  console.log(`  System Settings:     ${c.system_settings}`);
-  console.log(`  Fuel Orders:         ${c.fuel_orders}`);
-  console.log(`  Flight Manifests:    ${c.flight_manifests}`);
-  console.log(`  Seat Assignments:    ${c.seat_assignments}`);
-  console.log(`  Stripe Payments:     ${c.stripe_payments}`);
-  console.log(`  Bank Transactions:   ${c.bank_transactions}`);
-  console.log(`  Payment Reminders:   ${c.payment_reminders}`);
-  console.log(`  Export Logs:         ${c.export_log}`);
-  console.log(`  Defects:             ${c.defects}`);
-  console.log(`  Airframe Hours:      ${c.airframe_hours}`);
+  console.log(`  Chart of Accounts:   ${extCounts.chart_of_accounts ?? "N/A"}`);
+  console.log(`  Payment Methods:     ${extCounts.payment_methods ?? "N/A"}`);
+  console.log(`  System Settings:     ${extCounts.system_settings ?? "N/A"}`);
+  console.log(`  Fuel Orders:         ${extCounts.fuel_orders ?? "N/A"}`);
+  console.log(`  Flight Manifests:    ${extCounts.flight_manifests ?? "N/A"}`);
+  console.log(`  Seat Assignments:    ${extCounts.seat_assignments ?? "N/A"}`);
+  console.log(`  Stripe Payments:     ${extCounts.stripe_payments ?? "N/A"}`);
+  console.log(`  Bank Transactions:   ${extCounts.bank_transactions ?? "N/A"}`);
+  console.log(`  Payment Reminders:   ${extCounts.payment_reminders ?? "N/A"}`);
+  console.log(`  Export Logs:         ${extCounts.export_log ?? "N/A"}`);
+  console.log(`  Defects:             ${extCounts.defects ?? "N/A"}`);
+  console.log(`  Airframe Hours:      ${extCounts.airframe_hours ?? "N/A"}`);
   console.log("══════════════════════════════════════════════\n");
 }
 
