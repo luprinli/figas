@@ -877,15 +877,19 @@ export async function handleAssignBooking(bookingLegId: number, flightId: number
         .execute();
 
       // Propagate to sibling unassigned legs of the same booking
-      const bk = await tx.selectFrom("booking_legs")
-        .select("booking_id").where("id", "=", bookingLegId)
-        .executeTakeFirst();
-      if (bk?.booking_id) {
-        await tx.updateTable("booking_legs")
-          .set({ flight_id: flightId })
-          .where("booking_id", "=", bk.booking_id)
-          .where("flight_id", "is", null)
-          .execute();
+      // Only propagate when assigning the whole booking leg — per-passenger drags
+      // should NOT pull in sibling legs (the user explicitly scoped to one passenger).
+      if (!bookingLegPassengerId) {
+        const bk = await tx.selectFrom("booking_legs")
+          .select("booking_id").where("id", "=", bookingLegId)
+          .executeTakeFirst();
+        if (bk?.booking_id) {
+          await tx.updateTable("booking_legs")
+            .set({ flight_id: flightId })
+            .where("booking_id", "=", bk.booking_id)
+            .where("flight_id", "is", null)
+            .execute();
+        }
       }
     }
 
