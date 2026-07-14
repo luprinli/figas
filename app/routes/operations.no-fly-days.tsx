@@ -1,8 +1,8 @@
 import type { MetaFunction } from "@remix-run/node";
 import { useLoaderData, useActionData, Form, useSubmit, useNavigation , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
-export { loader, action } from "./operations.no-fly-days.action.server";
-import type { loader, action } from "./operations.no-fly-days.action.server";
+export { loader, action } from "~/utils/server-actions/operations.no-fly-days.action.server";
+import type { loader, action } from "~/utils/server-actions/operations.no-fly-days.action.server";
 
 import { useState, useMemo, useCallback } from "react";
 import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react";

@@ -1,15 +1,15 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { getUserId } from "../utils/auth.server";
-import { createAuditLogEntry } from "../utils/permissions.server";
-import { BookingSource } from "../utils/constants";
-import { bookingRepository } from "../utils/repositories/booking";
-import { bookingLegRepository } from "../utils/repositories/booking-leg";
-import { bookingPassengerRepository } from "../utils/repositories/booking-passenger";
-import { bookingLegPassengerRepository } from "../utils/repositories/booking-leg-passenger";
-import { getNoFlyDateStrings } from "../utils/services/no-fly.service";
-import { parseIndexedFormData } from "../utils/form-data";
-import { todayISO, daysFromNow } from "../utils/dates";
+import { getUserId } from "~/utils/auth.server";
+import { createAuditLogEntry } from "~/utils/permissions.server";
+import { BookingSource } from "~/utils/constants";
+import { bookingRepository } from "~/utils/repositories/booking";
+import { bookingLegRepository } from "~/utils/repositories/booking-leg";
+import { bookingPassengerRepository } from "~/utils/repositories/booking-passenger";
+import { bookingLegPassengerRepository } from "~/utils/repositories/booking-leg-passenger";
+import { getNoFlyDateStrings } from "~/utils/services/no-fly.service";
+import { parseIndexedFormData } from "~/utils/form-data";
+import { todayISO, daysFromNow } from "~/utils/dates";
 
 export async function action({ request }: ActionFunctionArgs) {
   const userId = await getUserId(request);
@@ -176,7 +176,7 @@ export async function action({ request }: ActionFunctionArgs) {
       }
 
       // ── Step 5: Compute fares and update booking totals ──
-      const { computeBookingCost, updateBookingTotals } = await import("../utils/pricing/booking-costing.server");
+      const { computeBookingCost, updateBookingTotals } = await import("~/utils/pricing/booking-costing.server");
       const cost = await computeBookingCost({ bookingId: booking.id });
       await updateBookingTotals(booking.id, cost.grandTotal);
 
@@ -186,7 +186,7 @@ export async function action({ request }: ActionFunctionArgs) {
         .filter((p) => p.passenger_email)
         .map((p) => p.passenger_email as string);
       if (passengerEmails.length > 0) {
-        const { sendEmailQuiet } = await import("../utils/email.server");
+        const { sendEmailQuiet } = await import("~/utils/email.server");
         sendEmailQuiet({
           to: passengerEmails,
           subject: `Booking Confirmed — ${booking.booking_reference}`,

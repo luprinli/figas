@@ -1,6 +1,6 @@
 import type { HeadersFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
-export { action } from "./operations.bookings.new.action.server";
+export { action } from "~/utils/server-actions/operations.bookings.new.action.server";
 import { Form, Link, useActionData, useLoaderData, useSubmit, useNavigation , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
 import { MAX_PASSENGERS_PER_BOOKING, DEFAULT_MAX_LEGS_PER_BOOKING } from "../utils/constants";

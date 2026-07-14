@@ -49,7 +49,7 @@ const sourceLabels: Record<string, string> = {
   [BookingSource.OPERATIONS_STAFF]: "Operations Staff",
 };
 
-import { VALID_TRANSITIONS } from "./operations.bookings.$bookingId.action.server";
+import { VALID_TRANSITIONS } from "./operations.bookings.$bookingId.transitions";
 
 export { action } from "./operations.bookings.$bookingId.action.server";
 

@@ -380,3 +380,13 @@ export const PilotRole = {
   RELIEF: "relief",
 } as const;
 export type PilotRoleType = (typeof PilotRole)[keyof typeof PilotRole];
+
+// Fuel order statuses — used by EFB pilot fuel operations
+export const FuelOrderStatus = {
+  DRAFT: "draft",
+  ISSUED: "issued",
+  FUELING: "fueling",
+  COMPLETED: "completed",
+  CANCELLED: "cancelled",
+} as const;
+export type FuelOrderStatusType = (typeof FuelOrderStatus)[keyof typeof FuelOrderStatus];

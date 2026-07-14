@@ -1,9 +1,9 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { requirePermission } from "../utils/permissions.server";
-import { requireUser } from "../utils/layout.server";
-import { validateCsrfRequest } from "../utils/csrf-check.server";
-import { Permission } from "../utils/constants";
+import { requirePermission } from "~/utils/permissions.server";
+import { requireUser } from "~/utils/layout.server";
+import { validateCsrfRequest } from "~/utils/csrf-check.server";
+import { Permission } from "~/utils/constants";
 import {
   findAllRules,
   createRule,
@@ -11,8 +11,8 @@ import {
   toggleRuleActive,
   deleteRule,
   getNoFlyCalendar,
-} from "../utils/services/no-fly.service";
-import { todayISO, daysFromNow } from "../utils/dates";
+} from "~/utils/services/no-fly.service";
+import { todayISO, daysFromNow } from "~/utils/dates";
 
 const CALENDAR_LOOKAHEAD_DAYS = 90;
 

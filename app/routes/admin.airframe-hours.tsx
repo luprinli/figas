@@ -2,8 +2,8 @@ import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { Form, useLoaderData, useActionData, Link , useRouteError, isRouteErrorResponse } from "@remix-run/react";
 
-export { action } from "./admin.airframe-hours.action.server";
-import type { action } from "./admin.airframe-hours.action.server";
+export { action } from "~/utils/server-actions/admin.airframe-hours.action.server";
+import type { action } from "~/utils/server-actions/admin.airframe-hours.action.server";
 
 import { useState } from "react";
 import { requireAuth } from "../utils/auth.server";

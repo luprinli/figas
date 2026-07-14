@@ -1,9 +1,9 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { requireAuth } from "../utils/auth.server";
-import { requirePermission } from "../utils/permissions.server";
-import { Permission } from "../utils/constants";
-import { adminRepository } from "../utils/repositories/admin";
+import { requireAuth } from "~/utils/auth.server";
+import { requirePermission } from "~/utils/permissions.server";
+import { Permission } from "~/utils/constants";
+import { adminRepository } from "~/utils/repositories/admin";
 
 export async function action({ request }: ActionFunctionArgs) {
   await requireAuth(request);
