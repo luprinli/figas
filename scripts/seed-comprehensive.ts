@@ -262,7 +262,7 @@ async function main() {
     const r = await prisma.$queryRawUnsafe<Array<{id:number}>>(
       `INSERT INTO users (name, email, password, role, is_active, created_at, updated_at)
        VALUES ($1, $2, $3, $4, true, NOW(), NOW())
-       ON CONFLICT ON CONSTRAINT users_email_key DO UPDATE SET name = EXCLUDED.name, password = EXCLUDED.password
+       ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name, password = EXCLUDED.password
        RETURNING id`, u.name, u.email, pwHash, u.role
     );
     userIdMap[u.email] = r[0].id;
@@ -335,7 +335,7 @@ async function main() {
     const r = await prisma.$queryRawUnsafe<Array<{id:number}>>(
       `INSERT INTO users (name, email, password, role, is_active, created_at, updated_at)
        VALUES ($1, $2, $3, 'passenger', true, NOW(), NOW())
-       ON CONFLICT ON CONSTRAINT users_email_key DO UPDATE SET name = EXCLUDED.name
+       ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
        RETURNING id`, `${fn} ${ln}`, email, pwHash
     );
     passengerIds.push(r[0].id);

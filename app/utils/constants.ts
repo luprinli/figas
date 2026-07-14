@@ -56,6 +56,7 @@ export const Permission = {
   FLIGHT_MANAGE_MANIFEST: "flight:manage-manifest",
   FLIGHT_ASSIGN_PILOT: "flight:assign-pilot",
   FLIGHT_MANAGE_SEATS: "flight:manage-seats",
+  FLIGHT_FUEL_EXECUTE: "flight:fuel-execute",
 
   // Schedules
   SCHEDULE_CREATE: "schedule:create",

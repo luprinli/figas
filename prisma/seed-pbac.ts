@@ -55,6 +55,7 @@ const PERMISSIONS: PermissionSeed[] = [
     { resource: "flight", action: "manage-manifest", description: "View and approve flight manifests" },
     { resource: "flight", action: "assign-pilot", description: "Assign pilots to flights" },
     { resource: "flight", action: "manage-seats", description: "Manage seat assignments" },
+    { resource: "flight", action: "fuel-execute", description: "Record fuel uplift (fueler role)" },
 
     // Schedules (6)
     { resource: "schedule", action: "create", description: "Create new schedules" },
@@ -274,6 +275,7 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     // ENGINEER
     engineer: [
         "flight:view",
+        "flight:fuel-execute",
         "maintenance:view",
         "maintenance:edit",
         "maintenance:manage-airframe",
