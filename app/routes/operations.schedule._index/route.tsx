@@ -494,6 +494,7 @@ export default function ScheduleBuilder() {
         const formData = new FormData();
         formData.set("intent", "remove-flight");
         formData.set("flightId", String(flightId));
+        if (csrfToken) formData.set("csrf_token", csrfToken);
         fetcher.submit(formData, { method: "post" });
       },
     });
@@ -764,6 +765,7 @@ export default function ScheduleBuilder() {
                             scheduleId={schedule?.id ?? 0}
                             canAssignAircraft={canAssignAircraft}
                             availableAircraft={availableAircraft}
+                            csrfToken={csrfToken}
                             activeOverId={activeOverId}
                             onRemoveFlight={handleRemoveFlightClick}
                             onOpenLoadsheet={(flightId: number) => {

@@ -98,6 +98,8 @@ export interface FlightCardProps {
   onRemoveFlight?: (flightId: number) => void;
   onFlightUpdated?: (updatedFlight: Record<string, unknown>) => void;
   onOpenLoadsheet?: (flightId: number) => void;
+  /** CSRF token injected by parent route for assignment submissions */
+  csrfToken?: string | null;
   renderPassengerRow?: (params: {
     passenger: { id: number; booking_leg_id: number; compact_name: string; body_weight_kg: number; baggage_weight_kg: number };
     aerodromeCode: string;
@@ -113,7 +115,7 @@ const statusAccentMap: Record<string, string> = {
 };
 
 export default function FlightCard({
-  flight, className, renderPassengerRow, linkable = true, onRemoveFlight, onFlightUpdated, onOpenLoadsheet,
+  flight, className, renderPassengerRow, linkable = true, onRemoveFlight, onFlightUpdated, onOpenLoadsheet, csrfToken,
 }: FlightCardProps) {
   const [passengersExpanded, setPassengersExpanded] = useState(false);
   const [mouseIsOver, setMouseIsOver] = useState(false);
@@ -160,6 +162,7 @@ export default function FlightCard({
     formData.set("flightId", String(flight.id));
     formData.set(type === "aircraft" ? "aircraftId" : "pilotId", String(id));
     formData.set("scheduleId", String(flight.schedule_id));
+    if (csrfToken) formData.set("csrf_token", csrfToken);
     assignmentFetcher.submit(formData, { method: "post" });
     if (type === "aircraft") setShowAircraftOptions(false); else setShowPilotOptions(false);
   }

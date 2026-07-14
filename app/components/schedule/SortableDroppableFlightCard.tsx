@@ -11,7 +11,7 @@ import type { FlightLegRow, PassengerManifestRow } from "../../utils/scheduling/
 export function SortableDroppableFlightCard({
   flight, flightLegs, passengerManifests, canAssignPilot, availablePilots, scheduleId,
   canAssignAircraft = false, availableAircraft = [],
-  activeOverId, renderPassengerRow, onRemoveFlight, onFlightUpdated, onOpenLoadsheet,
+  activeOverId, renderPassengerRow, onRemoveFlight, onFlightUpdated, onOpenLoadsheet, csrfToken,
 }: {
   flight: FlightSummaryRow;
   flightLegs: FlightLegRow[];
@@ -30,6 +30,7 @@ export function SortableDroppableFlightCard({
   onRemoveFlight?: (flightId: number) => void;
   onFlightUpdated?: (updatedFlight: Record<string, unknown>) => void;
   onOpenLoadsheet?: (flightId: number) => void;
+  csrfToken?: string | null;
 }) {
   const flightCardFlight = buildFlightCardFlight(flight, flightLegs, passengerManifests, canAssignPilot, availablePilots, scheduleId, canAssignAircraft, availableAircraft);
   const { setNodeRef, isOver } = useDroppable({
@@ -71,7 +72,7 @@ export function SortableDroppableFlightCard({
       }`}
     >
       {validationIssues.length > 0 && <ValidationBanner issues={validationIssues} />}
-      <FlightCard flight={flightCardFlight} maxTakeoffWeightKg={flight.max_takeoff_weight_kg ?? 2994} linkable={false} renderPassengerRow={renderPassengerRow} onRemoveFlight={onRemoveFlight} onFlightUpdated={onFlightUpdated} onOpenLoadsheet={onOpenLoadsheet} />
+      <FlightCard flight={flightCardFlight} maxTakeoffWeightKg={flight.max_takeoff_weight_kg ?? 2994} linkable={false} renderPassengerRow={renderPassengerRow} onRemoveFlight={onRemoveFlight} onFlightUpdated={onFlightUpdated} onOpenLoadsheet={onOpenLoadsheet} csrfToken={csrfToken} />
     </div>
   );
 }
