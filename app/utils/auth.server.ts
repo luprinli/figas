@@ -137,10 +137,16 @@ export function redirectToRoleHome(
   }
 
   // 2. Permission-based default — most specific roles first
-  //    Operations is a superset of Pilot, so schedule:* must precede flight:manage-*
-  //    Finance is a superset of Pilot (both have flight:view), so finance:view must precede flight:view
+  //    Pilots have schedule:view but should go to /pilot, so flight:manage-*
+  //    checks must precede the schedule:* check.
   if (permissions.includes("admin:access")) return "/admin";
-  if (permissions.includes("schedule:create") || permissions.includes("schedule:update") || permissions.includes("schedule:view")) return "/operations";
+  if (permissions.includes("schedule:create") || permissions.includes("schedule:update") || permissions.includes("schedule:view")) {
+    // Pilots also have schedule:view — redirect them to /pilot, not /operations
+    if (permissions.includes("flight:manage-manifest") || permissions.includes("flight:manage-seats")) {
+      return "/pilot";
+    }
+    return "/operations";
+  }
   if (permissions.includes("finance:view")) return "/finance";
   if (permissions.includes("flight:manage-manifest") || permissions.includes("flight:manage-seats")) return "/pilot";
   if (permissions.includes("checkin:process") || permissions.includes("checkin:view")) return "/checkin/counter";
