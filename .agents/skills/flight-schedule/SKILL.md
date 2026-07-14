@@ -40,29 +40,29 @@ The schedule status lifecycle is defined in [`docs/WORKFLOWS.md`](../../docs/WOR
 and enforced in [`app/utils/schedule-handlers.server.ts`](../../app/utils/schedule-handlers.server.ts).
 
 ```
-                    ┌──────────┐
+                    ┌──────────┝
                     │  DRAFT   │
                     └────┬─────┘
                          │ auto-build
-                    ┌────▼─────┐
-              ┌─────│ BUILDING │�—�──── revise ──────┐
+                    ┌────▼─────┝
+              ┌─────│ BUILDING │�—�──── revise ──────┝
               │     └────┬─────┘                    │
               │          │ approve                  │
-              │     ┌────▼─────┐                    │
+              │     ┌────▼─────┝                    │
               │     │ APPROVED │──── revise ────────┤
               │     └────┬─────┘                    │
               │          │ publish                  │
-              │     ┌────▼──────┐                   │
+              │     ┌────▼──────┝                   │
               │     │ PUBLISHED │──── revise ───────┤
               │     └────┬──────┘                   │
               │          │ (time passes)            │
-              │     ┌────▼──────┐                   │
+              │     ┌────▼──────┝                   │
               │     │ COMPLETED │                   │
               │     └───────────┘                   │
               │                                     │
               └──── cancel ─────────────────────────┘
                          │
-                    ┌────▼──────┐
+                    ┌────▼──────┝
                     │ CANCELLED │
                     └───────────┘
 ```
@@ -1217,7 +1217,7 @@ ON booking_leg_passengers(flight_leg_id);
 | Unit tests | ✅ All passed | 59 tests, 8 files |
 | Integration tests | ✅ All passed | 58 tests, 7 files |
 | **Total** | **✅ All passed** | **117 tests (59 unit + 58 integration)** |
-| TypeScript compilation | ⚠️ 2 pre-existing errors | cluster-bookings.test.ts (beforeEach), vite.config.ts (tsconfigPaths) |
+| TypeScript compilation | ⚠︝ 2 pre-existing errors | cluster-bookings.test.ts (beforeEach), vite.config.ts (tsconfigPaths) |
 
 **Known Issues:**
 1. `cluster-bookings.test.ts`: `beforeEach` not recognized — Vitest globals not in tsconfig
@@ -1326,6 +1326,57 @@ executing. Unauthorized requests **must** return a 403 error.
 **Enforced at:** [`operations.schedule._index.tsx`](../../app/routes/operations.schedule._index.tsx:220)
 
 **Test:** [`permissions.test.ts`](../../tests/integration/scheduling/permissions.test.ts:7)
+
+---
+
+### Invariant 11: Sibling Leg Propagation � Per-Passenger Drag Must Not Cascade
+
+When a single passenger is dragged onto a flight (per-passenger assignment via
+`bookingLegPassengerId`), the handler **must not** propagate the flight
+assignment to sibling unassigned booking legs of the same booking. Only
+whole-leg drags (`bookingLegPassengerId === undefined`) may cascade.
+
+**Rationale:** A booking may have multiple legs (STY?MPA, MPA?STY). Dragging a
+single passenger from the outbound leg should assign only that passenger � not
+pull the return leg and all its passengers into the same flight.
+
+**Enforced at:**  
+[`handleAssignBooking()`](../../app/utils/schedule-handlers.server.ts:879-889) �  
+the sibling-legs propagation block is gated behind `if (!bookingLegPassengerId)`.
+This gate runs at the **end** of `handleAssignBooking` after the per-passenger
+filter at line 688-691 and the main assignment logic. If the gate is removed or
+the condition is inverted, per-passenger drags will incorrectly cascade.
+
+```typescript
+// CRITICAL INVARIANT 11
+// Propagate to sibling unassigned legs of the same booking.
+// Only propagate when assigning the whole booking leg � per-passenger
+// drags should NOT pull in sibling legs (the user explicitly scoped to
+// one passenger).
+if (!bookingLegPassengerId) {
+  const bk = await tx.selectFrom("booking_legs")
+    .select("booking_id").where("id", "=", bookingLegId)
+    .executeTakeFirst();
+  if (bk?.booking_id) {
+    await tx.updateTable("booking_legs")
+      .set({ flight_id: flightId })
+      .where("booking_id", "=", bk.booking_id)
+      .where("flight_id", "is", null)
+      .execute();
+  }
+}
+```
+
+**Test coverage:** Unit tests for both whole-leg and per-passenger paths must
+verify that sibling legs are assigned only when `bookingLegPassengerId` is
+`undefined`. Existing integration tests in
+[`assign-booking.test.ts`](../../tests/integration/scheduling/assign-booking.test.ts)
+cover the whole-leg path. A per-passenger path test should be added.
+*To be implemented: `tests/integration/scheduling/per-passenger-assign.test.ts`*
+
+**Regression risk:** **HIGH** � removing or inverting the `bookingLegPassengerId`
+gate causes "one drag, multiple passengers moved" UX bug across the entire
+schedule board.
 
 ---
 

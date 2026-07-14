@@ -876,9 +876,10 @@ export async function handleAssignBooking(bookingLegId: number, flightId: number
         .where("id", "=", bookingLegId)
         .execute();
 
-      // Propagate to sibling unassigned legs of the same booking
-      // Only propagate when assigning the whole booking leg — per-passenger drags
-      // should NOT pull in sibling legs (the user explicitly scoped to one passenger).
+      // INVARIANT-11: Propagate to sibling unassigned legs of the same booking.
+      // Gated behind !bookingLegPassengerId — per-passenger drags must NOT
+      // cascade. See .agents/skills/flight-schedule/SKILL.md#invariant-11
+      // for the full contract and regression risk assessment.
       if (!bookingLegPassengerId) {
         const bk = await tx.selectFrom("booking_legs")
           .select("booking_id").where("id", "=", bookingLegId)
