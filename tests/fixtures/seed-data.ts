@@ -73,8 +73,8 @@ export const MOCK_AIRCRAFT = {
 // Mock user IDs for different roles
 // ---------------------------------------------------------------------------
 export const MOCK_USER_IDS = {
-  ops: 1,
-  admin: 2,
+  ops: 2,
+  admin: 1,
   pilot: 3,
   engineer: 4,
   agent: 5,
