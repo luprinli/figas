@@ -1649,8 +1649,11 @@ export async function handleAssignAircraft(
   // Time-overlap conflict check: aircraft can be on multiple flights total,
   // but not simultaneously. Check if the proposed flight's departure→arrival
   // window overlaps with any other flight using this aircraft on the same schedule.
-  const flightArrival = String(flight.arrival_time);
-  const flightDeparture = String(flight.departure_time);
+  const flightArrival = flight.arrival_time ? new Date(String(flight.arrival_time)).toISOString() : "";
+  const flightDeparture = flight.departure_time ? new Date(String(flight.departure_time)).toISOString() : "";
+  if (!flightArrival || !flightDeparture) {
+    // Skip conflict check if times are missing (draft/building flights)
+  } else {
   const conflictingFlights = await db.selectFrom("flights")
     .select(["flight_number", "departure_time", "arrival_time"])
     .where("aircraft_id", "=", aircraftId)
@@ -1668,6 +1671,7 @@ export async function handleAssignAircraft(
         `The departure/arrival times overlap. Assign to a non-overlapping flight or unassign aircraft from the other flight(s) first.`,
       status: 400,
     };
+  }
   }
 
   // Update the flight's aircraft_id
