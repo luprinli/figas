@@ -6,6 +6,7 @@ const USERS = [
   { email: "admin@figas.gov.fk",        password: "figas2024!", role: "admin" },
   { email: "felix.pilot@figas.gov.fk",  password: "figas2024!", role: "pilot" },
   { email: "oscar.pilot@figas.gov.fk",  password: "figas2024!", role: "pilot" },
+  { email: "jessica.pilot@figas.gov.fk", password: "figas2024!", role: "pilot" },
   { email: "ops@figas.gov.fk",          password: "figas2024!", role: "operations" },
   { email: "engineer@figas.gov.fk",     password: "figas2024!", role: "engineer" },
   { email: "passenger@figas.gov.fk",    password: "figas2024!", role: "passenger" },

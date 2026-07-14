@@ -51,6 +51,7 @@ const USERS: UserSeed[] = [
   { name: "Ops User",      email: "ops@figas.gov.fk",      password: "figas2024!", role: "operations" },
   { name: "Felix Pilot",   email: "felix.pilot@figas.gov.fk", password: "figas2024!", role: "pilot" },
   { name: "Oscar Pilot",   email: "oscar.pilot@figas.gov.fk", password: "figas2024!", role: "pilot" },
+  { name: "Jessica Pilot", email: "jessica.pilot@figas.gov.fk", password: "figas2024!", role: "pilot" },
   { name: "Engineer User", email: "engineer@figas.gov.fk", password: "figas2024!", role: "engineer" },
   { name: "Passenger User", email: "passenger@figas.gov.fk", password: "figas2024!", role: "passenger" },
   { name: "Checkin User",  email: "checkin@figas.gov.fk",  password: "figas2024!", role: "checkin" },

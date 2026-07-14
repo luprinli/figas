@@ -251,15 +251,9 @@ async function main() {
     { email: "checkin@figas.gov.fk", name: "Emma Counter", role: "checkin" },
     { email: "checkin2@figas.gov.fk", name: "Tom Desk", role: "checkin" },
     { email: "finance@figas.gov.fk", name: "Rachel Finance", role: "finance" },
-    { email: "pilot1@figas.gov.fk", name: "Felix Captain", role: "pilot" },
-    { email: "pilot2@figas.gov.fk", name: "Oscar First", role: "pilot" },
-    { email: "pilot3@figas.gov.fk", name: "Nina Relief", role: "pilot" },
     { email: "felix.pilot@figas.gov.fk", name: "Felix Pilot", role: "pilot" },
     { email: "oscar.pilot@figas.gov.fk", name: "Oscar Pilot", role: "pilot" },
-    { email: "derek.pilot@figas.gov.fk", name: "Derek Pilot", role: "pilot" },
-    { email: "drew.pilot@figas.gov.fk", name: "Drew Pilot", role: "pilot" },
-    { email: "paul.pilot@figas.gov.fk", name: "Paul Pilot", role: "pilot" },
-    { email: "josiah.pilot@figas.gov.fk", name: "Josiah Pilot", role: "pilot" },
+    { email: "jessica.pilot@figas.gov.fk", name: "Jessica Pilot", role: "pilot" },
     { email: "engineer@figas.gov.fk", name: "Mike Engineer", role: "engineer" },
     { email: "passenger@figas.gov.fk", name: "Test Passenger", role: "passenger" },
   ];
@@ -274,7 +268,7 @@ async function main() {
     userIdMap[u.email] = r[0].id;
   }
   // Pilot records — resolve their actual name from sysUsers (skip if already seeded)
-  for (const [email, license, rating, medExp] of [["pilot1@figas.gov.fk","ATPL-001","BN-2 Type Rating","2027-01-15"],["pilot2@figas.gov.fk","CPL-002","BN-2 Type Rating","2026-09-30"],["pilot3@figas.gov.fk","CPL-003","BN-2 Type Rating","2027-06-01"],["felix.pilot@figas.gov.fk","ATPL-004","BN-2 Type Rating","2027-03-01"],["oscar.pilot@figas.gov.fk","CPL-005","BN-2 Type Rating","2026-11-01"],["derek.pilot@figas.gov.fk","CPL-006","BN-2 Type Rating","2027-04-01"],["drew.pilot@figas.gov.fk","CPL-007","BN-2 Type Rating","2027-05-01"],["paul.pilot@figas.gov.fk","CPL-008","BN-2 Type Rating","2027-02-01"],["josiah.pilot@figas.gov.fk","CPL-009","BN-2 Type Rating","2027-08-01"]] as const) {
+  for (const [email, license, rating, medExp] of [["felix.pilot@figas.gov.fk","ATPL-004","BN-2 Type Rating","2027-03-01"],["oscar.pilot@figas.gov.fk","CPL-005","BN-2 Type Rating","2026-11-01"],["jessica.pilot@figas.gov.fk","CPL-006","BN-2 Type Rating","2027-05-01"]] as const) {
     const pilotName = sysUsers.find(u => u.email === email)?.name ?? email.split("@")[0];
     const existing = await prisma.$queryRawUnsafe<Array<{id:number}>>(
       `SELECT id FROM pilots WHERE email = $1`, email
@@ -319,7 +313,7 @@ async function main() {
 
   // 2c. Pilot scheduling duty limits — populate max_duty, flight hours and medical dates.
   try {
-    for (const [email, , , _medExp] of [["pilot1@figas.gov.fk","ATPL-001","BN-2 Type Rating","2027-01-15"],["pilot2@figas.gov.fk","CPL-002","BN-2 Type Rating","2026-09-30"],["pilot3@figas.gov.fk","CPL-003","BN-2 Type Rating","2027-06-01"]] as const) {
+    for (const [email, , , _medExp] of [["felix.pilot@figas.gov.fk","ATPL-004","BN-2 Type Rating","2027-03-01"],["oscar.pilot@figas.gov.fk","CPL-005","BN-2 Type Rating","2026-11-01"],["jessica.pilot@figas.gov.fk","CPL-006","BN-2 Type Rating","2027-05-01"]] as const) {
       await prisma.$executeRawUnsafe(
         `UPDATE pilots SET max_duty_hours_per_day = 12.0, max_flight_hours_per_day = 8.0,
            current_duty_hours = 0, current_flight_hours = 0,
@@ -908,7 +902,7 @@ async function main() {
         `INSERT INTO fuel_orders (flight_id, flight_leg_id, status, requested_fuel_kg, issued_by, issued_at,
            fueler_actual_uplift_kg, fueler_confirmed_by, fueler_confirmed_at, created_at, updated_at)
          VALUES ($1, $2, $3, $4, $5, NOW(), $6, $7, NOW(), NOW(), NOW())`,
-        flightId, legR[0].id, "confirmed", fuelKg, userIdMap["pilot1@figas.gov.fk"],
+        flightId, legR[0].id, "confirmed", fuelKg, userIdMap["felix.pilot@figas.gov.fk"],
         fuelKg + rand(-10, 10), userIdMap["engineer@figas.gov.fk"]
       );
       fuelOrderCount++;
@@ -1133,7 +1127,7 @@ async function main() {
              mel_reference, mel_category, deferral_status, deferral_expiry_date, created_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, 'B',
              $8::varchar, $9::date, NOW())`,
-          ac.id, userIdMap["pilot1@figas.gov.fk"], dt.ata, `${dt.title} (${ac.registration})`,
+          ac.id, userIdMap["felix.pilot@figas.gov.fk"], dt.ata, `${dt.title} (${ac.registration})`,
           `${dt.title} — reported during pre-flight inspection.`, dt.severity, dt.mel,
           Math.random() < 0.6 ? "deferred" : "open",
           Math.random() < 0.6 ? ymd(new Date(Date.now() + rand(7,60)*86400000)) : null
