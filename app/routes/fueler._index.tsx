@@ -8,6 +8,8 @@ import { kdb } from "../utils/db.server.kysely";
 import { sql } from "kysely";
 import MetricCard from "../components/MetricCard";
 import EmptyState from "../components/EmptyState";
+import { TourTrigger } from "../components/TourTrigger";
+import { fuelerDashboardTour } from "../utils/tour/definitions/fueler-dashboard";
 import { Clock, CheckCircle2, TrendingUp } from "lucide-react";
 
 export const meta: MetaFunction = () => [{ title: "Fueler Dashboard - FIGAS" }];
@@ -72,6 +74,7 @@ export default function FuelerDashboard() {
                 <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
                     Welcome, {user.name}
                 </h1>
+                <TourTrigger config={fuelerDashboardTour} />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

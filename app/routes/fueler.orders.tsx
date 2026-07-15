@@ -9,6 +9,8 @@ import { sql } from "kysely";
 import { requireUser } from "../utils/layout.server";
 import { recordActualFuel } from "../utils/services/fuel-order.service";
 import EmptyState from "../components/EmptyState";
+import { TourTrigger } from "../components/TourTrigger";
+import { fuelerOrdersTour } from "../utils/tour/definitions/fueler-orders";
 
 export const meta: MetaFunction = () => [{ title: "Fuel Orders - FIGAS" }];
 
@@ -61,7 +63,10 @@ export default function FuelerOrders() {
 
     return (
         <div className="p-6 space-y-5">
-            <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Fuel Orders</h1>
+            <div className="flex items-center justify-between">
+                <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Fuel Orders</h1>
+                <TourTrigger config={fuelerOrdersTour} />
+            </div>
 
             {fetcher.data?.error && (
                 <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/10 p-3">

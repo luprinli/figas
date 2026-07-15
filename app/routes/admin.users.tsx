@@ -14,6 +14,8 @@ import DataTable from "../components/DataTable";
 import type { Column } from "../components/DataTable";
 import { useCsrf } from "~/utils/use-csrf";
 import DOBPicker from "../components/DOBPicker";
+import { TourTrigger } from "../components/TourTrigger";
+import { adminUsersTour } from "../utils/tour/definitions/admin-users";
 
 export const meta: MetaFunction = () => [{ title: "Manage Users - FIGAS" }];
 
@@ -153,10 +155,11 @@ export default function ManageUsers() {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Manage Users</h1>
+        <TourTrigger config={adminUsersTour} />
       </div>
 
       {/* Search */}
-      <form onSubmit={handleSearch} className="flex gap-2">
+      <form onSubmit={handleSearch} className="flex gap-2" data-tour="admin-users-search">
         <input
           type="text"
           name="q"
@@ -180,7 +183,7 @@ export default function ManageUsers() {
       )}
 
       {/* Create User Form */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow border border-slate-200 dark:border-slate-700 p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow border border-slate-200 dark:border-slate-700 p-4" data-tour="admin-users-create">
         <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">
           Create New User
         </h2>

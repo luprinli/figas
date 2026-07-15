@@ -14,6 +14,8 @@ import Pagination from "../components/Pagination";
 import Button from "../components/Button";
 import EmptyState from "../components/EmptyState";
 import Card from "../components/Card";
+import { TourTrigger } from "../components/TourTrigger";
+import { financeInvoicesTour } from "../utils/tour/definitions/finance-invoices";
 
 interface InvoiceRow {
   id: string;
@@ -219,9 +221,13 @@ export default function InvoiceList() {
           </Button>
         }
       />
+      <div className="flex justify-end">
+        <TourTrigger config={financeInvoicesTour} />
+      </div>
 
       {/* Status filter */}
-      <Card>
+      <div data-tour="finance-invoices-filters">
+        <Card>
         <div className="flex items-center gap-4">
           <label htmlFor="status-filter" className="text-sm/5 font-medium text-slate-700 dark:text-slate-200">
             Filter by Status:
@@ -244,6 +250,7 @@ export default function InvoiceList() {
           </select>
         </div>
       </Card>
+      </div>
 
       {/* Invoices table */}
       <Card>

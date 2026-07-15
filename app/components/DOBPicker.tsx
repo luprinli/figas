@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   MONTH_NAMES,
   DAY_NAMES_SHORT,
@@ -104,8 +105,39 @@ export default function DOBPicker({
 
   const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const toggleBtnRef = useRef<HTMLButtonElement>(null);
+  const portalRef = useRef<HTMLDivElement>(null);
+  const [popupStyle, setPopupStyle] = useState<React.CSSProperties>({});
 
   const today = todayISO();
+
+  // Compute fixed position for the portal popup relative to the input field
+  const updatePopupPosition = useCallback(() => {
+    const anchor = toggleBtnRef.current ?? inputRef.current;
+    if (!anchor) return;
+    const rect = anchor.getBoundingClientRect();
+    const popupWidth = 280;
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - popupWidth - 8));
+    setPopupStyle({
+      position: "fixed" as const,
+      top: rect.bottom + 4,
+      left,
+      minWidth: popupWidth,
+      zIndex: 9999,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      updatePopupPosition();
+      window.addEventListener("scroll", updatePopupPosition, true);
+      window.addEventListener("resize", updatePopupPosition);
+    }
+    return () => {
+      window.removeEventListener("scroll", updatePopupPosition, true);
+      window.removeEventListener("resize", updatePopupPosition);
+    };
+  }, [isOpen, updatePopupPosition]);
 
   // Sync display value when external value changes
   useEffect(() => {
@@ -115,9 +147,10 @@ export default function DOBPicker({
   // Close on click outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
+      const target = e.target as Node;
+      if (panelRef.current && panelRef.current.contains(target)) return;
+      if (portalRef.current && portalRef.current.contains(target)) return;
+      setIsOpen(false);
     }
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
@@ -289,6 +322,7 @@ export default function DOBPicker({
           }
         />
         <button
+          ref={toggleBtnRef}
           type="button"
           onClick={toggleCalendar}
           aria-label="Open calendar"
@@ -316,13 +350,16 @@ export default function DOBPicker({
         </p>
       )}
 
-      {/* ── Calendar popup ────────────────────────────────── */}
-      {isOpen && (
-        <div
-          className="absolute z-50 mt-1 bg-white dark:bg-slate-800 rounded-lg shadow-lg dark:shadow-slate-900/50 ring-1 ring-slate-200 dark:ring-slate-700 p-3 w-full min-w-[260px]"
-          role="dialog"
-          aria-label="Select date of birth"
-        >
+      {/* ── Calendar popup (portaled to body to escape overflow clipping) ── */}
+      {isOpen &&
+        createPortal(
+          <div
+            ref={portalRef}
+            style={popupStyle}
+            className="bg-white dark:bg-slate-800 rounded-lg shadow-lg dark:shadow-slate-900/50 ring-1 ring-slate-200 dark:ring-slate-700 p-3"
+            role="dialog"
+            aria-label="Select date of birth"
+          >
           {/* Month / Year selectors */}
           <div className="flex items-center gap-2 mb-3">
             <select
@@ -394,8 +431,9 @@ export default function DOBPicker({
               </div>
             ))}
           </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

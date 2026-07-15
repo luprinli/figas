@@ -7,6 +7,8 @@ import { useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import Button from "../components/Button";
+import { TourTrigger } from "../components/TourTrigger";
+import { financeReportsTour } from "../utils/tour/definitions/finance-reports";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   await requireUser(request);
@@ -44,8 +46,11 @@ export default function FinanceReports() {
         title="Finance Reports"
         description="Select a report to generate"
       />
+      <div className="flex justify-end">
+        <TourTrigger config={financeReportsTour} />
+      </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2" data-tour="finance-reports-grid">
         {reportCards.map((report) => (
           <Card key={report.to} title={report.title}>
             <p className="text-sm/5 text-slate-500 dark:text-slate-400 mb-4">{report.description}</p>

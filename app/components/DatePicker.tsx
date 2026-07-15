@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   MONTH_NAMES,
   DAY_NAMES_SHORT,
@@ -40,15 +41,46 @@ export default function DatePicker({
   const [isOpen, setIsOpen] = useState(false);
   const [baseMonth, setBaseMonth] = useState(() => getInitialBaseMonth(value));
   const panelRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const portalRef = useRef<HTMLDivElement>(null);
+  const [popupStyle, setPopupStyle] = useState<React.CSSProperties>({});
 
   const today = todayISO();
+
+  // Compute fixed position for the portal popup relative to the anchor button
+  const updatePopupPosition = useCallback(() => {
+    if (!anchorRef.current) return;
+    const rect = anchorRef.current.getBoundingClientRect();
+    const popupWidth = 280;
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - popupWidth - 8));
+    setPopupStyle({
+      position: "fixed" as const,
+      top: rect.bottom + 8,
+      left,
+      minWidth: popupWidth,
+      zIndex: 9999,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      updatePopupPosition();
+      window.addEventListener("scroll", updatePopupPosition, true);
+      window.addEventListener("resize", updatePopupPosition);
+    }
+    return () => {
+      window.removeEventListener("scroll", updatePopupPosition, true);
+      window.removeEventListener("resize", updatePopupPosition);
+    };
+  }, [isOpen, updatePopupPosition]);
 
   // Close on click outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
+      const target = e.target as Node;
+      if (panelRef.current && panelRef.current.contains(target)) return;
+      if (portalRef.current && portalRef.current.contains(target)) return;
+      setIsOpen(false);
     }
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
@@ -129,6 +161,7 @@ export default function DatePicker({
     <div ref={panelRef} className="relative">
       {/* ── Summary bar (toggle) ─────────────────────────────────── */}
       <button
+        ref={anchorRef}
         type="button"
         onClick={() => setIsOpen((o) => !o)}
         aria-label="Open date picker"
@@ -163,81 +196,82 @@ export default function DatePicker({
         </svg>
       </button>
 
-      {/* ── Calendar panel ───────────────────────────────────────── */}
-      {isOpen && (
-        <div className="absolute left-0 top-full mt-2 z-50 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-slate-900/50 p-4 w-full min-w-[280px]">
-          {/* Month header */}
-          <div className="flex items-center justify-between mb-2">
-            <button
-              type="button"
-              onClick={() => shiftMonths(-1)}
-              aria-label="Previous month"
-              className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
-            >
-              <span className="sr-only">Previous month</span>
-              &larr;
-            </button>
-            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-              {MONTH_NAMES[baseMonth.month]} {baseMonth.year}
-            </span>
-            <button
-              type="button"
-              onClick={() => shiftMonths(1)}
-              aria-label="Next month"
-              className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                className="h-4 w-4"
+      {/* ── Calendar panel (portaled to body to escape overflow clipping) ── */}
+      {isOpen &&
+        createPortal(
+          <div ref={portalRef} style={popupStyle} className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg dark:shadow-slate-900/50 p-4">
+            {/* Month header */}
+            <div className="flex items-center justify-between mb-2">
+              <button
+                type="button"
+                onClick={() => shiftMonths(-1)}
+                aria-label="Previous month"
+                className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
               >
-                <path
-                  fillRule="evenodd"
-                  d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
-          </div>
-
-          {/* Day-of-week header */}
-          <div className="grid grid-cols-7 mb-1">
-            {DAY_NAMES_SHORT.map((name) => (
-              <div
-                key={name}
-                className="w-9 h-7 text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center justify-center"
+                <span className="sr-only">Previous month</span>
+                &larr;
+              </button>
+              <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                {MONTH_NAMES[baseMonth.month]} {baseMonth.year}
+              </span>
+              <button
+                type="button"
+                onClick={() => shiftMonths(1)}
+                aria-label="Next month"
+                className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
               >
-                {name}
-              </div>
-            ))}
-          </div>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="h-4 w-4"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
 
-          {/* Day grid */}
-          <div className="grid grid-cols-7">
-            {grid.map((day, idx) => (
-              <div key={idx} className="flex items-center justify-center">
-                {day !== null ? (
-                  <button
-                    type="button"
-                    className={getDayClasses(day)}
-                    onClick={() => handleDayClick(day)}
-                    disabled={
-                      (minDate ? formatDate(baseMonth.year, baseMonth.month, day) < minDate : false) ||
-                      (disabledDates?.has(formatDate(baseMonth.year, baseMonth.month, day)) ?? false)
-                    }
-                  >
-                    {day}
-                  </button>
-                ) : (
-                  <div className="w-9 h-9" />
-                )}
-              </div>
-            ))}
-          </div>
+            {/* Day-of-week header */}
+            <div className="grid grid-cols-7 mb-1">
+              {DAY_NAMES_SHORT.map((name) => (
+                <div
+                  key={name}
+                  className="w-9 h-7 text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center justify-center"
+                >
+                  {name}
+                </div>
+              ))}
+            </div>
 
-        </div>
-      )}
+            {/* Day grid */}
+            <div className="grid grid-cols-7">
+              {grid.map((day, idx) => (
+                <div key={idx} className="flex items-center justify-center">
+                  {day !== null ? (
+                    <button
+                      type="button"
+                      className={getDayClasses(day)}
+                      onClick={() => handleDayClick(day)}
+                      disabled={
+                        (minDate ? formatDate(baseMonth.year, baseMonth.month, day) < minDate : false) ||
+                        (disabledDates?.has(formatDate(baseMonth.year, baseMonth.month, day)) ?? false)
+                      }
+                    >
+                      {day}
+                    </button>
+                  ) : (
+                    <div className="w-9 h-9" />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

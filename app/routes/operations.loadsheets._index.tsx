@@ -13,6 +13,8 @@ import MetricCard from "../components/MetricCard";
 import Skeleton from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import Button from "../components/Button";
+import { TourTrigger } from "../components/TourTrigger";
+import { opsLoadsheetsTour } from "../utils/tour/definitions/ops-loadsheets";
 
 interface LoadsheetRow {
   flight_id: number;
@@ -253,6 +255,7 @@ export default function LoadsheetsIndex() {
           )}
         </div>
         <div className="flex items-center gap-3">
+          <TourTrigger config={opsLoadsheetsTour} />
           {isPilot && (
             <button
               type="button"

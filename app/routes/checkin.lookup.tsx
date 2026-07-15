@@ -8,6 +8,8 @@ import { requireUser } from "../utils/layout.server";
 import type { BookingSearchResult } from "../utils/repositories/checkin";
 import DataGrid from "../components/DataGrid";
 import type { Column } from "../components/DataTable";
+import { TourTrigger } from "../components/TourTrigger";
+import { checkinLookupTour } from "../utils/tour/definitions/checkin-lookup";
 
 export const meta: MetaFunction = () => [{ title: "Check-In Lookup - FIGAS" }];
 
@@ -113,6 +115,10 @@ export default function CheckinLookup() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between px-6 pt-6">
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Check-In Lookup</h1>
+        <TourTrigger config={checkinLookupTour} />
+      </div>
       {/* Search by reference (action) */}
       <div className="p-6 bg-white dark:bg-slate-800 rounded-lg shadow-sm dark:shadow-slate-900/20 border border-slate-200 dark:border-slate-700">
         <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Lookup by Booking Reference</h2>

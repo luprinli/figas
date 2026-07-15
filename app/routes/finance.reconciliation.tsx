@@ -19,6 +19,8 @@ import Card from "../components/Card";
 import ReconciliationTable from "../components/ReconciliationTable";
 import type { ReconciliationTransaction } from "../components/ReconciliationTable";
 import EmptyState from "../components/EmptyState";
+import { TourTrigger } from "../components/TourTrigger";
+import { financeReconciliationTour } from "../utils/tour/definitions/finance-reconciliation";
 
 interface ReconciliationData {
   transactions: ReconciliationTransaction[];
@@ -200,6 +202,9 @@ export default function Reconciliation() {
           </div>
         }
       />
+      <div className="flex justify-end" data-tour="finance-recon-actions">
+        <TourTrigger config={financeReconciliationTour} />
+      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

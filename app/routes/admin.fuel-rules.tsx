@@ -7,6 +7,8 @@ import { validateCsrfRequest } from "../utils/csrf-check.server";
 import { Permission, DEFAULT_PAGE_SIZE } from "../utils/constants";
 import { adminRepository } from "../utils/repositories/admin";
 import { useCsrf } from "~/utils/use-csrf";
+import { TourTrigger } from "../components/TourTrigger";
+import { adminFuelRulesTour } from "../utils/tour/definitions/admin-fuel-rules";
 import DataTable from "../components/DataTable";
 import type { Column } from "../components/DataTable";
 
@@ -111,7 +113,10 @@ export default function ManageFuelRules() {
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Manage Fuel Rules</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Manage Fuel Rules</h1>
+        <TourTrigger config={adminFuelRulesTour} />
+      </div>
 
       {actionData?.error && (
         <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 text-red-700 dark:text-red-400 px-4 py-3 rounded text-sm">

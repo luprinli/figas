@@ -11,6 +11,8 @@ import type { NoFlyRuleRow } from "../utils/services/no-fly.service";
 import { MONTH_NAMES, DAY_NAMES_SHORT, getCalendarGrid, formatDate } from "../utils/dates";
 import DatePicker from "../components/DatePicker";
 import Button from "../components/Button";
+import { TourTrigger } from "../components/TourTrigger";
+import { opsNoFlyDaysTour } from "../utils/tour/definitions/ops-no-fly-days";
 
 // Ã¢â€â‚¬Ã¢â€â‚¬ Meta Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
@@ -182,7 +184,9 @@ export default function NoFlyDaysPage() {
             Manage days on which flight bookings cannot be made.
           </p>
         </div>
-        <Button
+        <div className="flex items-center gap-2">
+          <TourTrigger config={opsNoFlyDaysTour} />
+          <Button
           type="button"
           onClick={openCreateModal}
           className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
@@ -190,6 +194,7 @@ export default function NoFlyDaysPage() {
           <Plus size={16} />
           Add Rule
         </Button>
+        </div>
       </div>
 
       {/* Error banner */}

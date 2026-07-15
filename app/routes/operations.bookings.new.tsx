@@ -16,6 +16,8 @@ import { useDynamicFields } from "../utils/form-data";
 import { todayISO, daysFromNow } from "../utils/dates";
 import Skeleton from "../components/Skeleton";
 import PageLayout from "../components/PageLayout";
+import { TourTrigger } from "../components/TourTrigger";
+import { bookingWizardTour } from "../utils/tour/definitions/booking-wizard";
 
 /* ── Validation Types ─────────────────────────────────── */
 
@@ -328,7 +330,10 @@ export default function OperationsNewBooking() {
 
   return (
     <div className="mx-auto px-4">
-      <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-6">New Booking</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">New Booking</h1>
+        <TourTrigger config={bookingWizardTour} />
+      </div>
 
       {actionData?.error && (
         <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 p-4 text-sm text-red-700">
@@ -340,7 +345,7 @@ export default function OperationsNewBooking() {
         <input type="hidden" name="intent" value="create" />
 
         {/* ── Legs section ──────────────────────────────── */}
-        <div className="min-w-fit">
+        <div className="min-w-fit" data-tour="booking-legs">
           <LegsTable
             legCount={legs.count}
             committedLegs={legs.committed}
@@ -355,7 +360,7 @@ export default function OperationsNewBooking() {
         </div>
 
         {/* ── Passengers section ──────────────────────────── */}
-        <div className="min-w-fit">
+        <div className="min-w-fit" data-tour="booking-passengers">
           <PassengersTable
             passengerCount={passengers.count}
             committedPassengers={passengers.committed}

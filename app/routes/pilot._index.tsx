@@ -8,6 +8,8 @@ import { sql } from "kysely";
 import MetricCard from "../components/MetricCard";
 import Skeleton from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
+import { TourTrigger } from "../components/TourTrigger";
+import { pilotDashboardTour } from "../utils/tour/definitions/pilot-dashboard";
 import { Building2 } from "lucide-react";
 
 export const meta: MetaFunction = () => [{ title: "Pilot Dashboard - FIGAS" }];
@@ -86,6 +88,7 @@ export default function PilotDashboard() {
                 <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
                     Welcome, {user.name}
                 </h1>
+                <TourTrigger config={pilotDashboardTour} />
                 <span className="text-sm text-slate-500 dark:text-slate-400">
                     {new Date(today).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
                 </span>

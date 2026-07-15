@@ -28,6 +28,8 @@ import type { Column } from "../components/DataTable";
 import Card from "../components/Card";
 import Button from "../components/Button";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { TourTrigger } from "../components/TourTrigger";
+import { agentBookingDetailTour } from "../utils/tour/definitions/agent-booking-detail";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -342,6 +344,10 @@ export default function AgentBookingDetail() {
 
   return (
     <PageLayout title={`Booking ${booking.booking_reference}`}>
+      <div className="flex items-center justify-between mb-4">
+        <span />
+        <TourTrigger config={agentBookingDetailTour} />
+      </div>
       <div className="space-y-6">
         {/* Warning Banners */}
         {errorAlerts.length > 0 && (
@@ -363,7 +369,7 @@ export default function AgentBookingDetail() {
         )}
 
         {/* ── A. Back Link & Header ─────────────────────────────────────────── */}
-        <div>
+        <div data-tour="agent-booking-info">
           <Link
             to="/agent/bookings"
             className="inline-flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 transition-colors"
@@ -666,7 +672,7 @@ export default function AgentBookingDetail() {
 
         {/* ── F. Quick Actions ──────────────────────────────────────────────── */}
         {(canShowPaymentButton || canShowCancelButton || canShowEditButton) && (
-          <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20">
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/20" data-tour="agent-booking-actions">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3">Quick Actions</h3>
             <div className="flex flex-col sm:flex-row flex-wrap gap-3">
               {canShowPaymentButton && (

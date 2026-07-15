@@ -19,6 +19,8 @@ import EmptyState from "../components/EmptyState";
 import AlertBanner from "../components/AlertBanner";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
+import { TourTrigger } from "../components/TourTrigger";
+import { agentDashboardTour } from "../utils/tour/definitions/agent-dashboard";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -295,6 +297,10 @@ export default function AgentBookingsIndex() {
 
   return (
     <PageLayout title="Your Portfolio" userIdentity={userIdentity}>
+      <div className="flex items-center justify-between mb-4">
+        <span />
+        <TourTrigger config={agentDashboardTour} />
+      </div>
       {/* Warning Banners */}
       {errorAlerts.length > 0 && (
         <div className="mb-6">
@@ -303,7 +309,7 @@ export default function AgentBookingsIndex() {
       )}
 
       {/* ── A. Welcome Header ──────────────────────────────────────────────── */}
-      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between" data-tour="agent-actions">
         <div className="flex items-center gap-3">
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Managing <span className="font-semibold text-slate-700 dark:text-slate-200">{totalClients}</span> client{totalClients !== 1 ? "s" : ""} across{" "}
@@ -320,7 +326,7 @@ export default function AgentBookingsIndex() {
       </div>
 
       {/* ── B. Period Stats Row ────────────────────────────────────────────── */}
-      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3" data-tour="agent-metrics">
         <MetricCard
           label="Active Clients"
           value={activeClients}
@@ -368,7 +374,7 @@ export default function AgentBookingsIndex() {
 
       {/* ── D. Client Groups (Portfolio) ───────────────────────────────────── */}
       {portfolio.length > 0 && (
-        <div className="mb-8 space-y-4">
+        <div className="mb-8 space-y-4" data-tour="agent-portfolio">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Clients & Bookings</h2>
           {portfolio.map((group, index) => {
             const bookingsWithMeta: BookingWithMeta[] = group.bookings.map((item) => ({

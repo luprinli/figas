@@ -5,6 +5,8 @@ import { requireAuth } from "../utils/auth.server";
 import { requirePermission } from "../utils/permissions.server";
 import { Permission } from "../utils/constants";
 import { adminRepository } from "../utils/repositories/admin";
+import { TourTrigger } from "../components/TourTrigger";
+import { adminSettingsTour } from "../utils/tour/definitions/admin-settings";
 
 export const meta: MetaFunction = () => [{ title: "Settings - FIGAS" }];
 
@@ -119,6 +121,9 @@ export default function Settings() {
       <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-6">
         System Settings
       </h1>
+      <div className="mb-4">
+        <TourTrigger config={adminSettingsTour} />
+      </div>
 
       {actionData?.error && (
         <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 text-red-700 dark:text-red-400 px-4 py-3 rounded text-sm mb-4">

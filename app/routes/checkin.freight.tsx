@@ -12,6 +12,8 @@ import EmptyState from "../components/EmptyState";
 import MetricCard from "../components/MetricCard";
 import Card from "../components/Card";
 import Button from "../components/Button";
+import { TourTrigger } from "../components/TourTrigger";
+import { checkinFreightTour } from "../utils/tour/definitions/checkin-freight";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   await requirePermission(request, Permission.CHECKIN_PROCESS);
@@ -106,7 +108,10 @@ export default function FreightReceiving() {
 
   return (
     <div className="p-6 space-y-5">
-      <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Freight Receiving</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Freight Receiving</h1>
+        <TourTrigger config={checkinFreightTour} />
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <MetricCard label="Unassigned" value={unassigned} color={unassigned > 0 ? 'amber' : 'emerald'} />
         <MetricCard label="Assigned to Flights" value={assigned} color="emerald" />

@@ -41,6 +41,8 @@ import { getAvailableMethods } from "../utils/services/payment.service";
 import Button from "../components/Button";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { useKeyboardShortcuts } from "../utils/use-keyboard-shortcuts";
+import { TourTrigger } from "../components/TourTrigger";
+import { bookingDetailTour } from "../utils/tour/definitions/booking-detail";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -318,6 +320,10 @@ export default function OperationsBookingDetail() {
 
   return (
     <PageLayout title={booking.booking_reference}>
+      <div className="flex items-center justify-between mb-4">
+        <span />
+        <TourTrigger config={bookingDetailTour} />
+      </div>
       <div className="space-y-6">
         {/* ── B. AlertBanner Section ────────────────────────────────────────── */}
         {alerts.length > 0 && (
@@ -350,7 +356,7 @@ export default function OperationsBookingDetail() {
         {/* ── Booking Summary Card ──────────────────────────────────────────── */}
         <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-sm dark:shadow-slate-900/20">
           {/* ── 1. Compact Header ────────────────────────────────────────────── */}
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-4" data-tour="booking-header">
             <div>
               <div className="flex flex-wrap items-center gap-3">
                 <StatusBadge status={booking.status} />
@@ -437,6 +443,7 @@ export default function OperationsBookingDetail() {
             </div>
 
             {/* Column 2: Cost Summary */}
+            <div data-tour="booking-cost">
             <BookingCostSummary
               totalAmountGbp={totalCost}
               fareBreakdown={fareBreakdown ?? null}
@@ -457,9 +464,10 @@ export default function OperationsBookingDetail() {
               </span>
             </div>
           </div>
+          </div>
 
           {/* ── 5. Payment + Actions ────────────────────────────────────────── */}
-          <div>
+          <div data-tour="booking-payment">
             {/* Payment notification toast */}
             {paymentNotification && (
               <div
@@ -519,7 +527,7 @@ export default function OperationsBookingDetail() {
             )}
 
             {/* Action bar: Back to Bookings (left) | Payment Options + Cancel Booking (right) */}
-            <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100 dark:border-slate-700" data-tour="booking-actions">
               <Link
                 to="/operations/bookings"
                 className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 transition-colors"
