@@ -22,14 +22,26 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     const createdId = await createLoadsheetFromFlight(flightId);
     loadsheet = createdId ? await loadsheetRepository.findById(createdId) : null;
   } else {
+    // Check for staleness: pax count, pilot, and aircraft changes
     const currentCount = await countAssignedByFlightId(flightId);
-    if (currentCount !== loadsheet.total_pax) {
-      console.log("[LoadsheetLoader] PATH: pax count mismatch — loadsheet:", loadsheet.total_pax, "actual:", currentCount, "— regenerating");
+    const currentFlight = (await kdb.selectFrom("flights")
+      .select(["pilot_id", "aircraft_id"])
+      .where("id", "=", flightId)
+      .execute())[0] ?? null;
+    const pilotChanged = currentFlight && Number(currentFlight.pilot_id) !== loadsheet.pilot_id;
+    const aircraftChanged = currentFlight && Number(currentFlight.aircraft_id) !== loadsheet.aircraft_id;
+
+    if (currentCount !== loadsheet.total_pax || pilotChanged || aircraftChanged) {
+      const reasons: string[] = [];
+      if (currentCount !== loadsheet.total_pax) reasons.push(`pax ${loadsheet.total_pax}→${currentCount}`);
+      if (pilotChanged) reasons.push("pilot changed");
+      if (aircraftChanged) reasons.push("aircraft changed");
+      console.log("[LoadsheetLoader] PATH: staleness detected —", reasons.join(", "), "— regenerating");
       await loadsheetRepository.deleteByFlightId(flightId);
       const createdId = await createLoadsheetFromFlight(flightId);
       loadsheet = createdId ? await loadsheetRepository.findById(createdId) : null;
     } else {
-      console.log("[LoadsheetLoader] PATH: existing loadsheet found, pax count OK —", loadsheet.total_pax, "pax");
+      console.log("[LoadsheetLoader] PATH: existing loadsheet found, up to date —", loadsheet.total_pax, "pax");
     }
   }
 

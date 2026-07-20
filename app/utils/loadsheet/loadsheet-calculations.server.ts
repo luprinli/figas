@@ -2,7 +2,12 @@ import { loadCSVDistanceMap } from "../scheduling/distance-lookup";
 import { computeFlightTime } from "../scheduling/fuel-planning";
 import { computeCG, assignSeatsByCOG } from "./seat-assignment";
 import type { SeatAssignment } from "./seat-assignment";
-import { DEFAULT_BN2_MTOW_KG } from "../constants";
+import {
+  DEFAULT_BN2_MTOW_KG,
+  DEFAULT_BN2_EMPTY_WEIGHT_KG,
+  DEFAULT_CRUISE_SPEED_KTAS,
+  DEFAULT_BN2_BURN_RATE_KG_PER_HOUR,
+} from "../constants";
 import { formatTime as formatTimeHM } from "../format-time";
 
 interface FlightLegData {
@@ -11,6 +16,8 @@ interface FlightLegData {
   origin_code: string;
   destination_code: string;
   distance_nm: number | null;
+  etd?: string | null;
+  eta?: string | null;
 }
 
 interface PassengerWeightData {
@@ -68,21 +75,16 @@ export interface LoadsheetCalcOutput {
   seatAssignments: SeatAssignment[];
 }
 
-const BN2_EMPTY_WEIGHT_KG = 1627;
-const BN2_CRUISE_KTAS = 140;
-const BN2_BURN_RATE_KG_PER_MIN = 0.4;
-const RESERVE_FUEL_KG = 35;
 const TAXI_FUEL_KG = 3;
 const TURNAROUND_MIN = 10;
-const BASE_ETD_HOUR = 8;
-const BASE_ETD_MINUTE = 30;
+const RESERVE_FUEL_KG = 35;
 
 export async function computeLoadsheetCalculations(params: LoadsheetCalcParams): Promise<LoadsheetCalcOutput> {
   const { legs, passengers, aircraft, pilotWeightKg, date } = params;
   const distanceMap = await loadCSVDistanceMap();
   const seatAssignments = assignSeatsByCOG(passengers);
 
-  const emptyWt = aircraft.empty_weight_kg > 0 ? aircraft.empty_weight_kg : BN2_EMPTY_WEIGHT_KG;
+  const emptyWt = aircraft.empty_weight_kg > 0 ? aircraft.empty_weight_kg : DEFAULT_BN2_EMPTY_WEIGHT_KG;
   const mtow = aircraft.max_takeoff_weight_kg > 0 ? aircraft.max_takeoff_weight_kg : DEFAULT_BN2_MTOW_KG;
 
   // ── Phase 1: Compute per-leg data ──────────────────────────────────────
@@ -98,7 +100,11 @@ export async function computeLoadsheetCalculations(params: LoadsheetCalcParams):
   }
 
   const legCalcs: LegCalc[] = [];
-  const startTime = new Date(`${date}T${String(BASE_ETD_HOUR).padStart(2, "0")}:${String(BASE_ETD_MINUTE).padStart(2, "0")}:00Z`);
+  // Use the first leg's ETD if available; otherwise fall back to 08:30 on the given date.
+  const firstLegEtd = legs[0]?.etd ?? null;
+  const startTime = firstLegEtd
+    ? new Date(`${date}T${firstLegEtd}:00Z`)
+    : new Date(`${date}T08:30:00Z`);
   let currentTime = new Date(startTime);
 
   for (let i = 0; i < legs.length; i++) {
@@ -108,10 +114,11 @@ export async function computeLoadsheetCalculations(params: LoadsheetCalcParams):
     distanceMap.set(key, distanceNm);
     distanceMap.set(`${leg.destination_code}\u2192${leg.origin_code}`, distanceNm);
 
-    const flightTimeMin = computeFlightTime(distanceNm, BN2_CRUISE_KTAS, 0);
+    const flightTimeMin = computeFlightTime(distanceNm, DEFAULT_CRUISE_SPEED_KTAS, 0);
 
-    // Use realistic burn rate: BN-2 burns ~25 kg/hr = 0.4 kg/min
-    const fuelBurnKg = Math.round(flightTimeMin * BN2_BURN_RATE_KG_PER_MIN);
+    // Burn rate aligned with FlightCard: DEFAULT_BN2_BURN_RATE_KG_PER_HOUR / 60
+    const burnRateKgPerMin = DEFAULT_BN2_BURN_RATE_KG_PER_HOUR / 60;
+    const fuelBurnKg = Math.round(flightTimeMin * burnRateKgPerMin);
 
     const etd = new Date(currentTime);
     const eta = new Date(currentTime);

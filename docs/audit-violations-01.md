@@ -174,9 +174,17 @@ Priority order (dnd-kit + mutation-triggering first):
 
 - **Route-filtering deduplication:** `build-stop-activities.ts` and `create-loadsheet.server.ts` now both call `route-utils.ts` (shared `buildOrderedStopSequence` + `filterManifestsByRoute`), eliminating ~15 lines of duplicated logic and preventing future filter divergence.
 - **AG-5 guardrail** added to code-integrity skill: route-matching logic must route through `route-utils.ts`.
+- **Loadsheet parity fixes (2026-07-20):** 7 HIGH-severity divergences between flight display and loadsheet resolved:
+  1. **Reconciliation scope** extended to check `pilot_id` and `aircraft_id` changes (not just pax count)
+  2. **Pilot weight** now reads from `pilots.weight_kg` table when pilot assigned, falls back to `DEFAULT_PILOT_WEIGHT_KG` (80kg)
+  3. **Fuel burn rate** unified: loadsheet now uses `DEFAULT_BN2_BURN_RATE_KG_PER_HOUR / 60` (0.75 kg/min) matching FlightCard's 45 kg/hr
+  4. **ETD** now reads actual leg ETD from `flight_legs.etd` instead of hardcoded 08:30
+  5. **Freight weight** now passed through to `loadsheet_passengers` instead of hardcoded 0
+  6. **Shared constants** (`DEFAULT_BN2_EMPTY_WEIGHT_KG`, `DEFAULT_CRUISE_SPEED_KTAS`) replace local hardcoded duplicates
+  7. **`SeatAssignment` interface** extended with `freightWeightKg` field, propagated through all consumers
 
 Verification after remediation: `npm run typecheck` — 0 errors; `npm run lint` — clean;
-`vitest run` — **686/686 tests pass (54 files)**; `npx tsx scripts/audit-patterns.ts` — 0 errors.
+`npm run build` — 6.44s; `vitest run` — **686/686 tests pass (54 files)**; `npx tsx scripts/audit-patterns.ts` — 0 errors.
 
 ### Deviations from the strategy doc
 

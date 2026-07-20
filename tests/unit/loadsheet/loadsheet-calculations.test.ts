@@ -103,12 +103,13 @@ describe("computeLoadsheetCalculations", () => {
     expect(result.sectors).toHaveLength(1);
     const s = result.sectors[0];
 
-    // fuelBurn = Math.round(flightTimeMin * 0.4)
+    // fuelBurn = Math.round(flightTimeMin * burnRateKgPerMin)
+    // burnRateKgPerMin = DEFAULT_BN2_BURN_RATE_KG_PER_HOUR / 60 = 45 / 60 = 0.75
     // flightTimeMin = computeFlightTime(42, 140, 0) = Math.round((42/140)*60 + 0) = 18
-    const fuelBurn = 7; // Math.round(18 * 0.4) = Math.round(7.2)
-    const startingFuel = fuelBurn + 35 + 3; // burn + reserve + taxi = 45
-    // TOW = empty(1627) + pilot(80) + pax(145) + baggage(30) + freight(0) + startingFuel(45)
-    const expectedTow = 1627 + 80 + 145 + 30 + 45;
+    const fuelBurn = Math.round(18 * 0.75); // = 14
+    const startingFuel = fuelBurn + 35 + 3; // burn + reserve + taxi
+    // TOW = empty(1627) + pilot(80) + pax(145) + baggage(30) + freight(0) + startingFuel
+    const expectedTow = 1627 + 80 + 145 + 30 + startingFuel;
 
     expect(s.takeoffWeightKg).toBe(expectedTow);
     expect(s.landingWeightKg).toBe(expectedTow - fuelBurn);
@@ -224,8 +225,9 @@ describe("computeLoadsheetCalculations", () => {
     });
 
     expect(result.sectors).toHaveLength(1);
-    // TOW = empty(1627) + pilot(80) + 0 + fuel(45) = 1752
-    expect(result.sectors[0].takeoffWeightKg).toBe(1627 + 80 + 45);
+    // fuelBurn=14, startingFuel = 14 + 35 + 3 = 52
+    // TOW = empty(1627) + pilot(80) + 0 + 52
+    expect(result.sectors[0].takeoffWeightKg).toBe(1627 + 80 + 52);
     expect(result.sectors[0].towStatus).toBe("ok");
     expect(result.seatAssignments).toHaveLength(0);
   });
@@ -374,9 +376,10 @@ describe("computeLoadsheetCalculations", () => {
     });
 
     const s = result.sectors[0];
-    // 9 pax * (85+20) = 945 + empty(1627) + pilot(80) + fuel(45) = 2697
-    expect(s.takeoffWeightKg).toBe(1627 + 80 + 945 + 45);
-    // 2697 / 2994 ≈ 90%  →  ok
+    // fuelBurn=14, startingFuel = 14 + 35 + 3 = 52
+    // 9 pax * (85+20) = 945 + empty(1627) + pilot(80) + 52 = 2704
+    expect(s.takeoffWeightKg).toBe(1627 + 80 + 945 + 52);
+    // 2704 / 2994 ≈ 90%  →  ok
     expect(s.towStatus).toBe("ok");
   });
 });

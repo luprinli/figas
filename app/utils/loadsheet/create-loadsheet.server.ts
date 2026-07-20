@@ -3,9 +3,11 @@ import { loadsheetRepository } from "./loadsheet-repository.server";
 import { computeLoadsheetCalculations } from "./loadsheet-calculations.server";
 import { findManifestsByFlightId } from "../repositories/booking-leg-passenger";
 import { buildOrderedStopSequence, filterManifestsByRoute } from "../scheduling/route-utils";
-import { DEFAULT_BN2_MTOW_KG } from "../constants";
-
-const BN2_EMPTY_WT = 1627;
+import {
+  DEFAULT_BN2_MTOW_KG,
+  DEFAULT_BN2_EMPTY_WEIGHT_KG,
+  DEFAULT_PILOT_WEIGHT_KG,
+} from "../constants";
 
 export async function createLoadsheetFromFlight(flightId: number): Promise<number | null> {
   const existing = await loadsheetRepository.findByFlightId(flightId);
@@ -54,7 +56,19 @@ export async function createLoadsheetFromFlight(flightId: number): Promise<numbe
     .where("id", "=", flight.aircraft_id ?? 0)
     .execute())[0] ?? null;
 
-  const emptyWt = aircraft ? Number(aircraft.empty_weight_kg) || BN2_EMPTY_WT : BN2_EMPTY_WT;
+  const emptyWt = aircraft ? Number(aircraft.empty_weight_kg) || DEFAULT_BN2_EMPTY_WEIGHT_KG : DEFAULT_BN2_EMPTY_WEIGHT_KG;
+
+  // Pilot weight: read from assigned pilot in pilots table, fall back to global default.
+  let pilotWeightKg = DEFAULT_PILOT_WEIGHT_KG;
+  if (flight.pilot_id) {
+    const pilotRow = (await kdb.selectFrom("pilots")
+      .select(["weight_kg"])
+      .where("id", "=", flight.pilot_id)
+      .execute())[0] ?? null;
+    if (pilotRow) {
+      pilotWeightKg = Number(pilotRow.weight_kg) || DEFAULT_PILOT_WEIGHT_KG;
+    }
+  }
   const mtow = aircraft ? Number(aircraft.max_takeoff_weight_kg) || DEFAULT_BN2_MTOW_KG : DEFAULT_BN2_MTOW_KG;
 
   const calcResult = await computeLoadsheetCalculations({
@@ -65,6 +79,8 @@ export async function createLoadsheetFromFlight(flightId: number): Promise<numbe
       origin_code: l.origin_code ?? "",
       destination_code: l.destination_code ?? "",
       distance_nm: l.distance_nm != null ? Number(l.distance_nm) : null,
+      etd: l.etd,
+      eta: l.eta,
     })),
     passengers,
     aircraft: {
@@ -72,7 +88,7 @@ export async function createLoadsheetFromFlight(flightId: number): Promise<numbe
       max_takeoff_weight_kg: mtow,
       max_landing_weight_kg: mtow,
     },
-    pilotWeightKg: 80,
+    pilotWeightKg,
     date: flight.departure_time
       ? new Date(flight.departure_time).toISOString().split("T")[0]
       : new Date().toISOString().split("T")[0],
@@ -84,7 +100,7 @@ export async function createLoadsheetFromFlight(flightId: number): Promise<numbe
     pilot_id: flight.pilot_id,
     aircraft_id: flight.aircraft_id,
     empty_weight_kg: emptyWt,
-    pilot_weight_kg: 80,
+    pilot_weight_kg: pilotWeightKg,
     total_pax: passengers.length,
   });
 
@@ -97,7 +113,7 @@ export async function createLoadsheetFromFlight(flightId: number): Promise<numbe
       seat_side: sa.seatSide ?? null,
       clothed_weight_kg: sa.clothedWeightKg,
       baggage_weight_kg: sa.baggageWeightKg,
-      freight_weight_kg: 0,
+      freight_weight_kg: sa.freightWeightKg,
     });
   }
 

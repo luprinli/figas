@@ -112,6 +112,7 @@ function buildSeatAssignments(passengers: WbPassenger[]): SeatAssignment[] {
     seatSide: (p.seatSide as "L" | "R" | "C") ?? null,
     clothedWeightKg: p.clothedWeightKg,
     baggageWeightKg: p.baggageWeightKg,
+    freightWeightKg: 0,
   }));
 }
 

@@ -4,6 +4,7 @@ interface PassengerInput {
   bookingLegId: number;
   clothedWeightKg: number;
   baggageWeightKg: number;
+  freightWeightKg: number;
 }
 
 export interface SeatAssignment {
@@ -14,6 +15,7 @@ export interface SeatAssignment {
   seatSide: "L" | "R" | "C" | null;
   clothedWeightKg: number;
   baggageWeightKg: number;
+  freightWeightKg: number;
 }
 
 const SEAT_ARMS_MM: Record<string, number> = {
@@ -68,6 +70,7 @@ export function assignSeatsByCOG(passengers: PassengerInput[]): SeatAssignment[]
       seatSide: seat.side,
       clothedWeightKg: p.clothedWeightKg,
       baggageWeightKg: p.baggageWeightKg,
+      freightWeightKg: p.freightWeightKg,
     };
   });
 
@@ -79,6 +82,7 @@ export function assignSeatsByCOG(passengers: PassengerInput[]): SeatAssignment[]
     seatSide: null,
     clothedWeightKg: p.clothedWeightKg,
     baggageWeightKg: p.baggageWeightKg,
+    freightWeightKg: p.freightWeightKg,
   }));
 
   return [...seated, ...overflow];
