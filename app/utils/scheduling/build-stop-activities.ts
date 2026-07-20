@@ -1,3 +1,5 @@
+import { buildOrderedStopSequence, filterManifestsByRoute } from "./route-utils.server";
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface FlightLegRow {
@@ -62,26 +64,15 @@ export function buildStopActivities(
     (p) => flightCodes.has(p.origin_code) && flightCodes.has(p.destination_code)
   );
 
-  // Build stop sequence from flight legs to validate route order.
-  const stopSequence: string[] = [];
-  legsForFlight.forEach((leg) => {
-    if (leg.origin_code) stopSequence.push(leg.origin_code);
-    if (leg.destination_code) stopSequence.push(leg.destination_code);
-  });
-  const orderedCodes = stopSequence.filter((code, i) => i === 0 || code !== stopSequence[i - 1]);
+  // Build ordered stop sequence via shared utility (single source of truth).
+  // This must match the sequence used by createLoadsheetFromFlight to prevent
+  // passenger-count drift between the flight card and loadsheet.
+  const orderedCodes = buildOrderedStopSequence(
+    { origin_code: flight.origin_code, destination_code: flight.destination_code },
+    legsForFlight,
+  );
 
-  // Filter out passengers whose origin comes AFTER their destination in the
-  // route sequence. This prevents "arriving before departing" on routes where
-  // the same code appears at both extremes (e.g., DWN before GEI in a route
-  // where a passenger boards at GEI and would arrive at DWN upstream).
-  const routeValidManifests = flightManifests.filter((p) => {
-    const originIdx = orderedCodes.indexOf(p.origin_code);
-    if (originIdx === -1) return false;
-    // For round-trip routes with duplicate codes, find the destination
-    // that appears AFTER the origin occurrence.
-    const destIdx = orderedCodes.indexOf(p.destination_code, originIdx + 1);
-    return destIdx > originIdx;
-  });
+  const routeValidManifests = filterManifestsByRoute(flightManifests, orderedCodes);
 
   if (legsForFlight.length === 0) {
     return [

@@ -1,6 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
 import { db } from "~/utils/db.server";
-import { sql } from "kysely";
 import { handleAssignBooking } from "~/utils/schedule-handlers.server";
 import { createLoadsheetFromFlight } from "~/utils/loadsheet/create-loadsheet.server";
 import { findManifestsByFlightId } from "~/utils/repositories/booking-leg-passenger";
@@ -104,11 +103,13 @@ describe("flight-loadsheet passenger consistency", () => {
 
     // Verify each passenger appears
     for (const bk of bookings) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const found = manifests.find((m: any) =>
         m.passenger_name?.includes(bk.name) && m.passenger_name?.includes(bk.lname)
       );
       expect(found, `${bk.name} ${bk.lname} found in manifests`).toBeTruthy();
-      expect(Number(found.body_weight_kg), `${bk.name} weight matches`).toBe(bk.weight);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect(Number((found as any).body_weight_kg), `${bk.name} weight matches`).toBe(bk.weight);
     }
 
     // ── Verify: loadsheet shows all 3 ──
@@ -126,7 +127,9 @@ describe("flight-loadsheet passenger consistency", () => {
     expect(ls?.total_pax, "loadsheet.total_pax matches").toBe(3);
 
     // Verify each passenger's weight appears in loadsheet (via seated passengers)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const lsWeights = lsRows.map((p: any) => Number(p.clothed_weight_kg)).sort();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const manifestWeights = manifests.map((m: any) => Number(m.body_weight_kg)).sort();
     expect(lsWeights, "loadsheet weights match manifest weights").toEqual(manifestWeights);
 

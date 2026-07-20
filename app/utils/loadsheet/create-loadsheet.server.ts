@@ -2,6 +2,7 @@ import { kdb } from "../db.server.kysely";
 import { loadsheetRepository } from "./loadsheet-repository.server";
 import { computeLoadsheetCalculations } from "./loadsheet-calculations.server";
 import { findManifestsByFlightId } from "../repositories/booking-leg-passenger";
+import { buildOrderedStopSequence, filterManifestsByRoute } from "../scheduling/route-utils.server";
 import { DEFAULT_BN2_MTOW_KG } from "../constants";
 
 const BN2_EMPTY_WT = 1627;
@@ -22,30 +23,20 @@ export async function createLoadsheetFromFlight(flightId: number): Promise<numbe
     .orderBy("leg_number", "asc")
     .execute();
 
-  // Query passengers via canonical source of truth (booking_legs.flight_id).
+  // Query passengers via canonical source of truth (findManifestsByFlightId).
   // This is the same function used by the schedule loader and flight card,
   // guaranteeing flight-loadsheet passenger consistency.
   const manifestRows = await findManifestsByFlightId([flightId]);
 
-  // Build ordered stop list — mirror build-stop-activities.ts §49-55:
-  // include flight-level origin/destination CODES in the set so the first-pass
-  // filter catches passengers whose codes appear at flight endpoints but not
-  // as leg endpoints (e.g., a NULL leg code where the flight row provides it).
-  const stopSequence: string[] = [];
-  if (flight.origin_code) stopSequence.push(flight.origin_code);
-  for (const l of legs) {
-    if (l.origin_code) stopSequence.push(l.origin_code);
-    if (l.destination_code) stopSequence.push(l.destination_code);
-  }
-  if (flight.destination_code) stopSequence.push(flight.destination_code);
-  const routeStops = stopSequence.filter((code, i) => i === 0 || code !== stopSequence[i - 1]);
+  // Build ordered stop list via shared utility (single source of truth).
+  // Must match buildStopActivities' orderedCodes to prevent passenger-count
+  // drift between the flight card and loadsheet.
+  const routeStops = buildOrderedStopSequence(
+    { origin_code: flight.origin_code, destination_code: flight.destination_code },
+    legs,
+  );
 
-  const routeMatchedRows = manifestRows.filter((r) => {
-    const originIdx = routeStops.indexOf(r.origin_code);
-    if (originIdx === -1) return false;
-    const destIdx = routeStops.indexOf(r.destination_code, originIdx + 1);
-    return destIdx > originIdx;
-  });
+  const routeMatchedRows = filterManifestsByRoute(manifestRows, routeStops);
 
   const passengers = routeMatchedRows.map((r) => ({
     id: r.id,
