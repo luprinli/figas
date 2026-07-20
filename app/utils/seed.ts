@@ -79,10 +79,10 @@ async function seed() {
 
   // 5. Create test unassigned bookings for today
   const todayBookings = [
-    { ref: "TST-001", name: "Alice Johnson", origin: aeroCodes[0], dest: aeroCodes[1], pax: 2 },
-    { ref: "TST-002", name: "Bob Smith", origin: aeroCodes[0], dest: aeroCodes[2], pax: 1 },
-    { ref: "TST-003", name: "Carol Davis", origin: aeroCodes[1], dest: aeroCodes[3], pax: 3 },
-    { ref: "TST-004", name: "David Wilson", origin: aeroCodes[2], dest: aeroCodes[0], pax: 1 },
+    { ref: "FIG-A1001", name: "Alice Johnson", origin: aeroCodes[0], dest: aeroCodes[1], pax: 2 },
+    { ref: "FIG-A1002", name: "Bob Smith", origin: aeroCodes[0], dest: aeroCodes[2], pax: 1 },
+    { ref: "FIG-A1003", name: "Carol Davis", origin: aeroCodes[1], dest: aeroCodes[3], pax: 3 },
+    { ref: "FIG-A1004", name: "David Wilson", origin: aeroCodes[2], dest: aeroCodes[0], pax: 1 },
   ];
 
   for (const b of todayBookings) {
@@ -136,8 +136,8 @@ async function seed() {
 
   // 6. Create test unassigned bookings for tomorrow
   const tomorrowBookings = [
-    { ref: "TST-005", name: "Eve Brown", origin: aeroCodes[0], dest: aeroCodes[3], pax: 2 },
-    { ref: "TST-006", name: "Frank Miller", origin: aeroCodes[1], dest: aeroCodes[2], pax: 1 },
+    { ref: "FIG-A1005", name: "Eve Brown", origin: aeroCodes[0], dest: aeroCodes[3], pax: 2 },
+    { ref: "FIG-A1006", name: "Frank Miller", origin: aeroCodes[1], dest: aeroCodes[2], pax: 1 },
   ];
 
   for (const b of tomorrowBookings) {
