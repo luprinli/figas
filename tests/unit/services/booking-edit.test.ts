@@ -361,24 +361,24 @@ describe("booking edit — leg date update via bookingLegRepository.create()", (
   });
 
   it("creates a leg with updated origin and destination when the leg route changes", async () => {
-    executeMock.mockResolvedValueOnce([makeLegRow({ id: 11, origin_code: "MPA", destination_code: "SHR", leg_date: "2026-10-01" })]);
+    executeMock.mockResolvedValueOnce([makeLegRow({ id: 11, origin_code: "MPA", destination_code: "PBI", leg_date: "2026-10-01" })]);
 
     const result = await bookingLegRepository.create({
       booking_id: 1,
       origin_code: "MPA",
-      destination_code: "SHR",
+      destination_code: "PBI",
       leg_date: "2026-10-01",
       leg_sequence: 2,
     });
 
     const valuesPayload = valuesMock.mock.calls[0][0] as Record<string, unknown>;
     expect(valuesPayload.origin_code).toBe("MPA");
-    expect(valuesPayload.destination_code).toBe("SHR");
+    expect(valuesPayload.destination_code).toBe("PBI");
     expect(valuesPayload.leg_date).toBe("2026-10-01");
     expect(valuesPayload.leg_sequence).toBe(2);
 
     expect(result.origin_code).toBe("MPA");
-    expect(result.destination_code).toBe("SHR");
+    expect(result.destination_code).toBe("PBI");
   });
 
   it("rejects when origin equals destination — validates at the repo layer", async () => {
@@ -451,14 +451,14 @@ describe("booking edit — duplicate leg handling", () => {
         bookingLegRepository.create({
           booking_id: 1,
           origin_code: "MPA",
-          destination_code: "SHR",
+          destination_code: "PBI",
           leg_date: "2026-08-12",
           leg_sequence: 1,
         }),
         bookingLegRepository.create({
           booking_id: 1,
           origin_code: "MPA",
-          destination_code: "SHR",
+          destination_code: "PBI",
           leg_date: "2026-08-12",
           leg_sequence: 2,
         }),

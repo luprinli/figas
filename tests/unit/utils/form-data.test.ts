@@ -105,7 +105,7 @@ describe("parseIndexedFormData()", () => {
     const formData = new FormData();
     formData.append("origin", "STY");
     formData.append("origin", "MPA");
-    formData.append("origin", "SHR");
+    formData.append("origin", "PBI");
     formData.append("destination", "MPA");
     // destination only has 1 entry, origin has 3
 
@@ -120,7 +120,7 @@ describe("parseIndexedFormData()", () => {
     expect(result[0].destination).toBe("MPA");
     expect(result[1].origin).toBe("MPA");
     expect(result[1].destination).toBe(""); // missing value becomes empty string
-    expect(result[2].origin).toBe("SHR");
+    expect(result[2].origin).toBe("PBI");
     expect(result[2].destination).toBe(""); // missing value becomes empty string
   });
 });

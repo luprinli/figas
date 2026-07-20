@@ -78,7 +78,7 @@ describe("handleAutoBuild()", () => {
         await createTestBookingLeg({
           booking_id: 1,
           origin_code: "STY",
-          destination_code: "SHR",
+          destination_code: "PBI",
           leg_date: new Date(schedule.schedule_date),
           leg_sequence: i + 7,
           flight_id: null,

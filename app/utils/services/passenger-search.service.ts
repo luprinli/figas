@@ -1,6 +1,7 @@
 import { kdb } from "../db.server.kysely";
 import { sql } from "kysely";
 import type { PassengerSearchResult, PassengerSearchParams } from "./passenger-search.types";
+import { toDateString } from "../../types/shared";
 
 /**
  * Hybrid passenger search with scoping.
@@ -58,7 +59,7 @@ async function searchRegisteredUsers(query: string, limit: number): Promise<Pass
     lastName: String(r.name ?? "").split(" ").slice(1).join(" ") ?? "",
     email: r.email != null ? String(r.email) : null,
     phone: r.phone != null ? String(r.phone) : null,
-    dateOfBirth: r.date_of_birth != null ? String(r.date_of_birth) : null,
+    dateOfBirth: r.date_of_birth != null ? toDateString(r.date_of_birth) : null,
     clothedWeightKg: r.clothed_body_weight_kg != null ? Number(r.clothed_body_weight_kg) : null,
     residency: r.residency_status != null ? String(r.residency_status) : null,
     passengerUserId: Number(r.id),
@@ -89,7 +90,7 @@ async function searchHistoricPassengers(query: string, limit: number, extraWhere
     lastName: String(r.last_name ?? ""),
     email: r.email != null ? String(r.email) : null,
     phone: r.phone != null ? String(r.phone) : null,
-    dateOfBirth: r.date_of_birth != null ? String(r.date_of_birth) : null,
+    dateOfBirth: r.date_of_birth != null ? toDateString(r.date_of_birth) : null,
     clothedWeightKg: r.clothed_body_weight_kg != null ? Number(r.clothed_body_weight_kg) : null,
     residency: r.residency_status != null ? String(r.residency_status) : null,
     passengerUserId: r.user_id != null ? Number(r.user_id) : null,

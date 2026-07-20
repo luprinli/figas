@@ -29,8 +29,14 @@ function toRow(r: Record<string, unknown>): BookingLegRow {
     flight_id: r.flight_id != null ? Number(r.flight_id) : null,
     origin_code: String(r.origin_code ?? ""),
     destination_code: String(r.destination_code ?? ""),
-    leg_date: String(r.leg_date ?? ""),
-    departure_date: r.departure_date != null ? String(r.departure_date) : null,
+    leg_date: r.leg_date instanceof Date
+      ? (r.leg_date as Date).toISOString().slice(0, 10)
+      : String(r.leg_date ?? "").slice(0, 10),
+    departure_date: r.departure_date != null
+      ? (r.departure_date instanceof Date
+        ? (r.departure_date as Date).toISOString().slice(0, 10)
+        : String(r.departure_date).slice(0, 10))
+      : null,
     preferred_time: r.preferred_time != null ? String(r.preferred_time) : null,
     preferred_time_start: r.preferred_time_start != null ? String(r.preferred_time_start) : null,
     preferred_time_end: r.preferred_time_end != null ? String(r.preferred_time_end) : null,
@@ -42,8 +48,8 @@ function toRow(r: Record<string, unknown>): BookingLegRow {
 }
 
 export const bookingLegRepository = {
-  async findByBookingId(bookingId: number): Promise<BookingLegRow[]> {
-    const rows = await kdb
+  async findByBookingId(bookingId: number, client?: Kysely<DB>): Promise<BookingLegRow[]> {
+    const rows = await (client ?? kdb)
       .selectFrom("booking_legs")
       .selectAll()
       .where("booking_id", "=", bookingId)
@@ -71,13 +77,13 @@ export const bookingLegRepository = {
     preferred_time_start?: string | null;
     preferred_time_end?: string | null;
     leg_sequence: number;
-  }): Promise<BookingLegRow> {
+  }, client?: Kysely<DB>): Promise<BookingLegRow> {
     if (data.origin_code === data.destination_code) {
       throw new Error(
         `Origin and destination must be different: ${data.origin_code} \u2192 ${data.destination_code}`
       );
     }
-    const rows = await kdb
+    const rows = await (client ?? kdb)
       .insertInto("booking_legs")
       .values({
         booking_id: data.booking_id,
@@ -166,8 +172,8 @@ export const bookingLegRepository = {
     return rows.map((r) => toRow(r as unknown as Record<string, unknown>));
   },
 
-  async delete(id: number): Promise<void> {
-    await kdb.deleteFrom("booking_legs").where("id", "=", id).execute();
+  async delete(id: number, client?: Kysely<DB>): Promise<void> {
+    await (client ?? kdb).deleteFrom("booking_legs").where("id", "=", id).execute();
   },
 
   async countByFlightId(flightId: number): Promise<number> {

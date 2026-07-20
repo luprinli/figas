@@ -1,6 +1,7 @@
 import { kdb } from "../db.server.kysely";
 import { sql, type Kysely } from "kysely";
 import type { DB } from "../../../generated/kysely/database";
+import { toDateString } from "../../types/shared";
 
 const accountCodeCache = new Map<string, string>();
 
@@ -56,8 +57,8 @@ function toEntryRow(r: Record<string, unknown>): AccountingJournalEntryRow {
     booking_id: r.booking_id != null ? String(r.booking_id) : null,
     invoice_id: r.invoice_id != null ? String(r.invoice_id) : null,
     payment_id: r.payment_id != null ? String(r.payment_id) : null,
-    entry_date: String(r.entry_date ?? ""),
-    posting_date: r.posting_date != null ? String(r.posting_date) : null,
+    entry_date: toDateString(r.entry_date),
+    posting_date: r.posting_date != null ? toDateString(r.posting_date) : null,
     created_by: String(r.created_by ?? ""),
     approved_by: r.approved_by != null ? String(r.approved_by) : null,
     created_at: String(r.created_at ?? ""),

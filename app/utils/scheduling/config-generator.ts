@@ -1,4 +1,4 @@
-import { clusterBookingsByDate } from "./cluster-bookings";
+import { clusterBookingsByDate, splitOversizedCluster, getLegPassengerCountMap } from "./cluster-bookings";
 import { assignAircraft } from "./assign-aircraft";
 import { loadDistances } from "./distance-lookup";
 import type { RouteResult } from "./types";
@@ -112,11 +112,28 @@ async function strategyCvrp(
     return { config: { id: "", strategy: "", scheduleDate: date, flights: [], score: 0, metrics: {} as never }, errors, warnings };
   }
 
-  // Build passenger demands from clusters (one demand per cluster, not per leg)
+  // Get aircraft constraints first (needed for cluster splitting)
+  const aircraftList = await aircraftRepository.findAll();
+  const maxSeats = aircraftList.reduce((max, a) => Math.max(max, a.seat_count), 9);
+  const fleetRanges = aircraftList
+    .map((a) => (a as unknown as { max_range_nm?: number }).max_range_nm ?? DEFAULT_MAX_RANGE_NM)
+    .filter((r) => r > 0);
+  const maxRange = fleetRanges.length > 0 ? Math.min(...fleetRanges) : DEFAULT_MAX_RANGE_NM;
+
+  // R-01: Split clusters that exceed aircraft capacity before CVRP input
+  const allLegIds = clusters.flatMap((c) => c.legs.map((l) => l.id));
+  const passengerCountMap = await getLegPassengerCountMap(allLegIds);
+  const splitClusters: typeof clusters = [];
+  for (const cluster of clusters) {
+    const subClusters = splitOversizedCluster(cluster, maxSeats, passengerCountMap);
+    splitClusters.push(...subClusters);
+  }
+
+  // Build passenger demands from split clusters (one demand per cluster, not per leg)
   // Map cluster ID \u2192 all booking leg IDs for later manifest lookup
   const demands: PassengerDemand[] = [];
   const clusterLegIds = new Map<number, number[]>();
-  for (const cluster of clusters) {
+  for (const cluster of splitClusters) {
     const demandId = cluster.legs[0]?.id ?? 0;
     demands.push({
       bookingLegId: demandId,
@@ -133,11 +150,6 @@ async function strategyCvrp(
   for (const d of distances) {
     distanceMatrix.set(`${d.origin}->${d.destination}`, d.distance_nm);
   }
-
-  // Get aircraft constraints
-  const aircraftList = await aircraftRepository.findAll();
-  const maxSeats = aircraftList.reduce((max, a) => Math.max(max, a.seat_count), 9);
-  const maxRange = aircraftList.reduce((max) => Math.max(max, DEFAULT_MAX_RANGE_NM), DEFAULT_MAX_RANGE_NM);
 
   // Solve CVRP
   const config: CvrpConfig = {

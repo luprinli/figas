@@ -23,16 +23,21 @@ const CSRF_ALGORITHM = "sha256";
 const CSRF_DIGEST = "hex";
 
 /**
- * Generate a CSRF token for the given session ID.
+ * Generate a CSRF token for the given basis string.
  *
- * The token is an HMAC-SHA256 signature of the session ID, which means:
- *  - It is deterministic for the same session (no extra server-side state).
+ * The token is an HMAC-SHA256 signature, which means:
+ *  - It is deterministic for the same basis (no extra server-side state).
  *  - It cannot be forged without knowing the CSRF_SECRET.
- *  - It is tied to a specific session.
+ *  - It is tied to a specific basis (e.g., session cookie, full Cookie header).
+ *
+ * Both the token generator and validator must use the same basis string.
+ * The recommended basis is `request.headers.get("Cookie") ?? ""` for
+ * cookie-based sessions, as `session.id` is empty in Remix's
+ * createCookieSessionStorage.
  */
-export function generateCsrfToken(sessionId: string): string {
+export function generateCsrfToken(basis: string): string {
   return createHmac(CSRF_ALGORITHM, CSRF_SECRET)
-    .update(sessionId)
+    .update(basis)
     .digest(CSRF_DIGEST);
 }
 

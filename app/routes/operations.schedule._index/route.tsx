@@ -824,17 +824,15 @@ export default function ScheduleBuilder() {
                 </div>
               ) : activeDragItem?.type === "booking" && activeDragItem.data ? (
                 <div className="opacity-90 shadow-xl dark:shadow-slate-900/50 rounded-md border border-blue-300 bg-white dark:bg-slate-800 px-3 py-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-slate-800 dark:text-slate-100">
-                      {activeDragItem.data.booking_reference}
-                    </span>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                      {activeDragItem.data.passenger_count} pax
-                    </span>
+                  <div className="font-medium text-slate-800 dark:text-slate-100">
+                    {activeDragItem.data.passenger_name}
                   </div>
                   <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                    {activeDragItem.data.origin_code} ? {activeDragItem.data.destination_code}
+                    {activeDragItem.data.origin_code} {'\u2192'} {activeDragItem.data.destination_code}
                   </div>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                    {activeDragItem.data.booking_reference}
+                  </span>
                 </div>
               ) : activeDragItem?.type === "passenger" && activeDragItem.data ? (
                 <div className="opacity-90 shadow-xl dark:shadow-slate-900/50 rounded-md border border-red-300 bg-white dark:bg-slate-800 px-3 py-2">

@@ -1208,6 +1208,28 @@ ON booking_leg_passengers(flight_leg_id);
 - Added relation: `flight_leg flight_legs? @relation(fields: [flight_leg_id], references: [id], onDelete: SetNull)`
 - Added reverse relation: `booking_leg_passengers booking_leg_passengers[]` to `flight_legs` model
 
+### Schema Migration 038: Per-Passenger Scheduling Overhaul (2026-07-17)
+
+**File:** `migrations/consolidated/038-per-passenger-overhaul.sql`
+
+Adds three architectural changes:
+1. **`bookings.payment_mode`** — `per_booking` (default) or `per_passenger`
+2. **`booking_leg_passengers.refund_amount_gbp` / `refunded_at`** — refund tracking
+3. **`derive_booking_leg_flight_id()` trigger** — makes `booking_legs.flight_id` a derived column.
+   Writing to `booking_leg_passengers.flight_leg_id` automatically updates the corresponding
+   `booking_legs.flight_id` via a PostgreSQL AFTER INSERT/UPDATE/DELETE trigger.
+
+**Result:** `booking_leg_passengers.flight_leg_id` is now the sole canonical assignment column.
+All scheduling mutations write ONLY to the junction table. `booking_legs.flight_id` is derived
+reactively and never updated directly by scheduling code.
+
+### Schema Migration 039: Add weight_kg to pilots (2026-07-17)
+
+**File:** `migrations/consolidated/039-fix-pilots-weight-kg.sql`
+
+Column existed in Prisma schema but was only created via `prisma db push`, not SQL migrations.
+Added as `ALTER TABLE pilots ADD COLUMN IF NOT EXISTS weight_kg NUMERIC(5,1) DEFAULT 80.0`.
+
 ---
 
 ## Test Results Post-Implementation
@@ -1340,41 +1362,25 @@ whole-leg drags (`bookingLegPassengerId === undefined`) may cascade.
 single passenger from the outbound leg should assign only that passenger — not
 pull the return leg and all its passengers into the same flight.
 
-**Enforced at:**  
-[`handleAssignBooking()`](../../app/utils/schedule-handlers.server.ts:879-889) —  
-the sibling-legs propagation block is gated behind `if (!bookingLegPassengerId)`.
-This gate runs at the **end** of `handleAssignBooking` after the per-passenger
-filter at line 688-691 and the main assignment logic. If the gate is removed or
-the condition is inverted, per-passenger drags will incorrectly cascade.
+**Current state (post-remediation 2026-07-17):** INVARIANT-11 is now
+**architecturally enforced** by the database design. `booking_legs.flight_id` is
+a derived column (migration 038 trigger). The `handleAssignBooking` handler
+writes only to `booking_leg_passengers.flight_leg_id` — it no longer has a
+sibling propagation block. The sibling propagation in
+`handleCreateFlightFromBooking` is gated behind `!isPerPassenger`. The
+`findManifestsByFlightId` self-healing backfill that silently cascaded
+assignments was removed.
 
+**Historical enforcement (pre-remediation):**
 ```typescript
-// CRITICAL INVARIANT 11
-// Propagate to sibling unassigned legs of the same booking.
-// Only propagate when assigning the whole booking leg — per-passenger
-// drags should NOT pull in sibling legs (the user explicitly scoped to
-// one passenger).
-if (!bookingLegPassengerId) {
-  const bk = await tx.selectFrom("booking_legs")
-    .select("booking_id").where("id", "=", bookingLegId)
-    .executeTakeFirst();
-  if (bk?.booking_id) {
-    await tx.updateTable("booking_legs")
-      .set({ flight_id: flightId })
-      .where("booking_id", "=", bk.booking_id)
-      .where("flight_id", "is", null)
-      .execute();
-  }
-}
+// REMOVED: Sibling propagation was gated in handleAssignBooking but the
+// dual-column model made INVARIANT-11 fragile. Now enforced architecturally.
 ```
 
-**Test coverage:** Unit tests for both whole-leg and per-passenger paths must
-verify that sibling legs are assigned only when `bookingLegPassengerId` is
-`undefined`. Existing integration tests in
+**Test coverage:** Integration tests in
 [`assign-booking.test.ts`](../../tests/integration/scheduling/assign-booking.test.ts)
-cover the whole-leg path. A per-passenger path test should be added.
-*To be implemented: `tests/integration/scheduling/per-passenger-assign.test.ts`*
-
-**Regression risk:** **HIGH** — removing or inverting the `bookingLegPassengerId`
+verify junction-table-only updates. Per-passenger path tested via E2E
+([`workflows/scheduling.spec.ts`](../../tests/e2e/workflows/scheduling.spec.ts)).
 gate causes "one drag, multiple passengers moved" UX bug across the entire
 schedule board.
 
@@ -2205,3 +2211,4 @@ The production-readiness plan is documented in [`plans/scheduling-audit-report.m
 | 2026-06-03 | FIGAS Engineering | Marked G-17 (findByScheduleId column name mismatch) as Resolved â€” fix applied to `flight-leg.ts:38` |
 | 2026-06-03 | FIGAS Engineering | Updated Gap Analysis Reference to reflect all 22 audit report items resolved across 4 phases; added Implementation Status summary section |
 | 2026-06-03 | FIGAS Engineering | Documentation harmonization: updated test results to 58/58 integration + 59/59 unit = 117/117 total; added Production-Readiness Plan section with phase summaries and two-crew vs single-crew deviation note (G-08) |
+| 2026-07-17 | FIGAS Engineering | **Per-Passenger Scheduling Overhaul:** Added Schema Migration 038 (derivation trigger, `payment_mode`, `refund_*` columns) and 039 (pilots.weight_kg). Updated INVARIANT-11 to reflect architectural enforcement via trigger rather than code gate. Removed self-healing backfill from `findManifestsByFlightId`. Added RULES 19-21 to business-rules.md. Added `booking-mutations.server.ts` for passenger/leg CRUD. E2E tests: 24/25 pass, 508 unit, 109 integration. |

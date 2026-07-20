@@ -112,6 +112,22 @@ export function splitOversizedCluster(
 }
 
 /**
+ * Get a per-leg passenger count map for a set of booking leg IDs.
+ * Only counts passengers where flight_leg_id IS NULL (unassigned).
+ */
+export async function getLegPassengerCountMap(legIds: number[]): Promise<Map<number, number>> {
+  if (legIds.length === 0) return new Map();
+  const countRows = (await sql<{ booking_leg_id: number; count: number }>`
+    SELECT booking_leg_id, COUNT(*)::int AS count
+    FROM booking_leg_passengers
+    WHERE booking_leg_id = ANY(${legIds})
+      AND flight_leg_id IS NULL
+    GROUP BY booking_leg_id
+  `.execute(kdb)).rows;
+  return new Map(countRows.map((r) => [r.booking_leg_id, r.count]));
+}
+
+/**
  * Get unassigned legs for a specific date.
  */
 export async function clusterBookingsByDate(date: string): Promise<ClusterResult[]> {

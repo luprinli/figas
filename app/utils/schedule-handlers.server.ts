@@ -474,7 +474,7 @@ export async function handleCancel(
       },
       ipAddress: undefined,
       userAgent: undefined,
-    });
+    }, tx);
 
     return { success: true, unassignedFlightCount: flightIds.length };
   });
@@ -751,17 +751,11 @@ export async function handleAssignBooking(bookingLegId: number, flightId: number
 
     if (currentLegs.length === 0) {
       // No existing legs — just assign all passengers to the flight.
-      // Since there are no legs yet, we cannot assign to a specific flight_leg_id.
-      // The loader uses booking_legs.origin_code/destination_code for stop manifests,
-      // so flight_leg_id can remain NULL until legs are created.
+      // flight_leg_id remains NULL until legs are created (triggers by migration 038
+      // will derive booking_legs.flight_id once flight_leg_id is set elsewhere).
       for (const passenger of passengers) {
         await sql`UPDATE booking_leg_passengers SET flight_leg_id = NULL WHERE id = ${passenger.id}`.execute(tx);
       }
-      // Also update booking_leg for backward compatibility
-      await tx.updateTable("booking_legs")
-        .set({ flight_id: flightId })
-        .where("id", "=", bookingLegId)
-        .execute();
       // Re-query the updated passenger manifests so the client can update state
       const updatedManifestsRows = await findAssignedManifestsByFlightId(flightId, { client: tx });
       const updatedManifests = updatedManifestsRows.map((r) => ({
@@ -792,10 +786,6 @@ export async function handleAssignBooking(bookingLegId: number, flightId: number
       for (const passenger of passengers) {
         await assignToFlightLeg(passenger.id, matchingLeg.id, tx);
       }
-      await tx.updateTable("booking_legs")
-        .set({ flight_id: flightId })
-        .where("id", "=", bookingLegId)
-        .execute();
     } else {
       // ── No matching leg — dynamically rebuild the route ──────────────────
       const { insertPassengerRoute } = await import("./scheduling/insert-passenger-route");
@@ -822,23 +812,6 @@ export async function handleAssignBooking(bookingLegId: number, flightId: number
       let newFlightLegs: typeof currentLegs | null = null;
       if (result.inserted && result.legs) {
         newFlightLegs = await flightLegRepository.replaceFlightLegs(flightId, result.legs, tx);
-
-        // Re-map existing passengers to new flight legs after route rebuild.
-        // NOTE: do NOT filter by old blp.flight_leg_id — replaceFlightLegs has
-        // already deleted those rows, making the reference stale.
-        await sql`
-          UPDATE booking_leg_passengers blp
-           SET flight_leg_id = (
-             SELECT fl.id FROM flight_legs fl
-             WHERE fl.flight_id = ${flightId}
-             AND fl.origin_code = bl.origin_code
-             ORDER BY fl.leg_number ASC
-             LIMIT 1
-           ), updated_at = NOW()
-           FROM booking_legs bl
-           WHERE blp.booking_leg_id = bl.id
-           AND bl.flight_id = ${flightId}
-        `.execute(tx);
       }
 
       // Assign this passenger to the matching or origin-matching leg.
@@ -875,23 +848,6 @@ export async function handleAssignBooking(bookingLegId: number, flightId: number
         .set({ flight_id: flightId })
         .where("id", "=", bookingLegId)
         .execute();
-
-      // INVARIANT-11: Propagate to sibling unassigned legs of the same booking.
-      // Gated behind !bookingLegPassengerId — per-passenger drags must NOT
-      // cascade. See .agents/skills/flight-schedule/SKILL.md#invariant-11
-      // for the full contract and regression risk assessment.
-      if (!bookingLegPassengerId) {
-        const bk = await tx.selectFrom("booking_legs")
-          .select("booking_id").where("id", "=", bookingLegId)
-          .executeTakeFirst();
-        if (bk?.booking_id) {
-          await tx.updateTable("booking_legs")
-            .set({ flight_id: flightId })
-            .where("booking_id", "=", bk.booking_id)
-            .where("flight_id", "is", null)
-            .execute();
-        }
-      }
     }
 
     // After assignment, re-query the updated flight legs and passenger manifests
@@ -1107,22 +1063,27 @@ export async function handleCreateFlightFromBooking(
       currentTime.setMinutes(currentTime.getMinutes() + 10); // 10 min turnaround
     }
 
-    // Assign all booking legs to the flight, propagating to siblings
+    // Assign all booking legs to the flight. Sibling propagation is gated
+    // behind per-passenger mode — when specific passengers are being dragged
+    // to create a draft flight, we must NOT cascade to other legs/dates.
+    const isPerPassenger = options?.bookingLegPassengerIds?.length;
     for (const blId of bookingLegIds) {
       await tx.updateTable("booking_legs")
         .set({ flight_id: flightId })
         .where("id", "=", blId)
         .execute();
 
-      const bk = await tx.selectFrom("booking_legs")
-        .select("booking_id").where("id", "=", blId)
-        .executeTakeFirst();
-      if (bk?.booking_id) {
-        await tx.updateTable("booking_legs")
-          .set({ flight_id: flightId })
-          .where("booking_id", "=", bk.booking_id)
-          .where("flight_id", "is", null)
-          .execute();
+      if (!isPerPassenger) {
+        const bk = await tx.selectFrom("booking_legs")
+          .select("booking_id").where("id", "=", blId)
+          .executeTakeFirst();
+        if (bk?.booking_id) {
+          await tx.updateTable("booking_legs")
+            .set({ flight_id: flightId })
+            .where("booking_id", "=", bk.booking_id)
+            .where("flight_id", "is", null)
+            .execute();
+        }
       }
     }
 
@@ -1527,7 +1488,10 @@ export async function handleTransferBooking(
       .execute();
     const passengerLeg = updatedTargetLegs.find(
       (l) => l.origin_code === bookingLeg.origin_code && l.destination_code === bookingLeg.destination_code
-    );
+    )
+      // No direct leg — multi-stop route: fall back to the first leg departing
+      // from the passenger's origin so they appear at the departure stop.
+      ?? updatedTargetLegs.find((l) => l.origin_code === bookingLeg.origin_code);
     if (passengerLeg) {
       await tx.updateTable("booking_leg_passengers")
         .set({ flight_leg_id: Number(passengerLeg.id) })

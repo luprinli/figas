@@ -2,6 +2,7 @@
 import { kdb } from "../db.server";
 import { sql } from "kysely";
 import { PaymentStatus } from "../constants";
+import { toDateString } from "../../types/shared";
 
 export interface DashboardStats {
   totalUsers: number;
@@ -177,9 +178,9 @@ function toAirframeHourRow(r: Record<string, unknown>): AirframeHourRow {
   return {
     id: Number(r.id),
     aircraft_id: Number(r.aircraft_id ?? 0),
-    last_reading_date: String(r.last_reading_date ?? ""),
+    last_reading_date: toDateString(r.last_reading_date),
     total_hours: String(r.total_hours ?? ""),
-    next_check_date: r.next_check_date != null ? String(r.next_check_date) : null,
+    next_check_date: r.next_check_date != null ? toDateString(r.next_check_date) : null,
     next_check_type: r.next_check_type != null ? Number(r.next_check_type) : null,
     days_remaining: r.days_remaining != null ? Number(r.days_remaining) : null,
     next_check_due_hours: r.next_check_due_hours != null ? String(r.next_check_due_hours) : null,

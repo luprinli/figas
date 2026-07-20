@@ -121,9 +121,11 @@ export async function action({ request }: ActionFunctionArgs) {
       }
 
       // ── Step 1: Create booking ──────────────────────────────
+      const paymentMode = formData.get("payment_mode")?.toString() ?? "per_booking";
       const booking = await bookingRepository.createPending(Number(userId), null, false, {
         booking_source: bookingSource,
         created_by: createdBy,
+        payment_mode: paymentMode,
       });
 
       // ── Step 2: Create legs ─────────────────────────────────

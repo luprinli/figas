@@ -11,6 +11,8 @@ export class SchedulePage {
   readonly autoBuildTab: Locator;
   readonly autoBuildGenerateBtn: Locator;
   readonly approveButton: Locator;
+  readonly errorToast: Locator;
+  readonly validationBanner: Locator;
 
   constructor(page: Page) {
     this.page = page;
@@ -18,11 +20,13 @@ export class SchedulePage {
     this.unassignedHeading = page.getByRole("heading", { name: "Unassigned Passengers" });
     this.draggableItems = page.locator('[data-testid="booking-item"]');
     this.scheduleBoard = page.locator('[data-testid="schedule-board"]');
-    this.draftFlightPlaceholder = page.locator("text=Draft Flight").first();
+    this.draftFlightPlaceholder = page.locator('[data-testid="draft-flight-placeholder"]');
     this.scheduleStatusBar = page.locator('[data-testid="schedule-status-bar"]');
-    this.autoBuildTab = page.getByRole("button", { name: "Auto-Build" });
-    this.autoBuildGenerateBtn = page.getByRole("button", { name: "Generate" });
+    this.autoBuildTab = page.getByRole("button", { name: /Auto-Build/i });
+    this.autoBuildGenerateBtn = page.getByRole("button", { name: /^Generate$/i });
     this.approveButton = page.getByRole("button", { name: /approve/i });
+    this.errorToast = page.locator('div[role="alert"].bg-red-600');
+    this.validationBanner = page.locator('div[role="alert"].border-red-200');
   }
 
   async goto(date?: string) {
@@ -73,13 +77,17 @@ export class SchedulePage {
     return this.page.locator('[data-testid="flight-card"]').count();
   }
 
+  async getFlightIdFromCard(cardIndex: number): Promise<number> {
+    const card = this.page.locator('[data-testid="flight-card"]').nth(cardIndex);
+    const idAttr = await card.getAttribute("id").catch(() => "");
+    return parseInt((idAttr ?? "").replace("flight-", ""), 10) || 0;
+  }
+
   async clickAutoBuild() {
-    // 1. Ensure the Auto-Build tab/view is selected so AutoBuildPanel is visible
     if (await this.autoBuildTab.isVisible({ timeout: 3_000 }).catch(() => false)) {
       await this.autoBuildTab.click();
       await this.page.waitForTimeout(500);
     }
-    // 2. Click the Generate button inside AutoBuildPanel
     if (await this.autoBuildGenerateBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
       await this.autoBuildGenerateBtn.click();
       await this.page.waitForLoadState("networkidle");

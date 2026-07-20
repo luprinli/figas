@@ -218,6 +218,16 @@ export async function loadPassengerWeightsForFlight(
   flightId: number,
   legs: FlightLegRow[]
 ): Promise<Map<number, LegPassengerWeights>> {
+  // Build the ordered stop list from the flight legs (sorted by leg_sequence)
+  const sortedLegs = [...legs].sort((a, b) => a.leg_sequence - b.leg_sequence);
+  const stops: string[] = [];
+  for (const leg of sortedLegs) {
+    if (stops.length === 0 || stops[stops.length - 1] !== leg.origin_code) {
+      stops.push(leg.origin_code);
+    }
+    stops.push(leg.destination_code);
+  }
+
   // Find all booking_legs assigned to this flight
   const bookingLegsResult = await sql<{
     id: number;
@@ -234,10 +244,10 @@ export async function loadPassengerWeightsForFlight(
     destination_code: string;
   }>;
 
-  // For each booking leg, load passengers from booking_leg_passengers
   const legWeightsMap = new Map<number, LegPassengerWeights>();
 
   for (const bookingLeg of bookingLegs) {
+    // Load passenger weights for this booking leg
     const legPassengers = await sql<{
       clothed_weight_kg: number | null;
       baggage_weight_kg: number;
@@ -268,25 +278,48 @@ export async function loadPassengerWeightsForFlight(
       0
     );
 
-    // Map this booking leg's passengers to the matching flight leg
-    // by matching origin/destination
-    for (const leg of legs) {
-      if (
-        leg.origin_code === bookingLeg.origin_code &&
-        leg.destination_code === bookingLeg.destination_code
-      ) {
-        const existing = legWeightsMap.get(leg.id) ?? {
-          passengerCount: 0,
-          passengerWeightKg: 0,
-          baggageWeightKg: 0,
-          freightWeightKg: 0,
-        };
-        existing.passengerCount += passengerCount;
-        existing.passengerWeightKg += passengerWeightKg;
-        existing.baggageWeightKg += baggageWeightKg;
-        existing.freightWeightKg += freightWeightKg;
-        legWeightsMap.set(leg.id, existing);
+    // Find boarding and alighting stop indices in the route
+    const originIndex = stops.indexOf(bookingLeg.origin_code);
+    const destIndex = stops.indexOf(bookingLeg.destination_code, originIndex + 1);
+
+    if (originIndex === -1 || destIndex === -1 || originIndex >= destIndex) {
+      // Fall back to exact leg match for simple single-leg bookings
+      for (const leg of sortedLegs) {
+        if (
+          leg.origin_code === bookingLeg.origin_code &&
+          leg.destination_code === bookingLeg.destination_code
+        ) {
+          const existing = legWeightsMap.get(leg.id) ?? {
+            passengerCount: 0,
+            passengerWeightKg: 0,
+            baggageWeightKg: 0,
+            freightWeightKg: 0,
+          };
+          existing.passengerCount += passengerCount;
+          existing.passengerWeightKg += passengerWeightKg;
+          existing.baggageWeightKg += baggageWeightKg;
+          existing.freightWeightKg += freightWeightKg;
+          legWeightsMap.set(leg.id, existing);
+        }
       }
+      continue;
+    }
+
+    // Add passenger weight to every leg from boarding stop to alighting stop
+    for (let idx = originIndex; idx < destIndex; idx++) {
+      const leg = sortedLegs[idx]; // leg from stops[idx] to stops[idx+1]
+      if (!leg) continue;
+      const existing = legWeightsMap.get(leg.id) ?? {
+        passengerCount: 0,
+        passengerWeightKg: 0,
+        baggageWeightKg: 0,
+        freightWeightKg: 0,
+      };
+      existing.passengerCount += passengerCount;
+      existing.passengerWeightKg += passengerWeightKg;
+      existing.baggageWeightKg += baggageWeightKg;
+      existing.freightWeightKg += freightWeightKg;
+      legWeightsMap.set(leg.id, existing);
     }
   }
 

@@ -3,7 +3,8 @@ import { sql } from "kysely";
 
 export async function allocatePayment(
   paymentId: number,
-  bookingId: number
+  bookingId: number,
+  options?: { passengerId?: number }
 ): Promise<{ allocated: number; remaining: number }> {
   const payment = (await kdb.selectFrom("payments")
     .select(["amount", "status"])
@@ -15,9 +16,12 @@ export async function allocatePayment(
     .select(kdb.fn.sum<number>("allocated_amount").as("sum_allocated_amount"))
     .where("payment_id", "=", paymentId)
     .execute();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let remaining = Number(payment.amount) - Number((alreadyAllocated[0] as any)?.sum_allocated_amount ?? 0);
+  let remaining = Number(payment.amount) - Number((alreadyAllocated[0] as { sum_allocated_amount?: number } | undefined)?.sum_allocated_amount ?? 0);
   if (remaining <= 0) return { allocated: 0, remaining: 0 };
+
+  const passengerFilter = options?.passengerId
+    ? sql`AND blp.booking_passenger_id = ${options.passengerId}`
+    : sql``;
 
   const lineItems = await sql<Record<string, unknown>>`
     SELECT
@@ -27,7 +31,7 @@ export async function allocatePayment(
     FROM booking_leg_passengers blp
     JOIN booking_legs bl ON bl.id = blp.booking_leg_id
     LEFT JOIN payment_allocations pa ON pa.booking_leg_passenger_id = blp.id
-    WHERE bl.booking_id = ${bookingId}
+    WHERE bl.booking_id = ${bookingId} ${passengerFilter}
     GROUP BY blp.id, blp.line_fare_amount
     HAVING COALESCE(blp.line_fare_amount, 0) > COALESCE(SUM(pa.allocated_amount), 0)
     ORDER BY blp.id

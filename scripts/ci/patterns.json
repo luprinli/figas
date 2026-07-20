@@ -1,0 +1,101 @@
+{
+  "$comment": "FIGAS bug-pattern registry (docs/codebase-audit-strategy.md §4.2). Each pattern feeds scripts/audit-patterns.ts scan targets, the invariant test suite, and the ESLint rule queue. Add new patterns when a novel bug class is discovered.",
+  "patterns": [
+    {
+      "id": "date-string-coercion",
+      "description": "String(Date) on a pg DATE column produces non-ISO format ('Wed Jul 22 2026...'), breaking date comparisons",
+      "scanCommand": "npx tsx scripts/audit-patterns.ts",
+      "scanRule": "date-string-coercion",
+      "eslintRule": "no-unsafe-date-string (planned — see docs/audit-violations-01.md Deferred)",
+      "invariantTest": "tests/invariants/date-string-format.test.ts",
+      "prevention": "toDateString() helper + DateString brand in app/types/shared.ts",
+      "discovered": "2026-07-18",
+      "severity": "P1",
+      "owner": "backend",
+      "lastScanned": "2026-07-18",
+      "violationCount": 0
+    },
+    {
+      "id": "transaction-isolation",
+      "description": "Repository write methods, write helpers, or sql INSERT/UPDATE/DELETE called inside db.transaction()/withTransaction() without passing tx",
+      "scanCommand": "npx tsx scripts/audit-patterns.ts",
+      "scanRule": "transaction-isolation",
+      "eslintRule": "require-transaction-client (planned — see docs/audit-violations-01.md Deferred)",
+      "invariantTest": "tests/invariants/transaction-isolation.test.ts",
+      "prevention": "Repository methods accept optional client?: Kysely<DB>; write helpers listed in scripts/audit-patterns.ts WRITE_HELPERS",
+      "writeHelpers": [
+        "computeBookingCost",
+        "updateBookingTotals",
+        "createAuditLogEntry",
+        "addJunctionRecordsForPassenger",
+        "removeJunctionRecordsForPassenger",
+        "removeJunctionRecordsForLeg",
+        "setRefundOnJunctionRecords",
+        "assignToFlightLeg",
+        "unassignFromFlightLeg",
+        "createPaymentForCheckin"
+      ],
+      "discovered": "2026-07-18",
+      "severity": "P0",
+      "owner": "backend",
+      "lastScanned": "2026-07-18",
+      "violationCount": 0
+    },
+    {
+      "id": "csrf-token-basis",
+      "description": "generateCsrfToken(session.id) vs generateCsrfToken(cookieHeader) — token basis mismatch; session.id is empty under createCookieSessionStorage",
+      "scanCommand": "npx tsx scripts/audit-patterns.ts",
+      "scanRule": "csrf-token-basis",
+      "eslintRule": null,
+      "invariantTest": "tests/invariants/csrf-token-basis.test.ts",
+      "prevention": "Single basis: request.headers.get('Cookie') — see app/utils/csrf-check.server.ts",
+      "discovered": "2026-07-18",
+      "severity": "P0",
+      "owner": "backend",
+      "lastScanned": "2026-07-18",
+      "violationCount": 0
+    },
+    {
+      "id": "duplicate-function-divergence",
+      "description": "Two functions with the same exported name in different files drift apart (clusterBookingsByDate had date normalization in one copy only)",
+      "scanCommand": "npx tsx scripts/audit-patterns.ts",
+      "scanRule": "duplicate-exported-functions",
+      "eslintRule": "no-duplicate-function-with-divergent-logic (planned)",
+      "invariantTest": null,
+      "prevention": "Import from a single source; delete private duplicates",
+      "discovered": "2026-07-18",
+      "severity": "P2",
+      "owner": "backend",
+      "lastScanned": "2026-07-18",
+      "violationCount": 8
+    },
+    {
+      "id": "exact-match-without-fallback",
+      "description": "Passenger/booking matched to a route leg by exact origin+destination equality without a multi-stop fallback (origin-only or route-index)",
+      "scanCommand": "rg \"origin_code ===.*destination_code ===\" app/ -n",
+      "scanRule": null,
+      "eslintRule": "enforce-exact-match-with-fallback (planned)",
+      "invariantTest": null,
+      "prevention": "Every exact origin+dest .find() must be followed by an origin-only fallback or explicit error branch (see schedule-handlers.server.ts handleAssignBooking)",
+      "discovered": "2026-07-18",
+      "severity": "P1",
+      "owner": "scheduling",
+      "lastScanned": "2026-07-18",
+      "violationCount": 0
+    },
+    {
+      "id": "missing-data-testid",
+      "description": "Interactive components (dnd-kit draggables/droppables, mutation buttons) without data-testid attributes cause fragile e2e selectors",
+      "scanCommand": "see docs/audit-violations-01.md Phase 6 script",
+      "scanRule": null,
+      "eslintRule": "no-missing-data-testid (planned)",
+      "invariantTest": null,
+      "prevention": "data-testid required on the root interactive element of new components",
+      "discovered": "2026-07-18",
+      "severity": "P2",
+      "owner": "frontend",
+      "lastScanned": "2026-07-18",
+      "violationCount": 46
+    }
+  ]
+}

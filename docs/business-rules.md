@@ -1,7 +1,7 @@
 # FIGAS Business Rules — Authoritative Reference
 
-**Version:** 1.3.0
-**Date:** 2026-07-12
+**Version:** 1.4.0
+**Date:** 2026-07-17
 **Location:** `docs/business-rules.md` — this file is the single source of truth for all FIGAS business logic rules. All future development, refactoring, and testing MUST reference these rules.
 
 ---
@@ -367,8 +367,53 @@ When a booking is dropped on an optimistic flight card (temp ID < 0), the `pendi
 1. **Sibling propagation sets `booking_legs.flight_id` only** — it does NOT touch `booking_leg_passengers.flight_leg_id`
 2. **Per-passenger assignment sets `booking_leg_passengers.flight_leg_id`** — it may also set `booking_legs.flight_id` but the opposite is NOT true
 3. **`findUnassignedByDate` queries `blp.flight_leg_id IS NULL` only** — it MUST NOT query `bl.flight_id IS NULL`
-4. **Manifest queries use `bl.flight_id = $flightId`** — they MUST NOT add `blp.flight_leg_id IS NOT NULL`
-5. **Route-rebuild remaps use `booking_leg_passengers.flight_leg_id`** — after flight legs are replaced, all passengers on the flight must be re-mapped to new leg IDs
+4. **Manifest queries use `blp.flight_leg_id` JOIN `flight_legs`** — junction-first path (migration 038)
+5. **Route-rebuild remaps REMOVED** — no longer re-maps all passengers after flight leg replacement
+
+---
+
+## RULE 19: Per-Passenger Scheduling (Atomic Assignment)
+
+**Principle:** Each passenger × leg × date forms an independently schedulable unit. Assigning one junction record must not cascade to other passengers or other legs.
+
+| Aspect | Rule |
+|--------|------|
+| **Canonical column** | `booking_leg_passengers.flight_leg_id` is the sole source of truth for scheduling assignments |
+| **Derived column** | `booking_legs.flight_id` is derived via a PostgreSQL trigger (migration 038). Never updated directly by scheduling mutations |
+| **Unassigned pool** | `WHERE blp.flight_leg_id IS NULL AND bl.leg_date = $date` — no `leg_sequence` filter |
+| **Per-passenger drag** | Drop submits `bookingLegPassengerId`. Handler updates only that junction record's `flight_leg_id` |
+| **Sibling isolation** | INVARIANT-11: per-passenger assigns must NOT propagate to sibling booking legs (gated behind `!bookingLegPassengerId`) |
+| **Self-healing** | REMOVED. The `findManifestsByFlightId` backfill UPDATE was removed (migration 038 handles via trigger) |
+| **Enforced by** | `booking-leg-passenger.ts`, `schedule-handlers.server.ts:879-894`, migration 038 trigger |
+
+---
+
+## RULE 20: Booking Mutability
+
+**Principle:** Confirmed bookings can be modified: passengers and legs can be added or removed, with fare recalculation and refund handling.
+
+| Aspect | Rule |
+|--------|------|
+| **Add passenger** | Creates `booking_passenger` row + junction records for all existing legs. Recalculates fare |
+| **Remove passenger** | Deletes junction records + passenger. Computes refund via `refund_amount_gbp`. At least 1 passenger must remain |
+| **Add leg** | Creates `booking_leg` row + junction records for all existing passengers. Recalculates fare |
+| **Remove leg** | Deletes `booking_leg` + all junction records. Computes per-passenger refunds. Re-sequences remaining legs |
+| **Status guard** | Cannot modify cancelled or completed bookings |
+| **Enforced by** | `booking-mutations.server.ts` |
+
+---
+
+## RULE 21: Per-Booking vs Per-Passenger Payment
+
+**Principle:** Payments can be allocated per booking (one payment covers all passengers) or per passenger (each pays individually).
+
+| Aspect | Rule |
+|--------|------|
+| **Payment mode** | `bookings.payment_mode` — `per_booking` (default) or `per_passenger` |
+| **Per-booking** | One payment covers all junction records across all passengers and legs |
+| **Per-passenger** | Each passenger pays individually. Payment allocation filters to their junction records only |
+| **Refund mode** | Per-booking: single refund proportional to removed records. Per-passenger: refund only that passenger's paid amount |
+| **Enforced by** | `booking.ts:153-181`, `payment-allocation.server.ts`, `booking-mutations.server.ts`
 
 ---
 

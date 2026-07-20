@@ -489,6 +489,7 @@ model bookings {
   invoice_id              String?   @db.Uuid
   notes                   String?   @db.Text
   booking_source          String    @default("customer_direct") @db.VarChar(50)
+  payment_mode            String    @default("per_booking") @db.VarChar(20)
   created_by              Int?
   cancelled_at            DateTime? @db.Timestamptz()
   cancelled_by            Int?
@@ -1229,6 +1230,8 @@ model booking_leg_passengers {
   boarded_at          DateTime? @db.Timestamptz()
   line_fare_amount    Decimal?  @db.Decimal(8,2)
   discount_applied    Boolean   @default(false)
+  refund_amount_gbp   Decimal?  @db.Decimal(8,2)
+  refunded_at         DateTime? @db.Timestamptz()
   created_at          DateTime  @default(now()) @db.Timestamptz()
   updated_at          DateTime  @default(now()) @db.Timestamptz()
 
@@ -1697,6 +1700,25 @@ model flight_logs {
   @@index([aircraft_id, departure_date])
   @@index([departure_date])
   @@map("flight_logs")
+}
+
+model fuel_orders {
+  id                      Int       @id @default(autoincrement())
+  flight_id               Int
+  flight_leg_id           Int?
+  status                  String?   @default("draft") @db.VarChar(20)
+  requested_fuel_kg       Decimal   @db.Decimal(8, 1)
+  calculated_breakdown    Json?
+  issued_by               Int?
+  issued_at               DateTime? @db.Timestamptz
+  fueler_actual_uplift_kg Decimal?  @db.Decimal(8, 1)
+  fueler_confirmed_by     Int?
+  fueler_confirmed_at     DateTime? @db.Timestamptz
+  fueler_notes            String?
+  created_at              DateTime? @default(now()) @db.Timestamptz
+  updated_at              DateTime? @default(now()) @db.Timestamptz
+
+  @@map("fuel_orders")
 }
 
 model maintenance_tasks {

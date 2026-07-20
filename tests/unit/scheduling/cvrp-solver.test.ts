@@ -23,7 +23,7 @@ function buildTestMatrix(): Map<string, number> {
   add("STY", "PBI", 95);
   add("STY", "NHA", 130);
   add("STY", "SLI", 140);
-  add("STY", "SHR", 85);
+  add("STY", "PBI", 85);
   // Between others
   add("MPA", "WDI", 50);
   add("MPA", "PST", 60);
@@ -31,7 +31,7 @@ function buildTestMatrix(): Map<string, number> {
   add("BVI", "PBI", 30);
   add("NHA", "SLI", 35);
   add("PST", "BVI", 45);
-  add("PBI", "SHR", 50);
+  add("PBI", "PBI", 50);
   return m;
 }
 

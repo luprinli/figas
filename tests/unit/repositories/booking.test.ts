@@ -368,7 +368,7 @@ describe("bookingRepository.searchByUser()", () => {
           {
             ...makeBookingRow({ id: 7, user_id: 42 }),
             origin_code: "STY",
-            destination_code: "SHR",
+            destination_code: "PBI",
             leg_date: "2026-08-05",
             flight_id: null,
             passenger_first_name: "Jane",

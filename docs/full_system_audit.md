@@ -14,15 +14,17 @@ You are auditing the **FIGAS Flight Operations & Booking Management System**—a
 - **Deployment:** Render (persistent Node web service via `render.yaml`, which is already stable and good).
 - **Key Modules:**
   - Authentication & PBAC (Permission-Based Access Control)
-  - Booking Management (self-service, agent, operations)
-  - Flight Scheduling Pipeline (5-phase auto-builder + drag-and-drop board)
+  - Booking Management (self-service, agent, operations, booking mutability RULE 20)
+  - Flight Scheduling Pipeline (5-phase auto-builder + per-passenger drag-and-drop board)
   - Check-in & POS Terminal (per-leg, batch, payment collection)
-  - Finance & Accounting (double-entry, invoicing, reconciliation)
+  - Finance & Accounting (double-entry, invoicing, reconciliation, per-passenger or per-booking payment RULE 21)
   - Pilot Briefing & Loadsheet (interactive W&B, offline-capable)
   - Engineer & Maintenance (fleet tracking, airframe hours, components)
   - Admin (CRUD for aerodromes, aircraft, fares, fuel rules)
 
 **Audit Purpose:** Identify all risks, technical debt, feature gaps, and UX frictions. This audit will inform the final push toward a commercially licensable, operationally robust product.
+
+**Last Updated:** 2026-07-17 — Added per-passenger scheduling, booking mutability, payment mode support.
 
 ---
 

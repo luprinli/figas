@@ -2,6 +2,8 @@ import { redirect } from "@remix-run/node";
 import { getSession } from "../session.server";
 import { kdb } from "./db.server.kysely";
 import { sql } from "kysely";
+import type { Kysely } from "kysely";
+import type { DB } from "../../generated/kysely/database";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -399,7 +401,7 @@ export async function createAuditLogEntry(params: {
     newValues?: Record<string, unknown>;
     ipAddress?: string;
     userAgent?: string;
-}): Promise<void> {
+}, client?: Kysely<DB>): Promise<void> {
     await sql`
       INSERT INTO audit_log (actor_id, action, entity_type, entity_id, old_values, new_values, ip_address, user_agent)
       VALUES (
@@ -412,7 +414,7 @@ export async function createAuditLogEntry(params: {
         ${params.ipAddress ?? null},
         ${params.userAgent ?? null}
       )
-    `.execute(kdb);
+    `.execute(client ?? kdb);
 }
 
 /**

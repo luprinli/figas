@@ -17,36 +17,27 @@ export const MOCK_AERODROMES = [
   },
   {
     code: "MPA",
-    name: "Mpa Airport",
-    city: "Mpa",
-    runway_length: 900.0,
+    name: "Mount Pleasant Airport",
+    city: "Mount Pleasant",
+    runway_length: 2580.0,
     timezone: "Atlantic/Stanley",
     is_active: true,
     fuel_available: false,
   },
   {
-    code: "SHR",
-    name: "Shirley Airport",
-    city: "Shirley",
-    runway_length: 800.0,
-    timezone: "Atlantic/Stanley",
-    is_active: true,
-    fuel_available: false,
-  },
-  {
-    code: "PPS",
-    name: "Pebble Island Settlement",
+    code: "PBI",
+    name: "Pebble Island",
     city: "Pebble Island",
-    runway_length: 750.0,
+    runway_length: 579.0,
     timezone: "Atlantic/Stanley",
     is_active: true,
     fuel_available: false,
   },
   {
-    code: "SAU",
-    name: "Saunders Island Settlement",
+    code: "SDI",
+    name: "Saunders Island",
     city: "Saunders Island",
-    runway_length: 700.0,
+    runway_length: 548.0,
     timezone: "Atlantic/Stanley",
     is_active: true,
     fuel_available: false,
@@ -103,11 +94,10 @@ export async function ensureAerodromes(): Promise<void> {
   await sql`
     INSERT INTO aerodromes (code, name, city, runway_length, timezone, is_active, fuel_available)
     VALUES
-      ('STY', 'Stanley Airport (Port Stanley)', 'Stanley', 1200.0, 'Atlantic/Stanley', true, true),
-      ('MPA', 'Mpa Airport', 'Mpa', 900.0, 'Atlantic/Stanley', true, false),
-      ('SHR', 'Shirley Airport', 'Shirley', 800.0, 'Atlantic/Stanley', true, false),
-      ('PPS', 'Pebble Island Settlement', 'Pebble Island', 750.0, 'Atlantic/Stanley', true, false),
-      ('SAU', 'Saunders Island Settlement', 'Saunders Island', 700.0, 'Atlantic/Stanley', true, false)
+      ('STY', 'Stanley Airport', 'Stanley', 970.0, 'Atlantic/Stanley', true, true),
+      ('MPA', 'Mount Pleasant Airport', 'Mount Pleasant', 2580.0, 'Atlantic/Stanley', true, false),
+      ('PBI', 'Pebble Island', 'Pebble Island', 579.0, 'Atlantic/Stanley', true, false),
+      ('SDI', 'Saunders Island', 'Saunders Island', 548.0, 'Atlantic/Stanley', true, false)
     ON CONFLICT (code) DO NOTHING
   `.execute(db);
 }

@@ -252,9 +252,9 @@ export async function unassignFromFlightLeg(
 // consistency.  All callers (schedule loader, flight card, loadsheet) MUST use
 // this or `countAssignedByFlightId` to avoid drift.
 //
-// Derives from booking_legs.flight_id (the canonical assignment column), not
-// booking_leg_passengers.flight_leg_id (an optimisation column that may be NULL
-// during assignment windows).
+// Uses booking_leg_passengers.flight_leg_id (the sole canonical assignment column)
+// joined through flight_legs.flight_id to scope to a flight.
+// booking_legs.flight_id is a derived column (see migration 038 trigger).
 // ───────────────────────────────────────────────────────────────────────────────
 
 export interface PassengerManifestRow {
@@ -274,16 +274,8 @@ export interface PassengerManifestRow {
 export async function findManifestsByFlightId(
   flightIds: number[]
 ): Promise<PassengerManifestRow[]> {
-  // Self-healing: backfill flight_id on sibling unassigned legs for bookings
-  // that were assigned before the propagation logic existed.
+  if (flightIds.length === 0) return [];
   const idList = flightIds.join(",");
-  await sql`
-    UPDATE booking_legs bl SET flight_id = sibling.flight_id
-     FROM booking_legs sibling
-     WHERE bl.booking_id = sibling.booking_id
-       AND sibling.flight_id = ANY(${sql.raw(`ARRAY[${idList}]::int[]`)})
-       AND bl.flight_id IS NULL
-  `.execute(kdb);
 
   const rows = await sql`
     SELECT blp.id, blp.booking_leg_id, bp.id AS booking_passenger_id, blp.flight_leg_id, fl.flight_id,
@@ -293,10 +285,10 @@ export async function findManifestsByFlightId(
             COALESCE(blp.freight_weight_kg, 0)::int AS freight_weight_kg,
             bl.origin_code, bl.destination_code
      FROM booking_leg_passengers blp
+     JOIN flight_legs fl ON fl.id = blp.flight_leg_id
      JOIN booking_legs bl ON bl.id = blp.booking_leg_id
      JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
-     LEFT JOIN flight_legs fl ON fl.id = blp.flight_leg_id
-     WHERE bl.flight_id = ANY(${sql.raw(`ARRAY[${idList}]::int[]`)})
+     WHERE fl.flight_id = ANY(${sql.raw(`ARRAY[${idList}]::int[]`)})
      ORDER BY blp.id
   `.execute(kdb);
   return rows.rows as PassengerManifestRow[];
@@ -312,8 +304,8 @@ export async function countAssignedByFlightId(
   const rows = await sql`
     SELECT COUNT(*)::int AS cnt
      FROM booking_leg_passengers blp
-     JOIN booking_legs bl ON bl.id = blp.booking_leg_id
-     WHERE bl.flight_id = ${flightId}
+     JOIN flight_legs fl ON fl.id = blp.flight_leg_id
+     WHERE fl.flight_id = ${flightId}
   `.execute(kdb);
   return Number((rows.rows[0] as { cnt: number | bigint } | undefined)?.cnt ?? 0);
 }
@@ -322,8 +314,9 @@ export async function flightHasAssignedPassengers(
   flightId: number
 ): Promise<boolean> {
   const rows = await sql`
-    SELECT 1 FROM booking_legs bl
-     WHERE bl.flight_id = ${flightId}
+    SELECT 1 FROM booking_leg_passengers blp
+     JOIN flight_legs fl ON fl.id = blp.flight_leg_id
+     WHERE fl.flight_id = ${flightId}
      LIMIT 1
   `.execute(kdb);
   return rows.rows.length > 0;
@@ -335,27 +328,45 @@ export async function findUnassignedByDate(
   Array<{
     id: number;
     booking_leg_id: number;
+    booking_id: number;
     booking_reference: string;
     passenger_name: string;
+    passenger_first_name: string;
+    passenger_last_name: string;
     origin_code: string;
     destination_code: string;
-    passenger_count: number;
+    leg_date: string;
+    leg_sequence: number;
+    clothed_weight_kg: number;
+    baggage_weight_kg: number;
+    freight_weight_kg: number;
+    seat_number: string | null;
   }>
 > {
   const rows = await sql`
-    SELECT blp.id, bl.id AS booking_leg_id, b.booking_reference,
-            bp.first_name || ' ' || bp.last_name AS passenger_name,
-            bl.origin_code, bl.destination_code,
-            1 AS passenger_count
+    SELECT blp.id,
+            bl.id AS booking_leg_id,
+            bl.booking_id,
+            b.booking_reference,
+            COALESCE(NULLIF(TRIM(bp.first_name || ' ' || bp.last_name), ''), 'Unknown') AS passenger_name,
+            bp.first_name AS passenger_first_name,
+            bp.last_name AS passenger_last_name,
+            bl.origin_code,
+            bl.destination_code,
+            bl.leg_date,
+            bl.leg_sequence,
+            COALESCE(blp.clothed_weight_kg, 70) AS clothed_weight_kg,
+            COALESCE(blp.baggage_weight_kg, 0) AS baggage_weight_kg,
+            COALESCE(blp.freight_weight_kg, 0) AS freight_weight_kg,
+            blp.seat_number
      FROM booking_leg_passengers blp
      JOIN booking_legs bl ON bl.id = blp.booking_leg_id
      JOIN bookings b ON b.id = bl.booking_id
      JOIN booking_passengers bp ON bp.id = blp.booking_passenger_id
      WHERE blp.flight_leg_id IS NULL
        AND bl.leg_date = ${date}
-       AND bl.leg_sequence = 1
        AND b.status NOT IN ('cancelled', 'completed')
-     ORDER BY b.booking_reference, bp.last_name, bp.first_name
+     ORDER BY bl.leg_sequence, bp.last_name, bp.first_name
   `.execute(kdb);
   return rows.rows as any;
 }
@@ -482,8 +493,8 @@ export async function findUncheckedByFlightId(flightId: number): Promise<Array<{
   const result = await sql<{ id: number }>`
     SELECT blp.id
      FROM booking_leg_passengers blp
-     JOIN booking_legs bl ON bl.id = blp.booking_leg_id
-     WHERE bl.flight_id = ${flightId} AND blp.checked_in = false
+     JOIN flight_legs fl ON fl.id = blp.flight_leg_id
+     WHERE fl.flight_id = ${flightId} AND blp.checked_in = false
   `.execute(kdb);
   return result.rows;
 }
@@ -498,4 +509,84 @@ export async function createPaymentForCheckin(
     INSERT INTO payments (booking_id, amount, amount_gbp, method, status, transaction_reference, created_at)
      VALUES ((SELECT bl.booking_id FROM booking_leg_passengers blp JOIN booking_legs bl ON bl.id = blp.booking_leg_id WHERE blp.id = ${legPaxId}), ${amount}, ${amount}, ${method}, 'completed', ${reference}, NOW())
   `.execute(kdb);
+}
+
+// ── Booking mutation helpers ───────────────────────────────────────────────────
+// Junction-level operations.  Booking-level orchestration (passenger/leg CRUD plus
+// fare recalc and audit) lives in booking-mutations.server.ts.
+
+export async function addJunctionRecordsForPassenger(
+  passengerId: number,
+  legIds: number[],
+  options?: { clothed_weight_kg?: number; baggage_weight_kg?: number; client?: Kysely<DB> }
+): Promise<number> {
+  const dbClient = options?.client ?? kdb;
+  let count = 0;
+  for (const legId of legIds) {
+    await dbClient.insertInto("booking_leg_passengers")
+      .values({
+        booking_leg_id: legId,
+        booking_passenger_id: passengerId,
+        clothed_weight_kg: options?.clothed_weight_kg ?? 70,
+        baggage_weight_kg: options?.baggage_weight_kg ?? 0,
+        freight_weight_kg: 0,
+      } as any)
+      .execute();
+    count++;
+  }
+  return count;
+}
+
+export async function removeJunctionRecordsForPassenger(
+  passengerId: number,
+  client?: Kysely<DB>
+): Promise<Array<{ id: number; line_fare_amount: number | null; refund_amount_gbp: number | null }>> {
+  const dbClient = client ?? kdb;
+  const rows = await dbClient.selectFrom("booking_leg_passengers")
+    .select(["id", "line_fare_amount"])
+    .where("booking_passenger_id", "=", passengerId)
+    .execute();
+  const result = rows.map((r) => ({
+    id: Number(r.id),
+    line_fare_amount: r.line_fare_amount != null ? Number(r.line_fare_amount) : null,
+    refund_amount_gbp: r.line_fare_amount != null ? Number(r.line_fare_amount) : null,
+  }));
+  await dbClient.deleteFrom("booking_leg_passengers")
+    .where("booking_passenger_id", "=", passengerId)
+    .execute();
+  return result;
+}
+
+export async function removeJunctionRecordsForLeg(
+  legId: number,
+  client?: Kysely<DB>
+): Promise<Array<{ id: number; booking_passenger_id: number; line_fare_amount: number | null; refund_amount_gbp: number | null }>> {
+  const dbClient = client ?? kdb;
+  const rows = await dbClient.selectFrom("booking_leg_passengers")
+    .select(["id", "booking_passenger_id", "line_fare_amount"])
+    .where("booking_leg_id", "=", legId)
+    .execute();
+  const result = rows.map((r) => ({
+    id: Number(r.id),
+    booking_passenger_id: Number(r.booking_passenger_id),
+    line_fare_amount: r.line_fare_amount != null ? Number(r.line_fare_amount) : null,
+    refund_amount_gbp: r.line_fare_amount != null ? Number(r.line_fare_amount) : null,
+  }));
+  await dbClient.deleteFrom("booking_leg_passengers")
+    .where("booking_leg_id", "=", legId)
+    .execute();
+  return result;
+}
+
+export async function setRefundOnJunctionRecords(
+  refunds: Array<{ id: number; amount: number }>,
+  client?: Kysely<DB>
+): Promise<void> {
+  const dbClient = client ?? kdb;
+  for (const r of refunds) {
+    await dbClient.updateTable("booking_leg_passengers")
+      .set({ refund_amount_gbp: r.amount, refunded_at: new Date() } as any)
+      .where("id", "=", r.id)
+      .execute();
+  }
 }

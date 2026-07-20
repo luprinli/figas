@@ -166,7 +166,8 @@ export const flightRepository = {
       total_baggage_weight_kg?: number;
       total_freight_weight_kg?: number;
       total_fuel_weight_kg?: number;
-    }
+    },
+    client?: Kysely<DB>
   ): Promise<void> {
     const updateData: Record<string, unknown> = {};
     if (data.total_passenger_weight_kg !== undefined) {
@@ -183,7 +184,7 @@ export const flightRepository = {
     }
     if (Object.keys(updateData).length === 0) return;
     updateData.updated_at = new Date().toISOString();
-    await kdb
+    await (client ?? kdb)
       .updateTable("flights")
       .set(updateData as any)
       .where("id", "=", flightId)

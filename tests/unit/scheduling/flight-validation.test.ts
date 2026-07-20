@@ -125,20 +125,20 @@ describe("validateFlight()", () => {
     expect(result.suggestions.some((s) => s.type === "use_larger_aircraft")).toBe(true);
   });
 
-  it("applies runway derating for short strips (SHR with 350m runway)", async () => {
+  it("applies runway derating for short strips (PBI with 350m runway)", async () => {
     const passengers: ValidationPassenger[] = [
       {
         id: 1,
         name: "Alice",
         origin_code: "STY",
-        destination_code: "SHR",
+        destination_code: "PBI",
         clothed_weight_kg: 70,
         baggage_weight_kg: 15,
       },
     ];
 
     const legs: ValidationLeg[] = [
-      { leg_sequence: 1, origin_code: "STY", destination_code: "SHR", distance_nm: 80 },
+      { leg_sequence: 1, origin_code: "STY", destination_code: "PBI", distance_nm: 80 },
     ];
 
     const aerodromes: ValidationAerodrome[] = [

@@ -1,5 +1,6 @@
 import { kdb } from "../db.server.kysely";
 import { sql } from "kysely";
+import { toDateString } from "../../types/shared";
 
 export interface BankTransactionRow {
   id: string;
@@ -30,7 +31,7 @@ function toRow(r: Record<string, unknown>): BankTransactionRow {
   return {
     id: String(r.id ?? ""),
     external_id: r.external_id != null ? String(r.external_id) : null,
-    transaction_date: String(r.transaction_date ?? ""),
+    transaction_date: toDateString(r.transaction_date),
     description: String(r.description ?? ""),
     amount_gbp: dec(r.amount_gbp) ?? 0,
     balance_gbp: dec(r.balance_gbp),

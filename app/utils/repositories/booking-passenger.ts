@@ -1,5 +1,7 @@
 import { kdb } from "../db.server.kysely";
 import { sql } from "kysely";
+import type { Kysely } from "kysely";
+import type { DB } from "../../../generated/kysely/database";
 import { MAX_PASSENGER_WEIGHT_KG, MIN_PASSENGER_WEIGHT_KG, MAX_PASSENGERS_PER_BOOKING } from "../constants";
 
 export interface BookingPassengerRow {
@@ -56,7 +58,8 @@ export const bookingPassengerRepository = {
     residency?: string | null;
     special_requirements?: string | null;
     passenger_user_id?: number | null;
-    }): Promise<BookingPassengerRow> {
+    }, client?: Kysely<DB>): Promise<BookingPassengerRow> {
+      const c = client ?? kdb;
       if (params.clothed_weight_kg != null) {
         if (params.clothed_weight_kg < MIN_PASSENGER_WEIGHT_KG) {
           throw new Error(`Passenger weight ${params.clothed_weight_kg}kg is below minimum ${MIN_PASSENGER_WEIGHT_KG}kg`);
@@ -65,7 +68,7 @@ export const bookingPassengerRepository = {
           throw new Error(`Passenger weight ${params.clothed_weight_kg}kg exceeds maximum ${MAX_PASSENGER_WEIGHT_KG}kg`);
         }
       }
-      const countResult = await kdb
+      const countResult = await c
         .selectFrom("booking_passengers")
         .select(({ fn }) => [fn.countAll<number>().as("cnt")])
         .where("booking_id", "=", params.booking_id)
@@ -73,7 +76,7 @@ export const bookingPassengerRepository = {
       if (Number(countResult[0]?.cnt ?? 0) >= MAX_PASSENGERS_PER_BOOKING) {
         throw new Error(`Booking ${params.booking_id} already has ${MAX_PASSENGERS_PER_BOOKING} passengers (maximum)`);
       }
-      const rows = await kdb
+      const rows = await c
       .insertInto("booking_passengers")
       .values({
         booking_id: params.booking_id,
@@ -151,8 +154,8 @@ export const bookingPassengerRepository = {
     return mapPassengerRow(rows[0] as unknown as Record<string, unknown>);
   },
 
-  async delete(id: number): Promise<void> {
-    await kdb
+  async delete(id: number, client?: Kysely<DB>): Promise<void> {
+    await (client ?? kdb)
       .deleteFrom("booking_passengers")
       .where("id", "=", id)
       .execute();

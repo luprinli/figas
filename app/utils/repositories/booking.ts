@@ -2,6 +2,7 @@
 import { kdb } from "../db.server";
 import { sql } from "kysely";
 import { BookingStatus, BookingSource, PaymentStatus, FlightStatus } from "../constants";
+import { toDateString } from "../../types/shared";
 
 export interface BookingRow {
   id: number;
@@ -80,7 +81,7 @@ function toBookingRow(r: unknown): BookingRow {
     payment_status: String(row.payment_status),
     payment_method: row.payment_method != null ? String(row.payment_method) : null,
     payment_date: row.payment_date != null ? String(row.payment_date) : null,
-    payment_due_date: row.payment_due_date != null ? String(row.payment_due_date) : null,
+    payment_due_date: row.payment_due_date != null ? toDateString(row.payment_due_date) : null,
     payment_terms: row.payment_terms != null ? String(row.payment_terms) : null,
     notes: row.notes != null ? String(row.notes) : null,
     booking_source: String(row.booking_source),
@@ -157,6 +158,7 @@ export const bookingRepository = {
     options?: {
       booking_source?: string;
       created_by?: number;
+      payment_mode?: string;
     }
   ): Promise<BookingRow> {
     for (let attempt = 0; attempt < 10; attempt++) {
@@ -172,6 +174,7 @@ export const bookingRepository = {
             is_organization_billing: isOrganizationBilling,
             booking_source: options?.booking_source ?? BookingSource.CUSTOMER_DIRECT,
             created_by: options?.created_by ?? null,
+            payment_mode: options?.payment_mode ?? "per_booking",
           } as any)
           .returningAll()
           .execute();

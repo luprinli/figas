@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { kdb } from "../db.server";
 import { ScheduleStatus } from "../constants";
+import { toDateString } from "../../types/shared";
 
 export interface ScheduleRow {
   id: number;
@@ -29,7 +30,7 @@ function toRow(r: unknown): ScheduleRow {
   const row = r as Record<string, unknown>;
   return {
     id: Number(row.id),
-    schedule_date: String(row.schedule_date),
+    schedule_date: toDateString(row.schedule_date),
     status: String(row.status),
     notes: row.notes != null ? String(row.notes) : null,
     created_by: Number(row.created_by),

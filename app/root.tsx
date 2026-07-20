@@ -8,7 +8,6 @@ import {
 import type { LinksFunction, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 
-import { getSession } from "./session.server";
 import { generateCsrfToken } from "./utils/csrf.server";
 import styles from "./styles/tailwind.css?url";
 import printStyles from "./styles/print.css?url";
@@ -32,8 +31,8 @@ export const links: LinksFunction = () => [
 ];
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  const session = await getSession(request.headers.get("Cookie"));
-  const csrfToken = generateCsrfToken(session.id);
+  const cookieHeader = request.headers.get("Cookie") ?? "";
+  const csrfToken = generateCsrfToken(cookieHeader);
   return json({ csrfToken });
 }
 

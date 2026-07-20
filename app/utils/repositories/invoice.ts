@@ -1,6 +1,7 @@
 import { kdb } from "../db.server";
 import { sql } from "kysely";
 import { InvoiceStatus } from "../constants";
+import { toDateString } from "../../types/shared";
 
 export interface InvoiceRow {
   id: string;
@@ -39,8 +40,8 @@ function toRow(r: Record<string, unknown>): InvoiceRow {
     organization_id: r.organization_id != null ? String(r.organization_id) : null,
     user_id: r.user_id != null ? String(r.user_id) : null,
     status: String(r.status ?? ""),
-    issue_date: String(r.issue_date ?? ""),
-    due_date: String(r.due_date ?? ""),
+    issue_date: toDateString(r.issue_date),
+    due_date: toDateString(r.due_date),
     paid_at: r.paid_at != null ? String(r.paid_at) : null,
     subtotal_gbp: dec(r.subtotal_gbp) ?? 0,
     tax_rate: dec(r.tax_rate) ?? 0,

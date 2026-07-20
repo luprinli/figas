@@ -55,12 +55,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
        LEFT JOIN aerodromes ad ON ad.id = f.destination_aerodrome_id
        LEFT JOIN aircraft a ON a.id = f.aircraft_id
        LEFT JOIN pilots p ON p.id = f.pilot_id
-        LEFT JOIN pilot_assignments pa ON pa.flight_id = f.id AND pa.status = 'confirmed'
-         WHERE f.schedule_id = ${schedule.id}
-           AND EXISTS (
-             SELECT 1 FROM booking_legs bl WHERE bl.flight_id = f.id LIMIT 1
-           )
-         ORDER BY f.departure_time, f.id
+         LEFT JOIN pilot_assignments pa ON pa.flight_id = f.id AND pa.status = 'confirmed'
+          WHERE f.schedule_id = ${schedule.id}
+            AND EXISTS (
+              SELECT 1 FROM booking_leg_passengers blp
+              JOIN flight_legs fl ON fl.id = blp.flight_leg_id
+              WHERE fl.flight_id = f.id LIMIT 1
+            )
+          ORDER BY f.departure_time, f.id
     `.execute(kdb);
     flights = convertBigInts(flightsResult.rows) as unknown as FlightSummaryRow[];
 

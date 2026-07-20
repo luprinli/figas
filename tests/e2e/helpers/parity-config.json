@@ -1,0 +1,64 @@
+{
+  "targetDate": "2026-07-22",
+  "depotCode": "STY",
+  "aerodromeCodes": [
+    "STY",
+    "ALB",
+    "BKI",
+    "BVI"
+  ],
+  "bookings": [
+    {
+      "ref": "PARITY-001",
+      "origin": "STY",
+      "dest": "ALB",
+      "passengerCount": 3,
+      "names": [
+        "Alice Smith",
+        "Bob Jones",
+        "Carol Lee"
+      ]
+    },
+    {
+      "ref": "PARITY-002",
+      "origin": "STY",
+      "dest": "BKI",
+      "passengerCount": 2,
+      "names": [
+        "Dave Brown",
+        "Eve White"
+      ]
+    },
+    {
+      "ref": "PARITY-003",
+      "origin": "STY",
+      "dest": "BVI",
+      "passengerCount": 1,
+      "names": [
+        "Frank Black"
+      ]
+    },
+    {
+      "ref": "PARITY-004",
+      "origin": "ALB",
+      "dest": "STY",
+      "passengerCount": 2,
+      "names": [
+        "Grace Adams",
+        "Heidi Park"
+      ]
+    },
+    {
+      "ref": "PARITY-005",
+      "origin": "BKI",
+      "dest": "STY",
+      "passengerCount": 4,
+      "names": [
+        "Ivan Reed",
+        "Julia Hart",
+        "Kate Shaw",
+        "Leo Fox"
+      ]
+    }
+  ]
+}

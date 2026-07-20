@@ -7,6 +7,7 @@ import { dateOnly } from "../../fixtures/helpers";
 import {
   createTestSchedule,
   createTestFlight,
+  createTestFlightLeg,
   createTestBookingLeg,
   createTestBookingPassenger,
   createTestBookingLegPassengerLink,
@@ -36,8 +37,9 @@ function getError(result: ActionResult): { error: string; status?: number } | un
  * We don't use withRollback because handleUnassignBooking uses withTransaction
  * internally, and Prisma does not support nested interactive transactions.
  */
-const createdIds: { bookingLegIds: number[]; flightIds: number[]; scheduleIds: number[] } = {
+const createdIds: { bookingLegIds: number[]; flightLegIds: number[]; flightIds: number[]; scheduleIds: number[] } = {
   bookingLegIds: [],
+  flightLegIds: [],
   flightIds: [],
   scheduleIds: [],
 };
@@ -46,6 +48,9 @@ afterAll(async () => {
   // Clean up in reverse dependency order
   for (const id of createdIds.bookingLegIds) {
     await db.deleteFrom("booking_legs").where("id", "=", id).execute();
+  }
+  for (const id of createdIds.flightLegIds) {
+    await db.deleteFrom("flight_legs").where("id", "=", id).execute();
   }
   for (const id of createdIds.flightIds) {
     await db.deleteFrom("flights").where("id", "=", id).execute();
@@ -72,6 +77,15 @@ describe("handleUnassignBooking()", () => {
     });
     createdIds.flightIds.push(flight.id);
 
+    // Per-passenger model (migration 038): booking_legs.flight_id is derived
+    // from booking_leg_passengers.flight_leg_id, so a real flight leg is
+    // required for passengers to be assigned to.
+    const flightLeg = await createTestFlightLeg(flight.id, {
+      origin_code: "STY",
+      destination_code: "MPA",
+    });
+    createdIds.flightLegIds.push(flightLeg.id);
+
     // Create two booking legs on the same flight
     const leg1 = await createTestBookingLeg({
       booking_id: 1,
@@ -93,17 +107,19 @@ describe("handleUnassignBooking()", () => {
     });
     createdIds.bookingLegIds.push(leg2.id);
 
-    // Create passengers and link to each booking leg
+    // Create passengers and link to each booking leg with an assigned flight leg
     const passenger1 = await createTestBookingPassenger({ booking_id: 1 });
     await createTestBookingLegPassengerLink({
       booking_leg_id: leg1.id,
       booking_passenger_id: passenger1.id,
+      flight_leg_id: flightLeg.id,
     });
 
     const passenger2 = await createTestBookingPassenger({ booking_id: 1 });
     await createTestBookingLegPassengerLink({
       booking_leg_id: leg2.id,
       booking_passenger_id: passenger2.id,
+      flight_leg_id: flightLeg.id,
     });
 
     // Unassign leg1
@@ -136,6 +152,13 @@ describe("handleUnassignBooking()", () => {
     });
     createdIds.flightIds.push(flight.id);
 
+    // Per-passenger model: assignment lives on the junction's flight_leg_id
+    const flightLeg = await createTestFlightLeg(flight.id, {
+      origin_code: "STY",
+      destination_code: "MPA",
+    });
+    createdIds.flightLegIds.push(flightLeg.id);
+
     // Create a single booking leg on the flight
     const leg = await createTestBookingLeg({
       booking_id: 1,
@@ -147,11 +170,12 @@ describe("handleUnassignBooking()", () => {
     });
     createdIds.bookingLegIds.push(leg.id);
 
-    // Create a passenger and link to the booking leg
+    // Create a passenger and link to the booking leg with an assigned flight leg
     const passenger = await createTestBookingPassenger({ booking_id: 1 });
     await createTestBookingLegPassengerLink({
       booking_leg_id: leg.id,
       booking_passenger_id: passenger.id,
+      flight_leg_id: flightLeg.id,
     });
 
     // Unassign the only booking — may fail if unique-date generation hits a no-fly day
@@ -189,6 +213,13 @@ describe("handleUnassignBooking()", () => {
     });
     createdIds.flightIds.push(flight.id);
 
+    // Per-passenger model: assignment lives on the junction's flight_leg_id
+    const flightLeg = await createTestFlightLeg(flight.id, {
+      origin_code: "STY",
+      destination_code: "MPA",
+    });
+    createdIds.flightLegIds.push(flightLeg.id);
+
 const leg = await createTestBookingLeg({
       booking_id: 1,
       origin_code: "STY",
@@ -199,11 +230,12 @@ const leg = await createTestBookingLeg({
     });
     createdIds.bookingLegIds.push(leg.id);
 
-    // Create a passenger and link to the booking leg
+    // Create a passenger and link to the booking leg with an assigned flight leg
     const passenger = await createTestBookingPassenger({ booking_id: 1 });
     await createTestBookingLegPassengerLink({
       booking_leg_id: leg.id,
       booking_passenger_id: passenger.id,
+      flight_leg_id: flightLeg.id,
     });
 
     const result = await handleUnassignBooking(leg.id);
@@ -233,6 +265,13 @@ const leg = await createTestBookingLeg({
     });
     createdIds.flightIds.push(flight.id);
 
+    // Per-passenger model: assignment lives on the junction's flight_leg_id
+    const flightLeg = await createTestFlightLeg(flight.id, {
+      origin_code: "STY",
+      destination_code: "MPA",
+    });
+    createdIds.flightLegIds.push(flightLeg.id);
+
     const leg = await createTestBookingLeg({
       booking_id: 1,
       origin_code: "STY",
@@ -243,11 +282,12 @@ const leg = await createTestBookingLeg({
     });
     createdIds.bookingLegIds.push(leg.id);
 
-    // Create a passenger and link to the booking leg
+    // Create a passenger and link to the booking leg with an assigned flight leg
     const passenger = await createTestBookingPassenger({ booking_id: 1 });
     await createTestBookingLegPassengerLink({
       booking_leg_id: leg.id,
       booking_passenger_id: passenger.id,
+      flight_leg_id: flightLeg.id,
     });
 
     const result = await handleUnassignBooking(leg.id);

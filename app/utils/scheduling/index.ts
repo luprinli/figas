@@ -4,10 +4,8 @@ import { flightRepository } from "../repositories/flight";
 import { bookingLegRepository } from "../repositories/booking-leg";
 import { flightLegRepository } from "../repositories/flight-leg";
 import { generateAutoBuildFlightNumber } from "../flight-number.server";
-import { weightBalanceRepository } from "../repositories/weight-balance";
-import { pilotAssignmentRepository } from "../repositories/pilot-assignment";
 import { aircraftRepository } from "../repositories/aircraft";
-import { clusterBookings } from "./cluster-bookings";
+import { splitOversizedCluster, getLegPassengerCountMap, clusterBookingsByDate } from "./cluster-bookings";
 import { assignAircraftToRoutes } from "./assign-aircraft";
 import { computeFlightDuration } from "../check-in-time.server";
 import { computeWeightBalanceForRoute } from "./weight-balance";
@@ -17,8 +15,8 @@ import { isNoFlyDay } from "../services/no-fly.service";
 import { db } from "../db.server";
 import { sql } from "kysely";
 import { solveCvrp } from "./cvrp-solver";
-import { validateCvrpRoutes, filterFeasibleRoutes } from "./cvrp-validator";
-import type { ValidationAircraft } from "./flight-validation";
+import type { ValidationAircraft, ValidationPassenger, ValidationLeg } from "./flight-validation";
+import { validateFlight } from "./flight-validation";
 import { loadDistances, loadHeadings } from "./distance-lookup";
 import type { PassengerDemand } from "./cvrp-types";
 
@@ -128,15 +126,33 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
     }
     const schedule = { id: scheduleId };
 
+    // ── Get aircraft fleet for capacity constraints ────────────────────────────
+    const allAircraft = await aircraftRepository.findAll();
+    const maxSeats = allAircraft.reduce((max, a) => Math.max(max, a.seat_count), 9);
+    // R-04: Use fleet-minimum range so CVRP merges respect the weakest aircraft
+    const fleetRanges = allAircraft
+      .map((a) => (a as unknown as { max_range_nm?: number }).max_range_nm ?? 800)
+      .filter((r) => r > 0);
+    const maxRange = fleetRanges.length > 0 ? Math.min(...fleetRanges) : 800;
+
+    // R-01: Split clusters that exceed aircraft capacity before CVRP input
+    const allLegIds = clusters.flatMap((c) => c.legs.map((l) => l.id));
+    const passengerCountMap = await getLegPassengerCountMap(allLegIds);
+    const splitClusters: ClusterResult[] = [];
+    for (const cluster of clusters) {
+      const subClusters = splitOversizedCluster(cluster, maxSeats, passengerCountMap);
+      splitClusters.push(...subClusters);
+    }
+
     // ── Phase 2: CVRP Route Construction ────────────────────────────────────
     const routes: RouteResult[] = [];
     const routePassengerCounts = new Map<number, number>();
 
-    // Convert clusters to passenger demands
+    // Convert split clusters to passenger demands
     const demands: PassengerDemand[] = [];
     const clusterLegMap = new Map<number, number[]>(); // cluster leg index \u2192 leg ids
-    for (let ci = 0; ci < clusters.length; ci++) {
-      const cluster = clusters[ci];
+    for (let ci = 0; ci < splitClusters.length; ci++) {
+      const cluster = splitClusters[ci];
       demands.push({
         bookingLegId: ci, // use cluster index as identifier
         origin: cluster.origin,
@@ -162,12 +178,6 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
     const lookupHeading = (from: string, to: string): number =>
       headingMatrix.get(`${from}->${to}`) ?? headingMatrix.get(`${to}->${from}`) ?? 0;
 
-    // Get aircraft capacities for constraints
-    const allAircraft = await aircraftRepository.findAll();
-    const maxSeats = allAircraft.reduce((max, a) => Math.max(max, a.seat_count), 9);
-    // The aircraft table has no per-airframe range column; use the BN-2 fleet default (nm).
-    const maxRange = allAircraft.reduce((max) => Math.max(max, 800), 800);
-
     // Solve CVRP
     const cvrpResult = solveCvrp(demands, {
       depot: "STY",
@@ -176,45 +186,18 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
       distanceMatrix,
     });
 
-    // Validate CVRP routes against flight constraints (MTOW, MLW, fuel, range)
-    const bestAircraft = allAircraft.length > 0 ? allAircraft[0] : null;
-    const validationAircraft: ValidationAircraft = {
-      type: bestAircraft?.type ?? "BN-2",
-      registration: bestAircraft?.registration ?? "UNKNOWN",
-      seat_count: bestAircraft?.seat_count ?? 9,
-      max_takeoff_weight_kg: bestAircraft?.max_takeoff_weight_kg ?? 2994,
-      max_landing_weight_kg: bestAircraft?.max_landing_weight_kg ?? 2994,
-      empty_weight_kg: bestAircraft?.empty_weight_kg ?? 1627,
-      fuel_capacity_kg: bestAircraft?.fuel_capacity_kg ?? 280,
-      fuel_burn_rate_kg_per_hour: bestAircraft?.fuel_flow_kg_per_hour ?? 25,
-      cruise_speed_kt: bestAircraft?.cruise_speed_ktas ?? 140,
-      max_range_nm: maxRange,
-    };
-
-    const validationResults = await validateCvrpRoutes(cvrpResult.routes, demands, {
-      aircraft: validationAircraft,
-      averagePassengerWeightKg: 86,
-    });
-
-    const feasibleRoutes = filterFeasibleRoutes(validationResults);
-
-    for (const vr of validationResults) {
-      if (vr.errors.length > 0) {
-        errors.push(...vr.errors);
-      }
-      if (vr.warnings.length > 0) {
-        warnings.push(...vr.warnings);
-      }
+    if (cvrpResult.routes.length === 0) {
+      errors.push("CVRP solver produced no feasible routes");
+      return { scheduleId, scheduleDate: date, clusters: splitClusters, routes: [], aircraftAssignments: [], weightBalances: [], pilotAssignments: [], errors, warnings };
     }
 
-    if (feasibleRoutes.length === 0 && cvrpResult.routes.length > 0) {
-      errors.push("All CVRP routes failed flight validation — no viable flights");
-      return { scheduleId, scheduleDate: date, clusters, routes: [], aircraftAssignments: [], weightBalances: [], pilotAssignments: [], errors, warnings };
-    }
+    // R-03: Compute base time for departure sequencing
+    const baseTime = new Date(`${date}T06:00:00Z`);
+    let currentOffsetMinutes = 0;
 
-    // Create flights from validated CVRP routes
-    for (const cvrpRoute of feasibleRoutes) {
-      const flightNumber = await generateAutoBuildFlightNumber(date);
+    // Create flights from CVRP routes
+    for (const cvrpRoute of cvrpResult.routes) {
+      const flightNumber = await generateAutoBuildFlightNumber(date, tx);
       const originCode = cvrpRoute.stops[0] ?? "STY";
       const destCode = cvrpRoute.stops[cvrpRoute.stops.length - 1] ?? "STY";
 
@@ -230,11 +213,16 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
 
       const defaultAircraftId = allAircraft.length > 0 ? allAircraft[0].id : 1;
 
+      // R-03: Compute sequenced departure / arrival times
+      const departureTime = new Date(baseTime.getTime() + currentOffsetMinutes * 60 * 1000);
+      // Placeholder arrival; updated below after leg distances are known
+      const arrivalTime = new Date(departureTime.getTime() + 120 * 60 * 1000);
+
       const flightResult = await sql`
         INSERT INTO flights (
           flight_number, aircraft_id, origin_aerodrome_id, destination_aerodrome_id,
           departure_time, arrival_time, status, schedule_id
-        ) VALUES (${flightNumber}, ${defaultAircraftId}, ${originId}, ${destId}, ${`${date}T10:00:00Z`}, ${`${date}T12:00:00Z`}, ${FlightStatus.SCHEDULED}, ${schedule.id}) RETURNING *
+        ) VALUES (${flightNumber}, ${defaultAircraftId}, ${originId}, ${destId}, ${departureTime.toISOString()}, ${arrivalTime.toISOString()}, ${FlightStatus.SCHEDULED}, ${schedule.id}) RETURNING *
       `.execute(tx);
       const flight = (flightResult.rows[0] as unknown as FlightRow);
 
@@ -251,21 +239,23 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
         const legDistNm = realDist > 0 ? realDist : evenSplitNm;
         const legHeading = lookupHeading(from, to);
         legDistances.push({ distance_nm: legDistNm });
-        await flightLegRepository.create({
-          flight_id: flight.id,
-          leg_sequence: s + 1,
-          origin_code: from,
-          destination_code: to,
-          distance_nm: legDistNm,
-          heading: legHeading > 0 ? legHeading : null,
-        });
+        await sql`
+          INSERT INTO flight_legs (flight_id, leg_number, origin_code, destination_code, distance_nm, heading)
+          VALUES (${flight.id}, ${s + 1}, ${from}, ${to}, ${legDistNm}, ${legHeading > 0 ? legHeading : null})
+        `.execute(tx);
       }
 
-      // Compute and persist flight duration
+      // Compute and persist flight duration; sequence departure/arrival
       const durationMinutes = computeFlightDuration(legDistances);
+      const updatedArrival = new Date(departureTime.getTime() + durationMinutes * 60 * 1000);
+      const checkInMinutes = departureTime.getUTCHours() * 60 + departureTime.getUTCMinutes() - 30;
+      const checkInHh = String(Math.floor(Math.max(0, checkInMinutes) / 60)).padStart(2, "0");
+      const checkInMm = String(Math.max(0, checkInMinutes) % 60).padStart(2, "0");
       await sql`
-        UPDATE flights SET duration_minutes = ${durationMinutes}, check_in_time = ${"08:00"} WHERE id = ${flight.id}
+        UPDATE flights SET duration_minutes = ${durationMinutes}, arrival_time = ${updatedArrival.toISOString()}, check_in_time = ${`${checkInHh}:${checkInMm}`} WHERE id = ${flight.id}
       `.execute(tx);
+      // R-03: Advance offset for next flight (30 min turnaround)
+      currentOffsetMinutes += durationMinutes + 30;
 
       // Assign booking legs to this flight based on CVRP assignments
       const assignedLegIds: number[] = [];
@@ -274,8 +264,8 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
         assignedLegIds.push(...legIds);
       }
       for (const blId of assignedLegIds) {
-        await bookingLegRepository.assignFlight(blId, flight.id);
-        await bookingLegRepository.updateStatus(blId, BookingStatus.FLIGHT_ASSIGNED);
+        await bookingLegRepository.assignFlight(blId, flight.id, tx);
+        await bookingLegRepository.updateStatus(blId, BookingStatus.FLIGHT_ASSIGNED, tx);
       }
 
       // Build a RouteResult for Phases 3-5. Each routeStop represents the leg
@@ -312,12 +302,13 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
         `.execute(tx);
         if (blRow.rows.length === 0) continue;
         const bl = blRow.rows[0];
-        const matchingLeg = legRows.rows.find(
-          (l) => l.origin_code === bl.origin_code && l.destination_code === bl.destination_code
+        // Assign flight_leg_id to the boarding leg (first leg departing from booking's origin)
+        const boardingLeg = legRows.rows.find(
+          (l) => l.origin_code === bl.origin_code
         );
-        if (matchingLeg) {
+        if (boardingLeg) {
           await sql`
-            UPDATE booking_leg_passengers SET flight_leg_id = ${matchingLeg.id} WHERE booking_leg_id = ${blId} AND flight_leg_id IS NULL
+            UPDATE booking_leg_passengers SET flight_leg_id = ${boardingLeg.id} WHERE booking_leg_id = ${blId} AND flight_leg_id IS NULL
           `.execute(tx);
         }
       }
@@ -337,12 +328,81 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
     for (const assignment of aircraftAssignments) {
       await flightRepository.updateWeights(assignment.route.flight.id, {
         total_fuel_weight_kg: 0, // will be updated in Phase 4
-      });
+      }, tx);
 
       // Update the aircraft_id on the flight record using the transaction client
       await sql`
         UPDATE flights SET aircraft_id = ${assignment.aircraft.id}, updated_at = NOW() WHERE id = ${assignment.route.flight.id}
       `.execute(tx);
+    }
+
+    // R-02: Validate each route against its assigned aircraft
+    for (const assignment of aircraftAssignments) {
+      const ac = assignment.aircraft;
+      const validationAircraft: ValidationAircraft = {
+        type: ac.type ?? "BN-2",
+        registration: ac.registration ?? "UNKNOWN",
+        seat_count: ac.seat_count,
+        max_takeoff_weight_kg: ac.max_takeoff_weight_kg ?? 2994,
+        max_landing_weight_kg: (ac as unknown as { max_landing_weight_kg?: number }).max_landing_weight_kg ?? ac.max_takeoff_weight_kg ?? 2994,
+        empty_weight_kg: ac.empty_weight_kg ?? 1627,
+        fuel_capacity_kg: ac.fuel_capacity_kg ?? 280,
+        fuel_burn_rate_kg_per_hour: (ac as unknown as { fuel_flow_kg_per_hour?: number }).fuel_flow_kg_per_hour ?? 25,
+        cruise_speed_kt: (ac as unknown as { cruise_speed_ktas?: number }).cruise_speed_ktas ?? 140,
+        max_range_nm: (ac as unknown as { max_range_nm?: number }).max_range_nm ?? maxRange,
+      };
+
+      const flightLegs = await flightLegRepository.findByFlightId(assignment.route.flight.id);
+      const validationLegs: ValidationLeg[] = flightLegs.map((l) => ({
+        leg_sequence: l.leg_sequence,
+        origin_code: l.origin_code,
+        destination_code: l.destination_code,
+        distance_nm: l.distance_nm,
+      }));
+
+      const routePassengers: ValidationPassenger[] = [];
+      const cvrpRouteForAssignment = cvrpResult.routes.find((r) =>
+        r.assignments.some((a) => clusterLegMap.has(a.bookingLegId))
+      );
+      if (cvrpRouteForAssignment) {
+        const assignedLegIds = new Set<number>();
+        for (const a of cvrpRouteForAssignment.assignments) {
+          const legIds = clusterLegMap.get(a.bookingLegId) ?? [];
+          legIds.forEach((id) => assignedLegIds.add(id));
+        }
+        // Only add passengers whose booking legs are actually assigned to this flight
+        const flightAssignedLegIds = new Set(assignedLegIds);
+        for (const a of cvrpRouteForAssignment.assignments) {
+          const demand = demands.find((d) => d.bookingLegId === a.bookingLegId);
+          if (!demand) continue;
+          // Check if this demand's leg IDs actually belong to this flight
+          const legIds = clusterLegMap.get(a.bookingLegId) ?? [];
+          if (legIds.some((id) => flightAssignedLegIds.has(id))) {
+            for (let p = 0; p < a.passengerCount; p++) {
+              routePassengers.push({
+                id: `${a.bookingLegId}-${p}`,
+                name: `Pax-${a.bookingLegId}-${p}`,
+                origin_code: a.origin,
+                destination_code: a.destination,
+                clothed_weight_kg: 86,
+                baggage_weight_kg: 0,
+              });
+            }
+          }
+        }
+      }
+
+      try {
+        const vResult = await validateFlight(routePassengers, validationLegs, validationAircraft);
+        if (vResult.status === "violation") {
+          errors.push(`Flight ${assignment.route.flight.flight_number}: ${vResult.weight_warnings.join("; ") || "Post-assignment flight validation failed"}`);
+        }
+        if (vResult.weight_warnings.length > 0) {
+          warnings.push(...vResult.weight_warnings.map((w) => `Flight ${assignment.route.flight.flight_number}: ${w}`));
+        }
+      } catch (err) {
+        warnings.push(`Flight ${assignment.route.flight.flight_number}: validation error — ${err instanceof Error ? err.message : "unknown"}`);
+      }
     }
 
     // ── Phase 4: Weight & Balance ─────────────────────────────────────────────
@@ -380,29 +440,38 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
           }
           return n;
         };
-        await weightBalanceRepository.create({
-          flight_leg_id: wb.flightLegId,
-          schedule_id: schedule.id,
-          passenger_weight_kg: safe(wb.passengerWeightKg, "passengerWeightKg"),
-          baggage_weight_kg: safe(wb.baggageWeightKg, "baggageWeightKg"),
-          freight_weight_kg: safe(wb.freightWeightKg, "freightWeightKg"),
-          fuel_weight_kg: safe(wb.fuelWeightKg, "fuelWeightKg"),
-          crew_weight_kg: safe(wb.crewWeightKg, "crewWeightKg"),
-          empty_weight_kg: safe(wb.emptyWeightKg, "emptyWeightKg"),
-          total_weight_kg: safe(wb.totalWeightKg, "totalWeightKg"),
-          total_moment_kgm: safe(wb.totalMomentKgm, "totalMomentKgm"),
-          cg_position_pct: safe(wb.cgPositionPct, "cgPositionPct"),
-          effective_mtow_kg: safe(wb.effectiveMtowKg, "effectiveMtowKg"),
-          effective_mlw_kg: safe(wb.effectiveMlwKg, "effectiveMlwKg"),
-          mtow_used_pct: safe(wb.mtowUsedPct, "mtowUsedPct"),
-          mlw_used_pct: safe(wb.mlwUsedPct, "mlwUsedPct"),
-          required_fuel_kg: safe(wb.fuelPlan.requiredFuelKg, "requiredFuelKg"),
-          minimum_fuel_kg: safe(wb.fuelPlan.minimumFuelKg, "minimumFuelKg"),
-          fuel_state: wb.fuelPlan.fuelState,
-          binding_constraint: wb.bindingConstraint.constraint,
-          binding_constraint_detail: wb.bindingConstraint.detail,
-          computed_by: String(createdBy),
-        });
+        await sql`
+          INSERT INTO weight_balance_snapshots (
+            flight_leg_id, schedule_id,
+            passenger_weight_kg, baggage_weight_kg, freight_weight_kg,
+            fuel_weight_kg, crew_weight_kg, empty_weight_kg,
+            total_weight_kg, total_moment_kgm, cg_position_pct,
+            effective_mtow_kg, effective_mlw_kg, mtow_used_pct, mlw_used_pct,
+            required_fuel_kg, minimum_fuel_kg, fuel_state,
+            binding_constraint, binding_constraint_detail, computed_by
+          ) VALUES (
+            ${wb.flightLegId}, ${schedule.id},
+            ${safe(wb.passengerWeightKg, "passengerWeightKg")},
+            ${safe(wb.baggageWeightKg, "baggageWeightKg")},
+            ${safe(wb.freightWeightKg, "freightWeightKg")},
+            ${safe(wb.fuelWeightKg, "fuelWeightKg")},
+            ${safe(wb.crewWeightKg, "crewWeightKg")},
+            ${safe(wb.emptyWeightKg, "emptyWeightKg")},
+            ${safe(wb.totalWeightKg, "totalWeightKg")},
+            ${safe(wb.totalMomentKgm, "totalMomentKgm")},
+            ${safe(wb.cgPositionPct, "cgPositionPct")},
+            ${safe(wb.effectiveMtowKg, "effectiveMtowKg")},
+            ${safe(wb.effectiveMlwKg, "effectiveMlwKg")},
+            ${safe(wb.mtowUsedPct, "mtowUsedPct")},
+            ${safe(wb.mlwUsedPct, "mlwUsedPct")},
+            ${safe(wb.fuelPlan.requiredFuelKg, "requiredFuelKg")},
+            ${safe(wb.fuelPlan.minimumFuelKg, "minimumFuelKg")},
+            ${wb.fuelPlan.fuelState},
+            ${wb.bindingConstraint.constraint},
+            ${wb.bindingConstraint.detail},
+            ${String(createdBy)}
+          )
+        `.execute(tx);
       }
     }
 
@@ -431,13 +500,11 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
 
     // Save pilot assignments
     for (const pa of pilotResult.pilotAssignments) {
-      await pilotAssignmentRepository.create({
-        schedule_id: schedule.id,
-        flight_id: pa.flightId,
-        pilot_id: pa.pilotId,
-        role: pa.role,
-      });
-    }
+        await sql`
+          INSERT INTO pilot_assignments (schedule_id, flight_id, pilot_id, role, assigned_by)
+          VALUES (${schedule.id}, ${pa.flightId}, ${pa.pilotId}, ${pa.role}, ${createdBy})
+        `.execute(tx);
+      }
 
     // Collect warnings for infeasible assignments
     for (const assignment of aircraftAssignments) {
@@ -451,7 +518,7 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
     return {
       scheduleId: schedule.id,
       scheduleDate: date,
-      clusters,
+      clusters: splitClusters,
       routes,
       aircraftAssignments,
       weightBalances,
@@ -464,10 +531,3 @@ export async function buildSchedule(date: string, createdBy: number): Promise<Sc
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Get clusters filtered to a specific date.
- */
-async function clusterBookingsByDate(date: string): Promise<ClusterResult[]> {
-  const allClusters = await clusterBookings();
-  return allClusters.filter((c) => c.date === date);
-}

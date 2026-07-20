@@ -61,7 +61,7 @@ describe("clusterBookings()", () => {
         id: 3,
         booking_id: 3,
         origin_code: "STY",
-        destination_code: "SHR",
+        destination_code: "PBI",
         leg_date: "2026-06-15",
         leg_sequence: 1,
         status: "pending",
@@ -81,11 +81,11 @@ describe("clusterBookings()", () => {
 
     const clusters = await clusterBookings();
 
-    // Should group STY→MPA (2 legs) and STY→SHR (1 leg)
+    // Should group STY→MPA (2 legs) and STY→PBI (1 leg)
     expect(clusters).toHaveLength(2);
 
     const psyMpa = clusters.find((c) => c.destination === "MPA");
-    const psyShr = clusters.find((c) => c.destination === "SHR");
+    const psyShr = clusters.find((c) => c.destination === "PBI");
 
     expect(psyMpa).toBeDefined();
     expect(psyMpa!.origin).toBe("STY");
@@ -94,7 +94,7 @@ describe("clusterBookings()", () => {
 
     expect(psyShr).toBeDefined();
     expect(psyShr!.origin).toBe("STY");
-    expect(psyShr!.destination).toBe("SHR");
+    expect(psyShr!.destination).toBe("PBI");
     expect(psyShr!.legs).toHaveLength(1);
   });
 

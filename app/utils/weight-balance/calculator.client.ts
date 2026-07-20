@@ -106,6 +106,7 @@ function getPassengersOnSector(
 function buildSeatAssignments(passengers: WbPassenger[]): SeatAssignment[] {
   return passengers.map((p) => ({
     passengerId: p.id,
+    bookingPassengerId: p.id,
     bookingLegId: 0,
     seatRow: p.seatRow ?? null,
     seatSide: (p.seatSide as "L" | "R" | "C") ?? null,

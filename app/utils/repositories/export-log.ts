@@ -1,4 +1,5 @@
 import { kdb } from "../db.server";
+import { toDateString } from "../../types/shared";
 
 export interface ExportLogRow {
   id: string;
@@ -20,8 +21,8 @@ function toRow(r: Record<string, unknown>): ExportLogRow {
     id: String(r.id ?? ""),
     export_type: String(r.export_type ?? ""),
     export_format: String(r.export_format ?? ""),
-    date_from: String(r.date_from ?? ""),
-    date_to: String(r.date_to ?? ""),
+    date_from: toDateString(r.date_from),
+    date_to: toDateString(r.date_to),
     record_count: Number(r.record_count ?? 0),
     total_amount_gbp: Number(r.total_amount_gbp ?? 0),
     status: String(r.status ?? ""),
