@@ -141,11 +141,41 @@ export async function getPublicSchedule(token: string): Promise<{
     }
   }
 
-  const flights = await kdb.selectFrom("published_schedule_flights")
+  const pubFlights = await kdb.selectFrom("published_schedule_flights")
     .selectAll()
     .where("published_schedule_id", "=", pub.id)
     .orderBy("departure_time", "asc")
     .execute();
+
+  // Fetch live flight legs for each published flight to power the enhanced
+  // public view with per-leg ETD/ETA and real-time ATD/ATA tracking data.
+  // We read live data so ATD/ATA updates propagate immediately without
+  // requiring a re-publish of the schedule.
+  const flightIds = pubFlights.map((f) => f.flight_id).filter((id): id is number => id != null && id > 0);
+  const legsByFlightId: Map<number, Record<string, unknown>[]> = new Map();
+  if (flightIds.length > 0) {
+    const allLegs = await kdb.selectFrom("flight_legs")
+      .select(["id", "flight_id", "leg_number", "origin_code", "destination_code", "distance_nm", "heading", "etd", "eta", "atd", "ata", "status"])
+      .where("flight_id", "in", flightIds)
+      .orderBy("leg_number", "asc")
+      .execute();
+    for (const leg of allLegs) {
+      const fid = leg.flight_id;
+      if (!legsByFlightId.has(fid)) legsByFlightId.set(fid, []);
+      legsByFlightId.get(fid)!.push({
+        legNumber: leg.leg_number,
+        originCode: leg.origin_code,
+        destinationCode: leg.destination_code,
+        distanceNm: leg.distance_nm,
+        heading: leg.heading,
+        etd: leg.etd,
+        eta: leg.eta,
+        atd: leg.atd,
+        ata: leg.ata,
+        status: leg.status,
+      });
+    }
+  }
 
   return {
     schedule: {
@@ -155,7 +185,7 @@ export async function getPublicSchedule(token: string): Promise<{
       amendmentNote: pub.amendment_note,
       disclaimerText: pub.disclaimer_text,
     },
-    flights: flights.map((f) => ({
+    flights: pubFlights.map((f) => ({
       flightNumber: f.flight_number,
       originCode: f.origin_code,
       destinationCode: f.destination_code,
@@ -167,6 +197,7 @@ export async function getPublicSchedule(token: string): Promise<{
       aircraftRegistration: f.aircraft_registration,
       pilotName: f.pilot_name,
       stopCount: f.stop_count,
+      legs: legsByFlightId.get(f.flight_id!) ?? [],
     })),
   };
 }
