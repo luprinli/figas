@@ -139,6 +139,14 @@ manually during code review.
 - All date inputs in no-fly-compatible zones must call `isNoFlyDay()` before proceeding
 - Timezone handling must use `AT TIME ZONE 'Atlantic/Stanley'` not UTC offsets
 
+#### AG-5: Single Source of Truth for Route Matching (RULE 5)
+
+- **File:** `app/utils/scheduling/route-utils.ts`
+- `buildOrderedStopSequence()` and `filterManifestsByRoute()` are the ONLY functions that may build a stop sequence from flight metadata or filter passenger manifests by route order
+- Other files (build-stop-activities.ts, create-loadsheet.server.ts) must import and call these shared functions — they must NOT duplicate the algorithm
+- **Why:** Duplicated filtering logic caused the flight/loadsheet passenger-count drift (2026-07-20). A single source of truth prevents divergence.
+- **Enforcement:** Manual code review. Any PR touching route-matching logic must route through `route-utils.ts`.
+
 ---
 
 ## CI Verification Script
@@ -225,3 +233,4 @@ npm run test
 | AG-2: No self-loop bookings | RULE 9 | Review | No |
 | AG-3: Payment balancing tolerance | RULE 8 | Review | No |
 | AG-4: No-fly day enforcement | RULE 4 | Review | No |
+| AG-5: Single source of truth for route matching | RULE 5 | Review | No |

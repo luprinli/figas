@@ -1,4 +1,4 @@
-import { buildOrderedStopSequence, filterManifestsByRoute } from "./route-utils.server";
+import { buildOrderedStopSequence, filterManifestsByRoute } from "./route-utils";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

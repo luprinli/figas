@@ -168,9 +168,15 @@ Priority order (dnd-kit + mutation-triggering first):
 | 13 `tsc` errors in `fuel-order.service.ts` | `fuel_orders` table (migration `037_pilot_efb.sql`) was never added to `prisma/schema.prisma`, so generated Kysely types lacked it | Added `fuel_orders` model matching the migration DDL; regenerated types (63 → 64 tables) |
 | 1 `tsc` error in `weight-balance/calculator.client.ts:107` | `SeatAssignment` requires `bookingPassengerId`; mapper omitted it | Added `bookingPassengerId: p.id` (mirrors `seat-assignment.ts:65` fallback convention) |
 | 4 failures in `tests/integration/scheduling/unassign-booking.test.ts` | Tests predate migration `038-per-passenger-overhaul.sql`, which made `booking_legs.flight_id` a **derived column** (DB trigger recalculates it from junction `flight_leg_id`). Tests set `flight_id` directly but linked passengers with `flight_leg_id = NULL`, so the trigger nulled the assignment and the handler correctly reported "already unassigned" | Test setup updated to the per-passenger model: each test creates a `flight_leg` and links junction rows with `flight_leg_id`; assertions unchanged |
+| Flight/loadsheet passenger-count drift (FIG200701: 3 pax on flight card, 1 pax on loadsheet) | **Filter divergence:** `create-loadsheet.server.ts` built `routeStops` from flight legs only, while `build-stop-activities.ts` (flight display) included `flight.origin_code`/`flight.destination_code` in its `flightCodes` Set. Plus a falsy-coercion bug (`r.body_weight_kg \|\| 70` turned 0kg into 70kg). | Aligned `routeStops` to match `build-stop-activities.ts`; fixed `\|\| 70` → null-check; **extracted shared utilities** `buildOrderedStopSequence` + `filterManifestsByRoute` into `app/utils/scheduling/route-utils.ts` as the single source of truth for route matching. Added integration test at `tests/integration/scheduling/flight-loadsheet-consistency.test.ts`. |
+
+### Post-submission follow-up (2026-07-20)
+
+- **Route-filtering deduplication:** `build-stop-activities.ts` and `create-loadsheet.server.ts` now both call `route-utils.ts` (shared `buildOrderedStopSequence` + `filterManifestsByRoute`), eliminating ~15 lines of duplicated logic and preventing future filter divergence.
+- **AG-5 guardrail** added to code-integrity skill: route-matching logic must route through `route-utils.ts`.
 
 Verification after remediation: `npm run typecheck` — 0 errors; `npm run lint` — clean;
-`vitest run` — **685/685 tests pass (53 files)**; `npx tsx scripts/audit-patterns.ts` — 0 errors.
+`vitest run` — **686/686 tests pass (54 files)**; `npx tsx scripts/audit-patterns.ts` — 0 errors.
 
 ### Deviations from the strategy doc
 

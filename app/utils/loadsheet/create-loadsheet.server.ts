@@ -2,7 +2,7 @@ import { kdb } from "../db.server.kysely";
 import { loadsheetRepository } from "./loadsheet-repository.server";
 import { computeLoadsheetCalculations } from "./loadsheet-calculations.server";
 import { findManifestsByFlightId } from "../repositories/booking-leg-passenger";
-import { buildOrderedStopSequence, filterManifestsByRoute } from "../scheduling/route-utils.server";
+import { buildOrderedStopSequence, filterManifestsByRoute } from "../scheduling/route-utils";
 import { DEFAULT_BN2_MTOW_KG } from "../constants";
 
 const BN2_EMPTY_WT = 1627;

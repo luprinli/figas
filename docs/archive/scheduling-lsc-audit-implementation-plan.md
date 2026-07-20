@@ -4,6 +4,13 @@
 **Source:** Comprehensive audit of Clarke-Wright solver, flight validation, loadsheet calculations, seat assignment, and aircraft assignment.  
 **Total Issues:** 13 (6 high, 7 medium)
 
+**Resolution update (2026-07-20):** M2 and M3 are resolved. The shared route-filtering
+utility `app/utils/scheduling/route-utils.ts` (`buildOrderedStopSequence`,
+`filterManifestsByRoute`) now serves as the single source of truth for both
+`build-stop-activities.ts` (flight display) and `create-loadsheet.server.ts` (loadsheet).
+Route matching is order-based, not set-based, and passenger selection is deterministic.
+See `docs/audit-violations-01.md` — "Flight/loadsheet passenger-count drift" row.
+
 ---
 
 ## Issue Matrix

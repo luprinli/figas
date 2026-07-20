@@ -41,6 +41,9 @@ A passenger in Carcass Island (CCI) may book a flight to Stanley (STY). The book
 ## RULE 2: Stop Activity Logic
 
 Defined in `app/utils/scheduling/build-stop-activities.ts` and enforced by the stop activity builder.
+**Route-order filtering is delegated to the shared utilities in `app/utils/scheduling/route-utils.ts`**
+(`buildOrderedStopSequence`, `filterManifestsByRoute`) — the single source of truth for stop-sequence
+construction and manifest filtering across both flight display and loadsheet paths.
 
 | Stop Position | Arriving Passengers | Departing Passengers | Arrival Time | Departure Time |
 |--------------|-------------------|---------------------|-------------|---------------|
