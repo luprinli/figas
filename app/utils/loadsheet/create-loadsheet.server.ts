@@ -11,7 +11,7 @@ export async function createLoadsheetFromFlight(flightId: number): Promise<numbe
   if (existing && existing.status !== "archived") return existing.id;
 
   const flight = (await kdb.selectFrom("flights")
-    .select(["id", "schedule_id", "pilot_id", "aircraft_id", "flight_number", "departure_time"])
+    .select(["id", "schedule_id", "pilot_id", "aircraft_id", "flight_number", "departure_time", "origin_code", "destination_code"])
     .where("id", "=", flightId)
     .execute())[0] ?? null;
   if (!flight) return null;
@@ -27,13 +27,17 @@ export async function createLoadsheetFromFlight(flightId: number): Promise<numbe
   // guaranteeing flight-loadsheet passenger consistency.
   const manifestRows = await findManifestsByFlightId([flightId]);
 
-  // Build ordered stop list from flight legs, allowing duplicate codes for
-  // round-trip routes (e.g., STY → BLF → STY uses STY twice).
+  // Build ordered stop list — mirror build-stop-activities.ts §49-55:
+  // include flight-level origin/destination CODES in the set so the first-pass
+  // filter catches passengers whose codes appear at flight endpoints but not
+  // as leg endpoints (e.g., a NULL leg code where the flight row provides it).
   const stopSequence: string[] = [];
+  if (flight.origin_code) stopSequence.push(flight.origin_code);
   for (const l of legs) {
     if (l.origin_code) stopSequence.push(l.origin_code);
     if (l.destination_code) stopSequence.push(l.destination_code);
   }
+  if (flight.destination_code) stopSequence.push(flight.destination_code);
   const routeStops = stopSequence.filter((code, i) => i === 0 || code !== stopSequence[i - 1]);
 
   const routeMatchedRows = manifestRows.filter((r) => {
@@ -49,9 +53,9 @@ export async function createLoadsheetFromFlight(flightId: number): Promise<numbe
     bookingLegId: r.booking_leg_id,
     origin_code: r.origin_code,
     destination_code: r.destination_code,
-    clothedWeightKg: r.body_weight_kg || 70,
-    baggageWeightKg: r.baggage_weight_kg || 0,
-    freightWeightKg: r.freight_weight_kg || 0,
+    clothedWeightKg: r.body_weight_kg != null ? Number(r.body_weight_kg) : 70,
+    baggageWeightKg: r.baggage_weight_kg != null ? Number(r.baggage_weight_kg) : 0,
+    freightWeightKg: r.freight_weight_kg != null ? Number(r.freight_weight_kg) : 0,
   }));
 
   const aircraft = (await kdb.selectFrom("aircraft")
